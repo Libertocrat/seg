@@ -1,0 +1,16 @@
+# Normalize line endings and mark common text files
+* text=auto
+
+# Force LF for Python and shell scripts (helpful on Windows dev machines)
+*.py text eol=lf
+*.sh text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary files (don't try to normalize)
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary

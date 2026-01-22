@@ -1,0 +1,14 @@
+# 📝 Commit Message Template (Conventional Commits)
+# Format: <type>(<scope>): <short summary>
+# Types: feat | fix | docs | style | refactor | test | chore | ci | build
+
+<type>(<scope>): <short summary>
+
+# --- Commit body (optional, explain WHY + WHAT) ---
+# - Why is this change needed?
+# - What does it do?
+# - Any side effects?
+
+# --- Footer (optional, issues, breaking changes) ---
+# Closes #ISSUE_ID
+# BREAKING CHANGE: description here
