@@ -1,0 +1,40 @@
+# Ruff configuration for Secure Execution Gateway (SEG)
+
+# Target Python version
+target-version = "py312"
+
+# Maximum line length (aligned with Black)
+line-length = 88
+
+# Enable selected rule sets
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit (security)
+    "ASYNC",# async best practices
+    "I",    # import sorting
+]
+
+# Rules to ignore (initially)
+ignore = [
+    "S101", # assert used (allowed in early development / tests)
+]
+
+# Allow autofix for safe rules
+fix = true
+
+# Exclude common non-source directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+]
+
+# Per-file rule overrides
+[per-file-ignores]
+"tests/**" = ["S101"]

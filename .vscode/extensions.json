@@ -1,0 +1,23 @@
+{
+  "recommendations": [
+    // --- Markdown & Documentation ---
+    "davidanson.vscode-markdownlint",
+
+    // --- Python / FastAPI ---
+    "charliermarsh.ruff",
+    "ms-python.black-formatter",
+    "ms-python.mypy-type-checker",
+    "ms-python.python",
+
+    // --- Docker ---
+    "exiasr.hadolint",
+    "ms-azuretools.vscode-docker",
+
+    // --- JSON / YAML ---
+    "redhat.vscode-yaml",
+
+    // --- Editor hygiene / UX ---
+    "editorconfig.editorconfig",
+    "usernamehw.errorlens"
+  ]
+}
