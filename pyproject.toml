@@ -1,0 +1,24 @@
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+skip-string-normalization = false
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | build
+  | dist
+  | node_modules
+)/
+'''
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+filterwarnings = [
+    "error::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

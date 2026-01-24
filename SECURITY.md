@@ -2,7 +2,7 @@
 
 If you discover a security vulnerability or have security concerns, please report them directly to the project maintainer:
 
-- Contact: libertocrat@proton.me
+- Contact: Libertocrat - <libertocrat@proton.me>
 
 ## Supported Versions
 
@@ -26,8 +26,8 @@ Please do **NOT** publish details about the vulnerability publicly until a fix o
 
 ## Preferred Disclosure Channels
 
-1. **GitHub Security Advisories** (preferred if this repository is hosted on GitHub): allows private disclosure, coordinated disclosure, and optionally requesting CVE assignment.
-2. **Email to the project contact** (libertocrat@proton.me): acceptable for private reports when Security Advisories are not available.
+- **GitHub Security Advisories** (preferred if this repository is hosted on GitHub): allows private disclosure, coordinated disclosure, and optionally requesting CVE assignment.
+- **Email to the project contact** (Libertocrat - <libertocrat@proton.me>): acceptable for private reports when Security Advisories are not available.
 
 Please do **NOT** open a public GitHub issue for security-sensitive reports.
 

@@ -1,8 +1,5 @@
 ###--- USER ADDED ---###
 
-# AI agent docs and context
-ai-docs/
-
 # Audio/Media
 *.wav
 *.mp3
@@ -33,8 +30,9 @@ data/
 output/
 sessions/
 
-# Allow .env.template
+# Allow .env examples
 !.env.template
+!.env.example
 
 # --- Optional editor/OS files (recommended) ---
 # These are safe to ignore for most development workflows; keep commented
@@ -43,13 +41,19 @@ sessions/
 .DS_Store
 # Windows thumbnail cache
 Thumbs.db
+# VS Code workspace (ignore everything by default)
+.vscode/*
+# Allow recommended extensions to be versioned
+!.vscode/extensions.json
 # Editor folders (uncomment to ignore IDE project settings)
-.vscode/
 .idea/
 # Local env overrides
 .env.local
 .env.*.local
 
+# AI agent docs and context
+ai-docs/
+copilot/
 
 ###--- PYTHON PROJECTS IGNORED FILES ---###
 
