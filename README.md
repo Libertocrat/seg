@@ -14,11 +14,11 @@ While this improves safety, it also removes a common mechanism used for file has
 
 SEG addresses this gap by offering:
 
-* Explicitly defined operations instead of free-form commands
-* Strong filesystem sandboxing
-* Rootless container execution
-* Consistent API contracts aligned with backend services
-* Observability through structured logs and metrics
+- Explicitly defined operations instead of free-form commands
+- Strong filesystem sandboxing
+- Rootless container execution
+- Consistent API contracts aligned with backend services
+- Observability through structured logs and metrics
 
 SEG is designed for **self-hosted, Docker-based n8n deployments** where security, auditability, and operational clarity are required.
 
@@ -26,34 +26,34 @@ SEG is designed for **self-hosted, Docker-based n8n deployments** where security
 
 #### **CVE-2025-68613 - Remote Code Execution (Authenticated)**
 
-* **Severity:** Critical (CVSS ~9.9)
-* **Description:** A flaw in the workflow expression evaluation system allows an *authenticated attacker* to inject expressions that execute arbitrary code in the n8n process context
-* **Affected Versions:** ~0.211.0 -> prior to 1.120.4, 1.121.1, 1.122.0 (fixed in those releases)
-* **Impact:** Arbitrary code execution; complete instance compromise under certain authenticated scenarios
-* **More Info:**
+- **Severity:** Critical (CVSS ~9.9)
+- **Description:** A flaw in the workflow expression evaluation system allows an *authenticated attacker* to inject expressions that execute arbitrary code in the n8n process context
+- **Affected Versions:** ~0.211.0 -> prior to 1.120.4, 1.121.1, 1.122.0 (fixed in those releases)
+- **Impact:** Arbitrary code execution; complete instance compromise under certain authenticated scenarios
+- **More Info:**
 
-  * 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613)
+  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613)
 
 #### **CVE-2026-21858 - "Ni8mare", Unauthenticated RCE**
 
-* **Severity:** Critical / Maximum Severity (CVSS 10.0)
-* **Nickname:** *Ni8mare*
-* **Description:** Improper handling of webhook/form requests and content-type parsing enables *unauthenticated attackers* to access files, forge sessions, and **execute code remotely** on vulnerable self-hosted n8n instances
-* **Affected Versions:** ~1.65.0 -> prior to 1.121.0 (fixed in 1.121.0)
-* **Impact:** Full instance takeover without authentication if exposed workflows/webhook entry points exist
-* **More Info:**
+- **Severity:** Critical / Maximum Severity (CVSS 10.0)
+- **Nickname:** *Ni8mare*
+- **Description:** Improper handling of webhook/form requests and content-type parsing enables *unauthenticated attackers* to access files, forge sessions, and **execute code remotely** on vulnerable self-hosted n8n instances
+- **Affected Versions:** ~1.65.0 -> prior to 1.121.0 (fixed in 1.121.0)
+- **Impact:** Full instance takeover without authentication if exposed workflows/webhook entry points exist
+- **More Info:**
 
-  * 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858)
+  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858)
 
 #### **CVE-2026-21877 - Authenticated Remote Code Execution**
 
-* **Severity:** Critical (CVSS ~9.9)
-* **Description:** An issue where authenticated users can upload dangerous file types or abuse processing logic to execute arbitrary code via n8n.
-* **Affected Versions:** ~<= 1.121.2 (fixed in 1.121.3)
-* **Impact:** Authenticated RCE-enables full compromise of the n8n instance.
-* **More Info:**
+- **Severity:** Critical (CVSS ~9.9)
+- **Description:** An issue where authenticated users can upload dangerous file types or abuse processing logic to execute arbitrary code via n8n.
+- **Affected Versions:** ~<= 1.121.2 (fixed in 1.121.3)
+- **Impact:** Authenticated RCE-enables full compromise of the n8n instance.
+- **More Info:**
 
-  * 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877) *(via Wiz/NVD summary)*
+  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877) *(via Wiz/NVD summary)*
 
 > SEG is not a patch for these vulnerabilities, but an architectural response to remove entire classes of unsafe execution patterns from automation workflows.
 
@@ -73,32 +73,32 @@ For sensitive reports, encrypted communication is supported via the maintainer�
 
 ## Design Principles
 
-* **No arbitrary command execution**
+- **No arbitrary command execution**
   SEG never accepts shell commands or command strings.
 
-* **Allowlisted actions only**
+- **Allowlisted actions only**
   Each operation is explicitly defined and validated.
 
-* **Defense in depth**
+- **Defense in depth**
   Filesystem sandboxing, authentication, rate limiting, and resource limits are enforced at multiple layers.
 
-* **Consistency by contract**
+- **Consistency by contract**
   API responses follow the same typed envelope used across shared microservices for consistency.
 
-* **Operational simplicity**
+- **Operational simplicity**
   Sync API, minimal dependencies, Docker-first deployment.
 
 ---
 
 ## High-Level Architecture
 
-* n8n runs in its own Docker container
-* SEG runs in a separate, rootless Docker container
-* Both containers:
+- n8n runs in its own Docker container
+- SEG runs in a separate, rootless Docker container
+- Both containers:
 
-  * Share a mounted volume (`SEG_FS_ROOT`)
-  * Communicate over an internal Docker network
-* n8n interacts with SEG using the **HTTP Request** node
+  - Share a mounted volume (`SEG_FS_ROOT`)
+  - Communicate over an internal Docker network
+- n8n interacts with SEG using the **HTTP Request** node
 
 SEG is never exposed publicly and should only be reachable from trusted internal services.
 
@@ -106,21 +106,21 @@ SEG is never exposed publicly and should only be reachable from trusted internal
 
 ## Features (v1)
 
-* SHA-256 file hashing (`sha256_file`)
-* File metadata inspection (`stat_file`)
-* Safe file deletion (`delete_file`)
-* File move / rename within sandbox (`move_file`)
-* MIME type detection using libmagic (`mime_detect`)
-* Composite verification (`verify_file`)
+- SHA-256 file hashing (`sha256_file`)
+- File metadata inspection (`stat_file`)
+- Safe file deletion (`delete_file`)
+- File move / rename within sandbox (`move_file`)
+- MIME type detection using libmagic (`mime_detect`)
+- Composite verification (`verify_file`)
 
-  * Hash computation
-  * MIME policy validation
-* Strict filesystem sandbox
-* Bearer token authentication
-* Rate limiting and timeouts
-* Structured JSON logs
-* Prometheus-compatible metrics
-* Automatic OpenAPI / Swagger documentation
+  - Hash computation
+  - MIME policy validation
+- Strict filesystem sandbox
+- Bearer token authentication
+- Rate limiting and timeouts
+- Structured JSON logs
+- Prometheus-compatible metrics
+- Automatic OpenAPI / Swagger documentation
 
 ---
 
@@ -132,7 +132,7 @@ The security model of SEG is intentionally simple, explicit, and restrictive to 
 
 All API endpoints require a bearer token:
 
-```
+```http
 Authorization: Bearer <SEG_API_TOKEN>
 ```
 
@@ -144,21 +144,22 @@ The token is provided via environment variables and injected at runtime. In futu
 
 SEG enforces strict path rules:
 
-* Only **relative paths** are accepted
-* All paths are resolved under `SEG_FS_ROOT`
-* Operations are restricted to allowlisted subdirectories defined by `SEG_ALLOWED_SUBDIRS`
-* Path traversal (`..`) is rejected
-* Symbolic links are always rejected
-* Windows-style paths and null bytes are rejected
+- Only **relative paths** are accepted
+- All paths are resolved under `SEG_FS_ROOT`
+- Operations are restricted to allowlisted subdirectories defined by `SEG_ALLOWED_SUBDIRS`
+- Path traversal (`..`) is rejected
+- Symbolic links are always rejected
+- Windows-style paths and null bytes are rejected
 
 ---
 
 ### Resource Limits
 
 Settings are configurable via `.env` file, these are the default values:
-* Maximum file size: **100 MB**
-* Request timeout: **5000 ms**
-* Configurable rate limiting per client (default: 10 RPS)
+
+- Maximum file size: **100 MB**
+- Request timeout: **5000 ms**
+- Configurable rate limiting per client (default: 10 RPS)
 
 ---
 
@@ -245,12 +246,12 @@ Example response:
 
 ## Supported Actions (v1)
 
-* `sha256_file`
-* `stat_file`
-* `delete_file`
-* `move_file` (used for rename as well)
-* `mime_detect`
-* `verify_file`
+- `sha256_file`
+- `stat_file`
+- `delete_file`
+- `move_file` (used for rename as well)
+- `mime_detect`
+- `verify_file`
 
 Each action has a strict request schema validated using Pydantic models.
 
@@ -260,13 +261,13 @@ Each action has a strict request schema validated using Pydantic models.
 
 SEG is configured entirely via environment variables:
 
-* `SEG_API_TOKEN` (required)
-* `SEG_FS_ROOT` (required)
-* `SEG_ALLOWED_SUBDIRS` (CSV, required)
-* `SEG_MAX_BYTES` (default: 104857600)
-* `SEG_TIMEOUT_MS` (default: 5000)
-* `SEG_RATE_LIMIT_RPS`
-* `SEG_LOG_LEVEL` (default: INFO)
+- `SEG_API_TOKEN` (required)
+- `SEG_FS_ROOT` (required)
+- `SEG_ALLOWED_SUBDIRS` (CSV, required)
+- `SEG_MAX_BYTES` (default: 104857600)
+- `SEG_TIMEOUT_MS` (default: 5000)
+- `SEG_RATE_LIMIT_RPS`
+- `SEG_LOG_LEVEL` (default: INFO)
 
 An `.env.example` file is recommended and is included in the repository to document required/runtime defaults.
 
@@ -283,19 +284,19 @@ No public ports should be exposed in production environments.
 
 ## Observability
 
-* **Logs**: Structured JSON logs to stdout
-* **Metrics**: Prometheus-compatible metrics at `/metrics`
-* **Tracing**: Request-level correlation via `request_id`
+- **Logs**: Structured JSON logs to stdout
+- **Metrics**: Prometheus-compatible metrics at `/metrics`
+- **Tracing**: Request-level correlation via `request_id`
 
 ---
 
 ## Non-Goals (v1)
 
-* Arbitrary shell execution
-* Asynchronous job orchestration
-* Antivirus or malware scanning
-* Media conversion
-* Multi-tenant authorization
+- Arbitrary shell execution
+- Asynchronous job orchestration
+- Antivirus or malware scanning
+- Media conversion
+- Multi-tenant authorization
 
 These capabilities are intentionally excluded to keep the service focused, secure, and easy to reason about.
 
@@ -303,11 +304,11 @@ These capabilities are intentionally excluded to keep the service focused, secur
 
 ## Future Extensions
 
-* Async job API for long-running tasks
-* Integration with external sandbox scanners (e.g. Strelka)
-* Media processing pipelines
-* Multi-tenant support
-* JWT authentication
+- Async job API for long-running tasks
+- Integration with external sandbox scanners (e.g. Strelka)
+- Media processing pipelines
+- Multi-tenant support
+- JWT authentication
 
 ---
 
