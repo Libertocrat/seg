@@ -1,3 +1,7 @@
+######################################
+# Black (formatter)
+######################################
+
 [tool.black]
 line-length = 88
 target-version = ["py312"]
@@ -13,6 +17,46 @@ exclude = '''
   | node_modules
 )/
 '''
+
+
+######################################
+# Ruff (linter + import sorting + security)
+######################################
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "node_modules",
+    "dist",
+    "build",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "B",     # flake8-bugbear
+    "S",     # flake8-bandit (security)
+    "ASYNC", # async best practices
+    "I",     # import sorting (isort replacement)
+]
+
+ignore = [
+    "S101",  # assert allowed (tests / early dev)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+
+######################################
+# Pytest
+######################################
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
