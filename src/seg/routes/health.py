@@ -9,5 +9,9 @@ async def health() -> JSONResponse:
     """Health check endpoint.
 
     Returns a minimal readiness payload as defined in the SRS.
+
+    Returns:
+        A JSONResponse containing the readiness status, e.g. `{"status": "ok"}`.
     """
+
     return JSONResponse({"status": "ok"})
