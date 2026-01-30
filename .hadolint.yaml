@@ -8,10 +8,6 @@ ignored:
   - DL3008  # Package versions not pinned (Debian-based python image provides stability)
   - DL3015  # Allow recommended packages when explicitly chosen
 
-# Trusted registries (optional, future-proof)
-trustedRegistries:
-  - docker.io
-
 # Disable color output (better for CI logs)
 no-color: false
 # Enable verbose output for debugging

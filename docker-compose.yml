@@ -1,0 +1,29 @@
+services:
+  seg:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NON_ROOT_USER: ${NON_ROOT_USER}
+        NON_ROOT_GROUP: ${NON_ROOT_GROUP}
+        NON_ROOT_UID: ${NON_ROOT_UID}
+        NON_ROOT_GID: ${NON_ROOT_GID}
+    container_name: ${COMPOSE_PROJECT_NAME}-seg
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - type: volume
+        source: shared_volume
+        target: ${SEG_FS_ROOT}
+    networks:
+      - default_network
+
+networks:
+  default_network:
+    external: true
+    name: ${SHARED_DOCKER_NETWORK}
+
+volumes:
+  shared_volume:
+    name: ${SHARED_VOLUME_NAME}
+    external: true
