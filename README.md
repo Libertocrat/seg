@@ -6,6 +6,62 @@ SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for c
 
 ---
 
+## Quickstart
+
+Prerequisites:
+
+- Docker (engine) and Docker Compose v2 (or the `docker compose` command) installed
+- A user with Docker privileges (or use `sudo` when invoking Docker commands)
+
+Steps to run locally:
+
+1. Copy the environment example and edit values:
+
+```bash
+cp .env.example .env
+# Edit .env: set SEG_API_TOKEN, NON_ROOT_GID, COMPOSE_PROJECT_NAME, etc.
+```
+
+2. Make the shared volume initializer script executable and verify it:
+
+```bash
+chmod +x scripts/init-shared-volume.sh
+./scripts/init-shared-volume.sh --env-file .env --dry-run
+# Review the printed actions (no changes made).
+```
+
+3. Prepare the named Docker shared volume (apply changes):
+
+```bash
+./scripts/init-shared-volume.sh --env-file .env
+# This creates the volume (if missing) and sets group/setgid permissions.
+```
+
+4. Start the stack:
+
+```bash
+docker compose up -d --build
+# Check services: docker compose ps
+```
+
+5. Verify the service is healthy:
+
+```bash
+# Real-time logs
+docker compose logs -f
+
+# Health endpoint from shared network temporal container
+docker run --rm --network $SHARED_DOCKER_NETWORK curlimages/curl -sS -f http://$COMPOSE_PROJECT_NAME-seg:$SEG_PORT/health && echo OK
+```
+
+Notes:
+
+- The initializer requires `SHARED_VOLUME_NAME`, `NON_ROOT_GID`, and `SEG_ALLOWED_SUBDIRS` to be set in `.env` (see [scripts/specs/init-shared-volume.spec.md](scripts/specs/init-shared-volume.spec.md)).
+- Run the init script as a user with Docker access; it performs operations inside a temporary container and does not mutate host paths directly.
+- If you want to inspect what will change without applying it, use `--dry-run`.
+
+---
+
 ## Motivation
 
 Recent versions of n8n (v2.0 or later) disable high-risk execution nodes by default due to security concerns around remote code execution (RCE) found in late 2025 and January 2026, which are listed below.
@@ -150,6 +206,69 @@ SEG enforces strict path rules:
 - Path traversal (`..`) is rejected
 - Symbolic links are always rejected
 - Windows-style paths and null bytes are rejected
+
+---
+
+### Shared Volume Permission Model (setgid-based)
+
+SEG is designed to safely share a filesystem volume with other internal services (such as n8n) **without requiring those services to be modified or hardened**.
+
+This is achieved using a **POSIX group-based permission model** combined with the `setgid` directory bit.
+
+#### Design Overview
+
+- SEG runs as a **non-root user** (`UID=1001`, `GID=1001`)
+- Other services (e.g. n8n) may run as `root` (default behavior)
+- A shared filesystem volume is mounted into both containers
+- The shared directory on the host is configured with:
+  - Group ownership set to `GID=1001`
+  - `setgid` enabled on the directory
+
+#### Why setgid is critical
+
+When the `setgid` bit is set on a directory:
+
+- All files and subdirectories created inside it **inherit the directory’s group ID**
+- The inherited group is used **regardless of the UID of the creating process**
+
+This ensures that:
+
+- Files created by `root`-based services (e.g. n8n) are automatically assigned to the shared group
+- SEG (running as a non-root user) can safely read and write those files via group permissions
+- No UID sharing, ACLs, or insecure permission workarounds are required
+
+#### Required host-side setup
+
+The shared volume **must be prepared on the host before starting the containers**.
+
+Example:
+
+```bash
+mkdir -p /data/seg-shared
+chown -R root:1001 /data/seg-shared
+chmod -R 2775 /data/seg-shared
+```
+
+The leading `2` in `2775` enables `setgid`.
+
+Expected permissions:
+
+```text
+drwxrwsr-x  root  seg  /data/seg-shared
+```
+
+#### Security properties
+
+- SEG remains **rootless** at all times
+- No container modifies users, groups, or permissions of other containers
+- No reliance on `chmod 777`, ACLs, or privileged containers
+- Volume access is governed strictly by:
+
+  - POSIX group permissions
+  - `setgid` inheritance
+- This model scales cleanly to additional internal services that need filesystem access
+
+This permission model is intentionally simple, auditable, and aligned with production-grade Docker and Kubernetes best practices.
 
 ---
 

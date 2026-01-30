@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import List
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -30,7 +30,8 @@ class Settings(BaseSettings):
     # property `allowed_subdirs` (below) which returns the parsed list.
     # pydantic-settings maps field names to ENV by default
     # (seg_allowed_subdirs -> SEG_ALLOWED_SUBDIRS)
-    seg_allowed_subdirs: str | None = Field(default=None)
+    # `SEG_ALLOWED_SUBDIRS` is required and must be non-empty (CSV or "*")
+    seg_allowed_subdirs: str = Field(...)
     seg_max_bytes: int = Field(104857600)
     seg_timeout_ms: int = Field(5000)
     seg_rate_limit_rps: int = Field(10)
@@ -56,9 +57,26 @@ class Settings(BaseSettings):
         """
 
         raw = self.seg_allowed_subdirs
-        if not raw:
-            return []
+        # At this point validation guarantees `raw` is a non-empty string.
+        if raw.strip() == "*":
+            return ["*"]
         return [p.strip() for p in raw.split(",") if p.strip()]
+
+    @field_validator("seg_allowed_subdirs", mode="before")
+    def _validate_seg_allowed_subdirs(cls, v):
+        # Ensure the env value exists and is not empty/whitespace.
+        if v is None:
+            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
+        s = str(v).strip()
+        if s == "":
+            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
+        # Only allow '*' or CSV of simple names (no slashes)
+        if s != "*":
+            for part in s.split(","):
+                name = part.strip()
+                if name == "" or "/" in name or name in (".", ".."):
+                    raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{part}'")
+        return s
 
 
 # Module-level singleton for convenience and discoverability. Importers
