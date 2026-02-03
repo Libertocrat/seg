@@ -8,7 +8,6 @@ services:
         NON_ROOT_GROUP: ${NON_ROOT_GROUP}
         NON_ROOT_UID: ${NON_ROOT_UID}
         NON_ROOT_GID: ${NON_ROOT_GID}
-    container_name: ${COMPOSE_PROJECT_NAME}-seg
     restart: unless-stopped
     env_file: .env
     volumes:

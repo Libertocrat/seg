@@ -9,6 +9,8 @@ from starlette.responses import JSONResponse, Response
 from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.types import ASGIApp
 
+from ..core.schemas.envelope import ResponseEnvelope
+
 
 class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp, api_token: str) -> None:
@@ -43,8 +45,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
             A Starlette Response from downstream or a 401 JSONResponse when
             authentication fails.
         """
-        # Exempt health check from auth
-        if request.url.path == "/health":
+        # Exempt health and metrics endpoints from auth. Use prefix matching
+        # so paths like `/metrics/` or `/health/ready` remain exempt.
+        exempt_prefixes = ("/health", "/metrics")
+        if any(
+            request.url.path == p or request.url.path.startswith(p + "/")
+            for p in exempt_prefixes
+        ):
             return await call_next(request)
         # request_id middleware runs before this, so state.request_id should be present
         rid = getattr(request.state, "request_id", None)
@@ -81,8 +88,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         headers = {"WWW-Authenticate": "Bearer"}
         if request_id:
             headers["X-Request-Id"] = request_id
+        payload = ResponseEnvelope.failure(
+            message=detail, code="UNAUTHORIZED"
+        ).model_dump()
         return JSONResponse(
-            status_code=HTTP_401_UNAUTHORIZED,
-            content={"detail": detail},
-            headers=headers,
+            status_code=HTTP_401_UNAUTHORIZED, content=payload, headers=headers
         )

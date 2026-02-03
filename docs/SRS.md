@@ -158,28 +158,32 @@ Notes:
 
 ### 5.1 Response Contract (Global)
 
-All API responses MUST follow this envelope.
+All API responses MUST follow this envelope. Request correlation is
+performed via the `X-Request-Id` response header (UUID). The JSON body
+envelope does not include `request_id` to avoid duplication; clients must
+read the header for the UUID used for logs/metrics correlation.
 
 ```python
 class Response():
-    success: bool
-    data: Optional[DataItem] = None
-    error: Optional[ErrorInfo] = None
-    request_id: Optional[str] = None
+  success: bool
+  data: Optional[DataItem] = None
+  error: Optional[ErrorInfo] = None
 ```
 
 ```python
 class ErrorInfo():
-    message: str
-    code: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
+  message: str
+  code: Optional[str] = None
+  details: Optional[Dict[str, Any]] = None
 ```
 
 #### Rules
 
 - `success == true` -> `data` MUST be present, `error` MUST be null
 - `success == false` -> `error` MUST be present, `data` MUST be null
-- `request_id` MUST always be present at runtime
+- `X-Request-Id` MUST always be present in response headers at runtime (and present in logs and metrics). The server will accept a client-supplied `X-Request-Id` header if it is a valid UUID; otherwise the server generates a new UUID and returns it in the response header.
+
+Note: `/metrics` is an explicit exception to the JSON envelope requirement. It returns the Prometheus exposition format and is intentionally not wrapped in the JSON response envelope so that Prometheus scrapers can ingest it.
 
 This contract is **shared with the other microservices** to ensure consistency.
 
@@ -187,10 +191,10 @@ This contract is **shared with the other microservices** to ensure consistency.
 
 ### 5.2 Request Identification
 
-- A UUID `request_id` is generated for every request
+- A UUID `request_id` (UUID) is generated for every request if the client does not provide a valid `X-Request-Id` header. The value is always returned to the client in the `X-Request-Id` response header and is present in logs and metrics for correlation.
 - Included in:
 
-  - Response body
+  - Header
   - Logs
   - Metrics labels (where applicable)
 
