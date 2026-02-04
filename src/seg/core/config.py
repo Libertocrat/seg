@@ -41,6 +41,10 @@ class Settings(BaseSettings):
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
+        # Ignore unrelated environment variables (e.g. Docker compose metadata)
+        # to avoid Pydantic `extra_forbidden` errors when a full .env contains
+        # variables that are not part of this Settings model.
+        "extra": "ignore",
     }
 
     @property

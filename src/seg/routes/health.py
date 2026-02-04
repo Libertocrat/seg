@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from ..core.schemas.envelope import ResponseEnvelope
+
 router = APIRouter(prefix="", tags=["health"])
 
 
@@ -14,4 +16,5 @@ async def health() -> JSONResponse:
         A JSONResponse containing the readiness status, e.g. `{"status": "ok"}`.
     """
 
-    return JSONResponse({"status": "ok"})
+    payload = ResponseEnvelope.success_response({"status": "ok"}).model_dump()
+    return JSONResponse(payload)

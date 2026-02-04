@@ -284,14 +284,13 @@ Settings are configurable via `.env` file, these are the default values:
 
 ## API Response Contract
 
-All endpoints return responses wrapped in a consistent envelope:
+All endpoints return responses wrapped in a consistent envelope in the JSON body:
 
 ```json
 {
   "success": true,
   "data": { },
-  "error": null,
-  "request_id": "uuid"
+  "error": null
 }
 ```
 
@@ -305,12 +304,13 @@ On error:
     "message": "Resolved path is outside allowed sandbox",
     "code": "PATH_NOT_ALLOWED",
     "details": { }
-  },
-  "request_id": "uuid"
+  }
 }
 ```
 
-This contract is shared with other backends developed by [Libertocrat](https://github.com/Libertocrat/) to ensure uniform client behavior across services.
+Responses also include a correlation header `X-Request-Id` (UUID). The header is propagated if the client supplies a valid UUID in the incoming `X-Request-Id` header; otherwise the server generates a new UUID. Clients should read `X-Request-Id` from headers for request correlation. Example JSON envelopes (note `request_id` is carried in the header, not the body)
+
+This contract is shared with other backends developed by [Libertocrat](https://github.com/Libertocrat/) to ensure uniform client behavior across services. Always read the `X-Request-Id` response header for the UUID associated with the request.
 
 ---
 
@@ -405,6 +405,7 @@ No public ports should be exposed in production environments.
 
 - **Logs**: Structured JSON logs to stdout
 - **Metrics**: Prometheus-compatible metrics at `/metrics`
+  - Note: `/metrics` is an exception to the JSON envelope contract. It exposes Prometheus exposition format and is intentionally not wrapped in the service's JSON response envelope so Prometheus scrapers can ingest it directly.
 - **Tracing**: Request-level correlation via `request_id`
 
 ---

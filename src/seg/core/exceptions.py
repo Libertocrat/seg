@@ -17,6 +17,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
+from .schemas.envelope import ResponseEnvelope
+
 logger = logging.getLogger("seg.exceptions")
 
 
@@ -35,9 +37,19 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
 
     rid = getattr(request.state, "request_id", None)
     headers = {"X-Request-Id": rid} if rid else {}
-    return JSONResponse(
-        status_code=exc.status_code, content={"detail": exc.detail}, headers=headers
-    )
+
+    # Map some common HTTP status codes to stable error codes used by the API
+    status_code_map: dict[int, str] = {
+        401: "UNAUTHORIZED",
+        403: "PATH_NOT_ALLOWED",
+        404: "FILE_NOT_FOUND",
+        413: "FILE_TOO_LARGE",
+        429: "RATE_LIMITED",
+    }
+
+    code = status_code_map.get(exc.status_code, "HTTP_ERROR")
+    payload = ResponseEnvelope.failure(message=str(exc.detail), code=code).model_dump()
+    return JSONResponse(status_code=exc.status_code, content=payload, headers=headers)
 
 
 # `add_exception_handler` has a broader expected type (it accepts handlers for
@@ -71,6 +83,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     rid = getattr(request.state, "request_id", None)
     headers = {"X-Request-Id": rid} if rid else {}
     logger.exception("Unhandled exception (request_id=%s): %s", rid, exc)
-    return JSONResponse(
-        status_code=500, content={"detail": "Internal Server Error"}, headers=headers
-    )
+    payload = ResponseEnvelope.failure(
+        message="Internal Server Error", code="INTERNAL_ERROR"
+    ).model_dump()
+    return JSONResponse(status_code=500, content=payload, headers=headers)

@@ -20,6 +20,7 @@ from .core import (
 )
 from .middleware.auth import AuthMiddleware
 from .middleware.request_id import RequestIDMiddleware
+from .routes.commands import router as commands_router
 from .routes.health import router as health_router
 from .routes.metrics import router as metrics_router
 
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(metrics_router)
+    app.include_router(commands_router)
 
     return app
 
