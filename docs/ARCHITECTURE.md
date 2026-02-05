@@ -54,7 +54,7 @@ CLIENT (n8n, CLI, SDK)
         │
 ┌──────────────────────────────────────────────┐
 │              FASTAPI ROUTE                   │
-│  routes/commands.py                          │
+│  routes/execute.py                           │
 │                                              │
 │  - Receives HTTP                             │
 │  - Validates ExecuteRequest                  │
@@ -133,6 +133,24 @@ Boundary schemas live in:
 core/schemas/
 ```
 
+#### Note on action schemas (pattern)
+
+- Action-specific schemas (both `params` and `result`) are colocated with the action implementation under `src/seg/actions/<action>/` (or in a per-action `schemas` module). This keeps the contract next to the code that implements it and makes evolving an action independent from core schema churn.
+
+  Example layout:
+
+  ```text
+  src/seg/actions/file/
+    checksum.py         # handler implementation
+    schemas.py          # ChecksumParams / ChecksumResult Pydantic models
+  ```
+
+- The `ActionSpec` registered in the `registry` references the `params_model` (Pydantic) and the `result_model` (Pydantic). The dispatcher performs validation by calling `params_model.model_validate()` so handlers receive well-typed models instead of raw dicts.
+
+#### Note on runtime action discovery
+
+For the `seg.actions.discover_and_register` function to automatically discover and import action modules at runtime, each action subdirectory must be a Python package (contain an `__init__.py`) and action modules must be importable by module name (for example `seg.actions.file.checksum`). We also recommend explicitly exporting submodules or handlers from the package `__init__.py` (for example `from . import checksum`) to ensure that importing the package triggers the registration side-effect (`register_action`). If a package or module is not importable, the action will not be registered and will not be available to `/v1/execute`.
+
 ---
 
 ### 4.3 Action
@@ -141,7 +159,7 @@ An **action** is a single, explicitly allowed operation that SEG can perform.
 
 Examples (v1):
 
-- `sha256_file`
+- `checksum_file`
 - `mime_type`
 - `file_stats`
 - `delete_file`
@@ -188,6 +206,11 @@ Responsibilities:
 
 The dispatcher is **framework-agnostic** and contains no HTTP logic.
 
+Implementation notes:
+
+- The dispatcher accepts an `ExecuteRequest`, looks up the action in the registry, validates `params` using the action's `params_model`, and calls the handler with the validated model. It returns the handler's result (a Pydantic model or plain dict) to the route layer which is responsible for converting it into the `ResponseEnvelope`.
+- Handlers are allowed to raise small domain exceptions; the route layer or a small adapter maps those to stable `ErrorInfo.code` values and HTTP status codes.
+
 ---
 
 ### 4.6 Registry
@@ -205,6 +228,21 @@ Its purpose is to:
 - Make supported capabilities auditable
 
 Actions must be registered explicitly to be executable.
+
+ActionSpec (registry shape)
+
+- Each registered action exposes an `ActionSpec` containing:
+  - `name`: action name (string)
+  - `params_model`: Pydantic model class used to validate `params`
+  - `result_model`: Pydantic model class describing the action result (optional)
+  - `handler`: an async callable that accepts the validated params model
+
+This explicit shape allows the dispatcher to remain tiny and lets the
+registry serve as the single source of truth for supported actions.
+
+Action metadata endpoint
+
+- To expose action contracts to clients and to aid documentation, the service provides a machine-readable endpoint `GET /v1/actions` that returns the list of registered actions and, for each action, the JSON chema produced by the action's `params_model` (and examples when available). This preserves a single runtime endpoint (`/v1/execute`) while enabling discoverability and automated documentation.
 
 ---
 
@@ -251,7 +289,7 @@ src/seg/
   routes/
     health.py
     metrics.py
-    commands.py
+    execute.py
 
   core/
     config.py
@@ -271,13 +309,14 @@ src/seg/
     errors.py
     types.py
     file/
-      sha256.py
+      checksum.py
       mime.py
       stat.py
       delete.py
       move.py
       io.py
       policy.py
+      schemas.py
 ```
 
 ---

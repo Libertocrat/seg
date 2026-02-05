@@ -10,6 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .actions import discover_and_register
 from .core import (
     Settings,
     generic_exception_handler,
@@ -20,7 +21,7 @@ from .core import (
 )
 from .middleware.auth import AuthMiddleware
 from .middleware.request_id import RequestIDMiddleware
-from .routes.commands import router as commands_router
+from .routes.execute import router as execute_router
 from .routes.health import router as health_router
 from .routes.metrics import router as metrics_router
 
@@ -54,6 +55,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Attach settings to app state (single source of truth)
     app.state.settings = settings
 
+    # Discover and import action modules so they register themselves with
+    # the central action registry. This scans `seg.actions` and imports
+    # submodules which are expected to call `register_action(...)` at
+    # module import time. We catch and log errors to avoid failing app
+    # startup due to a single broken action module.
+    try:
+        discover_and_register()
+    except Exception:
+        import logging
+
+        logging.getLogger("seg.actions").exception(
+            "Action discovery failed during startup"
+        )
+
     # Middlewares (order matters).
     # Note: Starlette executes the last-added middleware first, so we add Auth
     # then RequestID to ensure RequestID runs before Auth at request time.
@@ -67,7 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(metrics_router)
-    app.include_router(commands_router)
+    app.include_router(execute_router)
 
     return app
 

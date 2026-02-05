@@ -162,7 +162,7 @@ SEG is never exposed publicly and should only be reachable from trusted internal
 
 ## Features (v1)
 
-- SHA-256 file hashing (`sha256_file`)
+- File hashing (`checksum_file`)
 - File metadata inspection (`stat_file`)
 - Safe file deletion (`delete_file`)
 - File move / rename within sandbox (`move_file`)
@@ -340,9 +340,10 @@ Example request:
 
 ```json
 {
-  "action": "sha256_file",
+  "action": "checksum_file",
   "params": {
-    "path": "uploads/file.bin"
+    "path": "uploads/file.bin",
+    "algorithm": "sha256"
   }
 }
 ```
@@ -353,11 +354,11 @@ Example response:
 {
   "success": true,
   "data": {
-    "sha256": "abc123...",
+    "algorithm": "sha256",
+    "checksum": "abc123...",
     "size_bytes": 20480
   },
-  "error": null,
-  "request_id": "7c9b0c44-..."
+  "error": null
 }
 ```
 
@@ -365,7 +366,7 @@ Example response:
 
 ## Supported Actions (v1)
 
-- `sha256_file`
+- `checksum_file`
 - `stat_file`
 - `delete_file`
 - `move_file` (used for rename as well)
@@ -431,6 +432,35 @@ These capabilities are intentionally excluded to keep the service focused, secur
 - JWT authentication
 
 ---
+
+## Troubleshooting
+
+### Actions not registered at startup
+
+If you add new actions under `src/seg/actions/` and they do not appear in the service registry at startup, ensure the action subdirectory is a Python package by adding an `__init__.py` file. Also export or import the action modules from that package's `__init__.py` (for example `from . import checksum`) so that importing the package triggers the registration side-effects.
+
+Quick checks and fixes:
+
+- Start the service with the project source on `PYTHONPATH` (example):
+
+  ```bash
+  PYTHONPATH=./src uvicorn seg.app:app
+  ```
+
+- Or install the package in editable mode and run normally:
+
+  ```bash
+  pip install -e .
+  uvicorn seg.app:app
+  ```
+
+- Verify registered actions quickly:
+
+  ```bash
+  PYTHONPATH=./src python -c "from seg.actions.registry import list_actions; print(list_actions())"
+  ```
+
+- Note: the runtime discovery imports `seg.actions` subpackages to execute registration side-effects. If a new action module is not imported (for example because the package `__init__.py` does not import it), that action will not be registered.
 
 ## License
 
