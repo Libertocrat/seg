@@ -38,17 +38,21 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
     rid = getattr(request.state, "request_id", None)
     headers = {"X-Request-Id": rid} if rid else {}
 
-    # Map some common HTTP status codes to stable error codes used by the API
-    status_code_map: dict[int, str] = {
-        401: "UNAUTHORIZED",
-        403: "PATH_NOT_ALLOWED",
-        404: "FILE_NOT_FOUND",
-        413: "FILE_TOO_LARGE",
-        429: "RATE_LIMITED",
+    # Map some common HTTP status codes to (machine_code, public_message).
+    # Keep messages short and non-sensitive; `exc.detail` is logged but not
+    # returned to the client to avoid leaking internal information.
+    status_code_map: dict[int, tuple[str, str]] = {
+        401: ("UNAUTHORIZED", "Unauthorized"),
+        403: ("PATH_NOT_ALLOWED", "Path not allowed"),
+        404: ("FILE_NOT_FOUND", "File not found"),
+        413: ("FILE_TOO_LARGE", "File too large"),
+        429: ("RATE_LIMITED", "Rate limited"),
     }
 
-    code = status_code_map.get(exc.status_code, "HTTP_ERROR")
-    payload = ResponseEnvelope.failure(message=str(exc.detail), code=code).model_dump()
+    code, message = status_code_map.get(exc.status_code, ("HTTP_ERROR", "HTTP error"))
+    # Log the original exception detail for operators at debug level.
+    logger.debug("HTTP exception detail (request_id=%s): %s", rid, exc.detail)
+    payload = ResponseEnvelope.failure(code=code, message=message).model_dump()
     return JSONResponse(status_code=exc.status_code, content=payload, headers=headers)
 
 
@@ -84,6 +88,6 @@ async def generic_exception_handler(request: Request, exc: Exception):
     headers = {"X-Request-Id": rid} if rid else {}
     logger.exception("Unhandled exception (request_id=%s): %s", rid, exc)
     payload = ResponseEnvelope.failure(
-        message="Internal Server Error", code="INTERNAL_ERROR"
+        code="INTERNAL_ERROR", message="Internal Server Error"
     ).model_dump()
     return JSONResponse(status_code=500, content=payload, headers=headers)

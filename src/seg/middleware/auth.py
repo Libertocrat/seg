@@ -89,7 +89,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request_id:
             headers["X-Request-Id"] = request_id
         payload = ResponseEnvelope.failure(
-            message=detail, code="UNAUTHORIZED"
+            code="UNAUTHORIZED", message=detail
         ).model_dump()
         return JSONResponse(
             status_code=HTTP_401_UNAUTHORIZED, content=payload, headers=headers

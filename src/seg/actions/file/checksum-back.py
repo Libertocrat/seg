@@ -1,4 +1,4 @@
-# src/seg/services/file_hash.py
+# src/seg/actions/file/checksum.py
 from __future__ import annotations
 
 import asyncio
@@ -6,8 +6,8 @@ import hashlib
 import os
 from pathlib import Path
 
-from ..core.config import settings
-from ..core.security.paths import PathSecurityError, safe_open_no_follow
+from ...core.config import settings
+from ...core.security.paths import PathSecurityError, safe_open_no_follow
 
 
 class FileTooLargeError(ValueError):

@@ -38,12 +38,12 @@ class ResponseEnvelope(GenericModel, Generic[T]):
     @classmethod
     def failure(
         cls,
-        message: str,
         code: str,
+        message: str,
         details: Optional[Dict[str, Any]] = None,
     ) -> "ResponseEnvelope[Any]":
         return cls(
             success=False,
             data=None,
-            error=ErrorInfo(message=message, code=code, details=details),
+            error=ErrorInfo(code=code, message=message, details=details),
         )
