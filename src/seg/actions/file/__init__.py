@@ -14,4 +14,4 @@ from __future__ import annotations
 
 # Expose public modules for clarity; actual registration occurs in the
 # individual modules (e.g. checksum.py).
-__all__ = ["checksum", "schemas"]
+__all__ = ["checksum", "delete", "schemas"]

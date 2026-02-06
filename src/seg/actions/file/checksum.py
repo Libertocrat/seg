@@ -1,4 +1,22 @@
-# src/seg/actions/file/checksum.py
+"""Safe, sandboxed checksum action implementation.
+
+This module provides the `checksum_file` handler used to compute a streaming
+checksum of a file contained under the configured SEG filesystem root.
+
+Security and behavior notes:
+- Validates and resolves the client-supplied relative path under SEG_FS_ROOT,
+  ensuring the resolved target is also contained in the configured
+  SEG_ALLOWED_SUBDIRS; rejects symlinks in path components.
+- Mitigates TOCTOU for the final component by opening it with
+  `safe_open_no_follow()` (O_NOFOLLOW when available) and performing an fstat
+  on the returned descriptor.
+- Computes the digest in a blocking thread using a duplicated file descriptor
+  so the coroutine may close its descriptor (for example on timeout) without
+  interfering with the worker.
+- Maps errors to `SegActionError` with stable error codes for dispatcher-level
+  handling.
+"""
+
 from __future__ import annotations
 
 import asyncio
@@ -21,28 +39,39 @@ logger = logging.getLogger("seg.actions.file.checksum")
 
 
 async def checksum_file(params: ChecksumParams) -> ChecksumResult:
-    """Handler for the `checksum_file` action.
+    """Compute a streaming checksum of a file inside the SEG sandbox.
 
-    This function performs a safe, sandboxed checksum of a file under the
-    configured SEG root. Steps and safety considerations:
+    The function performs a safe, sandboxed checksum while minimizing TOCTOU
+    windows and enforcing configured limits.
 
-    1. Resolve the client-supplied relative `path` via `resolve_under_root`
-        and enforce allowlists / symlink rules.
-    2. Open the target file using `safe_open_no_follow()` which returns a
-        raw file descriptor opened with `O_NOFOLLOW` when available.
-    3. Perform an `fstat` on the opened descriptor to enforce `seg_max_bytes`.
-    4. Duplicate the open descriptor with `os.dup()` and pass the duplicated
-        descriptor into a blocking thread that reads the file and computes the
-        digest. Duplicating the fd ensures the main coroutine can close its
-        descriptor (for example on timeout) without racing with the blocking
-        thread which owns the duplicated descriptor.
+    Steps:
+      1. Resolve `params.path` under the configured root using
+         `resolve_under_root` (enforces allowed subdirectories and rejects
+         symlinks in path components).
+      2. Open the final component with `safe_open_no_follow()` so the final
+         path component is not followed if it is a symlink.
+      3. Perform an `fstat` on the opened descriptor to obtain the file size and
+         enforce `SEG_MAX_BYTES`.
+      4. Duplicate the descriptor with `os.dup()` and compute the digest in a
+         blocking thread. The duplicated descriptor is closed by the worker
+         thread when finished; the coroutine always closes its original fd.
 
-    Important: do NOT close the duplicated descriptor in the main coroutine
-    while the thread may be running; the thread closes its own descriptor
-    when finished. This avoids use-after-close races and leaked/invalid FDs.
+    Args:
+        params (ChecksumParams): Action parameters containing:
+            - path: relative path under SEG_FS_ROOT
+            - algorithm: hashing algorithm (e.g. "sha256")
 
-    The function raises `SegActionError` for well-known failure modes so the
-    dispatcher can convert them to stable `ResponseEnvelope` failures.
+    Returns:
+        ChecksumResult: Object with `algorithm`, `checksum`, and `size_bytes`.
+
+    Raises:
+        SegActionError: Raised with one of the stable error codes:
+            - PATH_NOT_ALLOWED: path resolution or symlink policy violation.
+            - FILE_NOT_FOUND: target does not exist.
+            - FILE_TOO_LARGE: file exceeds configured SEG_MAX_BYTES.
+            - INVALID_ALGORITHM: provided hashing algorithm is unsupported.
+            - TIMEOUT: operation timed out.
+            - INTERNAL_ERROR: other internal OS or IO failures.
     """
 
     # Resolve path safely under configured root.

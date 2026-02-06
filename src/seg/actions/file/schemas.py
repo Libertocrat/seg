@@ -27,13 +27,13 @@ Algorithm = Literal["sha256", "md5", "sha1"]
 
 
 class ChecksumParams(BaseModel):
-    """Input parameters for the `checksum_file` action.
+    """Parameters for the `checksum_file` action.
 
-    Fields
-    - path: A path string provided by the client. It is interpreted as a
-        path relative to the configured SEG root and must be resolved via
-        the centralized security helpers before use.
-    - algorithm: The digest algorithm to use. Defaults to ``"sha256"``.
+    Attributes:
+        path (str): Path string provided by the client. Interpreted as a path
+            relative to the configured SEG filesystem root and must be resolved
+            via the centralized security helpers before use.
+        algorithm (str): Digest algorithm to use. Defaults to "sha256".
     """
 
     path: str = Field(..., description="Path relative to SEG root.")
@@ -44,12 +44,12 @@ class ChecksumParams(BaseModel):
 
 
 class ChecksumResult(BaseModel):
-    """Normalized result for the `checksum_file` action.
+    """Result returned by the `checksum_file` action.
 
-    Fields
-    - algorithm: The algorithm actually used (lowercased string).
-    - checksum: Hexadecimal digest string.
-    - size_bytes: Size of the file in bytes that was processed.
+    Attributes:
+        algorithm (str): Algorithm actually used (lowercased string).
+        checksum (str): Hexadecimal digest string.
+        size_bytes (int): Size of the file in bytes that was processed.
     """
 
     algorithm: str = Field(..., description="Algorithm used for the checksum.")
@@ -57,5 +57,38 @@ class ChecksumResult(BaseModel):
     size_bytes: int = Field(..., description="Size of the file in bytes.")
 
 
+class DeleteParams(BaseModel):
+    """Parameters for the `delete_file` action.
+
+    Attributes:
+        path (str): Relative path under SEG_FS_ROOT to delete.
+        require_exists (bool): If True, a missing target results in FILE_NOT_FOUND;
+            if False, the operation is idempotent and returns deleted=False.
+    """
+
+    path: str = Field(..., description="Relative path under SEG_FS_ROOT to delete")
+    require_exists: bool = Field(
+        False, description="If true, missing target results in FILE_NOT_FOUND"
+    )
+
+
+class DeleteResult(BaseModel):
+    """Result returned by the `delete_file` action.
+
+    Attributes:
+        deleted (bool): True if a file was deleted, False if it did not exist.
+    """
+
+    deleted: bool = Field(
+        ..., description="True if a file was deleted, false if it did not exist"
+    )
+
+
 # Public exports for clarity and documentation tooling.
-__all__ = ["Algorithm", "ChecksumParams", "ChecksumResult"]
+__all__ = [
+    "Algorithm",
+    "ChecksumParams",
+    "ChecksumResult",
+    "DeleteParams",
+    "DeleteResult",
+]
