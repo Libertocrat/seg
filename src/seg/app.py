@@ -10,20 +10,20 @@ from __future__ import annotations
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .actions import discover_and_register
-from .core import (
+from seg.actions import discover_and_register
+from seg.core import (
     Settings,
     generic_exception_handler,
     http_exception_handler,
 )
-from .core import (
+from seg.core import (
     settings as core_settings,
 )
-from .middleware.auth import AuthMiddleware
-from .middleware.request_id import RequestIDMiddleware
-from .routes.execute import router as execute_router
-from .routes.health import router as health_router
-from .routes.metrics import router as metrics_router
+from seg.middleware.auth import AuthMiddleware
+from seg.middleware.request_id import RequestIDMiddleware
+from seg.routes.execute import router as execute_router
+from seg.routes.health import router as health_router
+from seg.routes.metrics import router as metrics_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

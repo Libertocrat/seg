@@ -6,7 +6,7 @@ import os
 import stat
 from pathlib import Path
 
-from ..config import settings
+from seg.core.config import settings
 
 
 class PathSecurityError(ValueError):
