@@ -25,15 +25,15 @@ import logging
 import os
 from pathlib import Path
 
-from ...core.config import settings
-from ...core.security.paths import (
+from seg.actions.dispatcher import SegActionError
+from seg.actions.file.schemas import ChecksumParams, ChecksumResult
+from seg.actions.registry import ActionSpec, register_action
+from seg.core.config import settings
+from seg.core.security.paths import (
     PathSecurityError,
     resolve_under_root,
     safe_open_no_follow,
 )
-from ..dispatcher import SegActionError
-from ..registry import ActionSpec, register_action
-from .schemas import ChecksumParams, ChecksumResult
 
 logger = logging.getLogger("seg.actions.file.checksum")
 

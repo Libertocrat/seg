@@ -462,6 +462,19 @@ Quick checks and fixes:
 
 - Note: the runtime discovery imports `seg.actions` subpackages to execute registration side-effects. If a new action module is not imported (for example because the package `__init__.py` does not import it), that action will not be registered.
 
+### Mypy execution throws an exception
+
+- **Symptom**: After refactoring imports, `__init__.py` files, or the package layout, `mypy` (or the pre-commit `mypy` hook) may fail with an internal exception (for example `KeyError: 'is_bound'`) or report duplicate-module mapping errors.
+- **Cause**: A stale `.mypy_cache` directory can contain serialized type information that is no longer compatible with the updated module graph.
+- **Fix**: Remove the cache and re-run the checks:
+
+```bash
+rm -rf .mypy_cache
+make ci   # or: pre-commit run --all-files
+```
+
+- **Note**: Clearing the mypy cache is a safe, local operation and does not affect runtime behavior. This is a known issue when making large structural changes; developers are encouraged to clear the cache after major refactors. Consider disabling incremental mode in CI if this occurs frequently.
+
 ## License
 
 MIT

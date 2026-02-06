@@ -5,8 +5,8 @@ The `config` name is kept pointing to the moved `seg.core.config` module
 to avoid breaking existing imports.
 """
 
-from . import core
+from . import actions, core, middleware, routes
 from .app import app  # expose ASGI app at package level
 from .core import config
 
-__all__ = ["app", "core", "config"]
+__all__ = ["app", "core", "config", "actions", "middleware", "routes"]

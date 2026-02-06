@@ -9,7 +9,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.status import HTTP_401_UNAUTHORIZED
 from starlette.types import ASGIApp
 
-from ..core.schemas.envelope import ResponseEnvelope
+from seg.core.schemas.envelope import ResponseEnvelope
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
