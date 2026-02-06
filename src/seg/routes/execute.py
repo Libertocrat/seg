@@ -5,9 +5,9 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from ..actions.dispatcher import dispatch_execute
-from ..core.schemas.envelope import ResponseEnvelope
-from ..core.schemas.execute import ExecuteRequest
+from seg.actions.dispatcher import dispatch_execute
+from seg.core.schemas.envelope import ResponseEnvelope
+from seg.core.schemas.execute import ExecuteRequest
 
 router = APIRouter(prefix="/v1", tags=["execute"])
 

@@ -83,6 +83,12 @@ class Settings(BaseSettings):
         return s
 
 
-# Module-level singleton for convenience and discoverability. Importers
-# can use `from seg.core import settings` to access validated app config.
-settings = Settings()
+# Instantiate settings via `model_validate({})` instead of calling `Settings()`
+# directly.
+#
+# In Pydantic v2, `BaseSettings` always loads configuration from its configured
+# sources (environment variables, .env, secrets, etc.) during validation.
+# Using `model_validate({})` preserves this runtime behavior while avoiding
+# mypy false-positives about missing required constructor arguments for
+# settings fields that are populated from the environment.
+settings = Settings.model_validate({})

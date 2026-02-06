@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from ..core.schemas.envelope import ResponseEnvelope
+from seg.core.schemas.envelope import ResponseEnvelope
 
 router = APIRouter(prefix="", tags=["health"])
 

@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
-from .schemas.envelope import ResponseEnvelope
+from seg.core.schemas.envelope import ResponseEnvelope
 
 logger = logging.getLogger("seg.exceptions")
 

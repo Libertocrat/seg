@@ -13,5 +13,9 @@ module). Avoid adding heavy side-effects here.
 from __future__ import annotations
 
 # Expose public modules for clarity; actual registration occurs in the
-# individual modules (e.g. checksum.py).
+# individual modules (e.g. checksum.py). Import modules relatively so
+# the package initializer exposes the submodules when `from seg.actions
+# import file` is used.
+from . import checksum, delete, schemas
+
 __all__ = ["checksum", "delete", "schemas"]
