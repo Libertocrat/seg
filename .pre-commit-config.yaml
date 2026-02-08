@@ -35,3 +35,12 @@ repos:
         entry: hadolint ./Dockerfile
         language: system
         files: ^Dockerfile$
+
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest (tests)
+        entry: pytest -q tests
+        language: system
+        pass_filenames: false
+        stages: [commit]

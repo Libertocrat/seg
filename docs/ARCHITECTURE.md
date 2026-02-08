@@ -44,6 +44,7 @@ SEG follows a layered architecture with a strict separation between:
 - Boundary schemas (stable API contract)
 - Action dispatch and execution (project-specific)
 - Security and filesystem hardening
+  - Shared mounted sandbox directory (`SEG_SANDBOX_DIR`)
 
 ### High-Level Flow
 
@@ -252,7 +253,7 @@ All filesystem-related actions must pass through centralized security utilities:
 
 - Path normalization and resolution
 - Rejection of `..`, null bytes, and unsafe patterns
-- Enforcement of `SEG_ALLOWED_SUBDIRS`
+- Enforcement of `SEG_SANDBOX_DIR` and `SEG_ALLOWED_SUBDIRS`
 - Symlink rejection
 - File size and timeout limits
 

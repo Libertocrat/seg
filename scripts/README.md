@@ -24,7 +24,7 @@ Required variables (must be provided via the env file or exported):
 
 - `SHARED_VOLUME_NAME`: Docker named volume to initialize
 - `NON_ROOT_GID`: numeric GID that must own the sandbox directories
-- `SEG_ALLOWED_SUBDIRS`: `*` for root sandbox or CSV list of simple subdir names (`uploads,outputs,temp`)
+- `SEG_ALLOWED_SUBDIRS`: `*` for sandbox root or CSV list of simple subdir names (`uploads,outputs,temp`)
 
 Optional variables (not required by the script, present for documentation):
 

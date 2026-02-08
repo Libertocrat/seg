@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make
+
       - name: Install hadolint
         run: |
           curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
@@ -34,7 +39,8 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run CI checks
+      - name: Run CI pipeline (lint, typecheck, hadolint, test)
+        shell: bash
         run: |
           source .venv/bin/activate
           make ci

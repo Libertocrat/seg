@@ -13,7 +13,7 @@ services:
     volumes:
       - type: volume
         source: shared_volume
-        target: ${SEG_FS_ROOT}
+        target: ${SEG_SANDBOX_DIR}
     networks:
       - default_network
 

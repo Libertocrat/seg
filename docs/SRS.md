@@ -43,8 +43,8 @@ SEG explicitly **does not** aim to be a general-purpose execution engine.
 ### 1.3 Definitions
 
 - **SEG**: Secure Execution Gateway
-- **FS Root**: Shared filesystem mount accessible by n8n and SEG
-- **Allowlisted Subdirectories**: Explicit subfolders under FS Root where operations are permitted
+- **Sandbox Dir**: Shared filesystem mount accessible by n8n and SEG (configured via `SEG_SANDBOX_DIR`)
+- **Allowlisted Subdirectories**: Explicit subfolders under the sandbox directory where operations are permitted
 - **Action**: A named, predefined operation (e.g., `sha256_file`)
 - **Envelope**: Standard API response structure used across shared services
 
@@ -62,7 +62,7 @@ SEG explicitly **does not** aim to be a general-purpose execution engine.
 - SEG runs in a **separate rootless Docker container**
 - Both containers:
   - Are on the same internal Docker network
-  - Share a mounted volume (`SEG_FS_ROOT`)
+  - Share a volume mounted on a sandbox directory (`SEG_SANDBOX_DIR`)
 - n8n calls SEG via HTTP using the **HTTP Request node**
 - SEG never executes arbitrary commands and never exposes a shell
 
@@ -119,10 +119,10 @@ SEG explicitly **does not** aim to be a general-purpose execution engine.
 SEG enforces a strict sandbox:
 
 - All paths must be **relative**
-- Paths are resolved against `SEG_FS_ROOT`
+- Paths are resolved against `SEG_SANDBOX_DIR`
 - Resolved path must:
 
-  - Stay within `SEG_FS_ROOT`
+  - Stay within `SEG_SANDBOX_DIR`
   - Belong to one of the `SEG_ALLOWED_SUBDIRS`
 - Path traversal (`..`) is rejected
 - Symlinks are **always rejected**
@@ -132,7 +132,7 @@ SEG enforces a strict sandbox:
 Notes:
 
 - `SEG_ALLOWED_SUBDIRS` examples: `/quarantine`, `/uploads`, `/outputs` (CSV: `quarantine,uploads,outputs`).
-- If `SEG_ALLOWED_SUBDIRS` is empty, SEG will allow access to any path under the configured `SEG_FS_ROOT` (permissive fallback; use with caution).
+-- If `SEG_ALLOWED_SUBDIRS` is empty, SEG will allow access to any path under the configured `SEG_SANDBOX_DIR` (permissive fallback; use with caution).
 
 ---
 
@@ -396,7 +396,7 @@ Implementation note: start with the Prometheus client library defaults for histo
 ### 9.1 Environment Variables
 
 - `SEG_API_TOKEN` (required)
-- `SEG_FS_ROOT` (required)
+- `SEG_SANDBOX_DIR` (required)
 - `SEG_ALLOWED_SUBDIRS` (CSV, required)
 - `SEG_MAX_BYTES=104857600` (100 MB)
 - `SEG_TIMEOUT_MS=5000` (ms)

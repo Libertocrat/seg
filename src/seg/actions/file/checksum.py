@@ -1,10 +1,10 @@
 """Safe, sandboxed checksum action implementation.
 
 This module provides the `checksum_file` handler used to compute a streaming
-checksum of a file contained under the configured SEG filesystem root.
+checksum of a file contained under the configured SEG sandbox directory.
 
 Security and behavior notes:
-- Validates and resolves the client-supplied relative path under SEG_FS_ROOT,
+- Validates and resolves the client-supplied relative path under SEG_SANDBOX_DIR,
   ensuring the resolved target is also contained in the configured
   SEG_ALLOWED_SUBDIRS; rejects symlinks in path components.
 - Mitigates TOCTOU for the final component by opening it with
@@ -31,7 +31,7 @@ from seg.actions.registry import ActionSpec, register_action
 from seg.core.config import settings
 from seg.core.security.paths import (
     PathSecurityError,
-    resolve_under_root,
+    resolve_in_sandbox,
     safe_open_no_follow,
 )
 
@@ -45,20 +45,20 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
     windows and enforcing configured limits.
 
     Steps:
-      1. Resolve `params.path` under the configured root using
-         `resolve_under_root` (enforces allowed subdirectories and rejects
-         symlinks in path components).
-      2. Open the final component with `safe_open_no_follow()` so the final
-         path component is not followed if it is a symlink.
-      3. Perform an `fstat` on the opened descriptor to obtain the file size and
-         enforce `SEG_MAX_BYTES`.
-      4. Duplicate the descriptor with `os.dup()` and compute the digest in a
-         blocking thread. The duplicated descriptor is closed by the worker
-         thread when finished; the coroutine always closes its original fd.
+    1. Resolve `params.path` under the configured sandbox using
+        `resolve_in_sandbox` (enforces allowed subdirectories and rejects
+        symlinks in path components).
+    2. Open the final component with `safe_open_no_follow()` so the final
+        path component is not followed if it is a symlink.
+    3. Perform an `fstat` on the opened descriptor to obtain the file size and
+        enforce `SEG_MAX_BYTES`.
+    4. Duplicate the descriptor with `os.dup()` and compute the digest in a
+        blocking thread. The duplicated descriptor is closed by the worker
+        thread when finished; the coroutine always closes its original fd.
 
     Args:
         params (ChecksumParams): Action parameters containing:
-            - path: relative path under SEG_FS_ROOT
+            - path: relative path under SEG_SANDBOX_DIR
             - algorithm: hashing algorithm (e.g. "sha256")
 
     Returns:
@@ -74,10 +74,10 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
             - INTERNAL_ERROR: other internal OS or IO failures.
     """
 
-    # Resolve path safely under configured root.
-    root = Path(settings.seg_fs_root)
+    # Resolve path safely under configured sandbox.
+    sandbox = Path(settings.seg_sandbox_dir)
     try:
-        path = resolve_under_root(root=root, user_path=params.path)
+        path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
     except PathSecurityError as exc:
         raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
 

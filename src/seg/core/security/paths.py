@@ -22,8 +22,8 @@ def sanitize_rel_path(user_path: str) -> str:
     This performs only syntactic checks: NULs, backslashes, control
     characters, absolute paths, traversal (`..`), and a maximum length.
     It does NOT perform filesystem checks (symlink detection or whether the
-    resolved path is within a root). Callers must combine this with
-    `resolve_under_root` or `safe_open_no_follow` for filesystem-safe
+    resolved path is within a sandbox). Callers must combine this with
+    `resolve_in_sandbox` or `safe_open_no_follow` for filesystem-safe
     operations.
     """
 
@@ -58,11 +58,11 @@ def sanitize_rel_path(user_path: str) -> str:
     return "/".join(parts)
 
 
-def resolve_under_root(root: Path, user_path: str) -> Path:
-    """Resolve a user-supplied relative path under a configured root.
+def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
+    """Resolve a user-supplied relative path under a configured sandbox.
 
     This helper validates the relative path syntactically and ensures the
-    resulting normalized path stays under `root`. Note: resolving a Path
+    resulting normalized path stays under `sandbox_dir`. Note: resolving a Path
     and later opening it in a separate operation can introduce a
     TOCTOU (time-of-check/time-of-use) window. For sensitive operations,
     prefer opening the path atomically via `safe_open_no_follow` or an
@@ -77,14 +77,14 @@ def resolve_under_root(root: Path, user_path: str) -> Path:
         if first not in allowed:
             raise PathSecurityError("Path not inside allowed subdirectories")
 
-    # Ensure root exists and is canonical
+    # Ensure sandbox exists and is canonical
     try:
-        root_resolved = root.resolve(strict=True)
+        sandbox_resolved = sandbox_dir.resolve(strict=True)
     except FileNotFoundError as exc:
-        raise PathSecurityError("Configured root does not exist") from exc
+        raise PathSecurityError("Configured sandbox dir does not exist") from exc
 
-    # Reject symlinks in any existing path component under root
-    cur = root_resolved
+    # Reject symlinks in any existing path component under sandbox
+    cur = sandbox_resolved
     for part in rel.split("/"):
         candidate_component = cur / part
         if candidate_component.exists() and candidate_component.is_symlink():
@@ -92,16 +92,16 @@ def resolve_under_root(root: Path, user_path: str) -> Path:
         cur = candidate_component
 
     # Construct candidate path without resolving symlinks (normpath on joined strings)
-    candidate_str = os.path.normpath(os.path.join(str(root_resolved), rel))
-    # Ensure candidate is still within root.
+    candidate_str = os.path.normpath(os.path.join(str(sandbox_resolved), rel))
+    # Ensure candidate is still within sandbox dir.
     # String-based check avoids following symlinks.
     try:
-        common = os.path.commonpath([str(root_resolved), candidate_str])
+        common = os.path.commonpath([str(sandbox_resolved), candidate_str])
     except Exception as exc:
-        raise PathSecurityError("Path is outside allowed root") from exc
+        raise PathSecurityError("Path is outside allowed sandbox") from exc
 
-    if common != str(root_resolved):
-        raise PathSecurityError("Path is outside allowed root")
+    if common != str(sandbox_resolved):
+        raise PathSecurityError("Path is outside allowed sandbox")
 
     return Path(candidate_str)
 

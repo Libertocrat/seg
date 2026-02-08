@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     Attributes:
         seg_api_token: API token required for Bearer authentication.
-        seg_fs_root: Filesystem root used by sandboxed actions.
+        seg_sandbox_dir: Sandbox directory used by sandboxed actions.
         seg_allowed_subdirs: Raw CSV string of allowed subdirectories.
         seg_max_bytes: Maximum allowed bytes for file operations.
         seg_timeout_ms: Per-request timeout (milliseconds).
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     """
 
     seg_api_token: str = Field(...)
-    seg_fs_root: str = Field(...)
+    seg_sandbox_dir: str = Field(...)
     # Read the raw env value as a string to avoid pydantic-settings attempting
     # to JSON-decode a complex type from dotenv. We expose a convenience
     # property `allowed_subdirs` (below) which returns the parsed list.
@@ -66,14 +66,20 @@ class Settings(BaseSettings):
             return ["*"]
         return [p.strip() for p in raw.split(",") if p.strip()]
 
+    @field_validator(
+        "seg_api_token", "seg_sandbox_dir", "seg_allowed_subdirs", mode="before"
+    )
+    def _validate_required_non_empty(cls, v, info):
+        # Ensure required env values exists and are not empty/whitespace.
+        if v is None:
+            raise ValueError(f"{info.field_name} must be set and non-empty")
+        if isinstance(v, str) and v.strip() == "":
+            raise ValueError(f"{info.field_name} must be set and non-empty")
+        return v
+
     @field_validator("seg_allowed_subdirs", mode="before")
     def _validate_seg_allowed_subdirs(cls, v):
-        # Ensure the env value exists and is not empty/whitespace.
-        if v is None:
-            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
         s = str(v).strip()
-        if s == "":
-            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
         # Only allow '*' or CSV of simple names (no slashes)
         if s != "*":
             for part in s.split(","):

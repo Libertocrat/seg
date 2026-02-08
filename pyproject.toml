@@ -59,10 +59,24 @@ ignore = [
 ######################################
 
 [tool.pytest.ini_options]
+minversion = "7.0"
+
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-ra"
+
+addopts = "-ra --strict-markers"
+
+# Temporary: ignore Pydantic migration deprecation warnings during pytest
+# Remove this after migrating GenericModel usage to Pydantic v2 APIs and
+# re-running the test-suite for the v1 release.
 filterwarnings = [
     "error::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
+    "ignore::pydantic.warnings.PydanticDeprecatedSince20",
 ]
+
+markers = [
+    "slow: slow tests",
+    "integration: integration tests",
+]
+
