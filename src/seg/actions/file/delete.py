@@ -20,7 +20,7 @@ from pathlib import Path
 from seg.actions.dispatcher import SegActionError
 from seg.actions.file.schemas import DeleteParams, DeleteResult
 from seg.actions.registry import ActionSpec, register_action
-from seg.core.config import settings
+from seg.core.config import get_settings
 from seg.core.security.paths import (
     PathSecurityError,
     resolve_in_sandbox,
@@ -62,7 +62,7 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
             - PERMISSION_DENIED: insufficient permissions to delete the target.
             - INTERNAL_ERROR: internal inspection or unlink failure.
     """
-    sandbox = Path(settings.seg_sandbox_dir)
+    sandbox = Path(get_settings().seg_sandbox_dir)
     try:
         target = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
     except PathSecurityError as exc:

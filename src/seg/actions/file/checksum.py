@@ -28,7 +28,7 @@ from pathlib import Path
 from seg.actions.dispatcher import SegActionError
 from seg.actions.file.schemas import ChecksumParams, ChecksumResult
 from seg.actions.registry import ActionSpec, register_action
-from seg.core.config import settings
+from seg.core.config import get_settings
 from seg.core.security.paths import (
     PathSecurityError,
     resolve_in_sandbox,
@@ -75,7 +75,7 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
     """
 
     # Resolve path safely under configured sandbox.
-    sandbox = Path(settings.seg_sandbox_dir)
+    sandbox = Path(get_settings().seg_sandbox_dir)
     try:
         path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
     except PathSecurityError as exc:
@@ -96,7 +96,10 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
     try:
         st = os.fstat(fd)
         size_bytes = int(st.st_size)
-        if settings.seg_max_bytes is not None and size_bytes > settings.seg_max_bytes:
+        if (
+            get_settings().seg_max_bytes is not None
+            and size_bytes > get_settings().seg_max_bytes
+        ):
             try:
                 os.close(fd)
             except OSError:
@@ -147,7 +150,7 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
 
             return await asyncio.to_thread(_blocking_hash, dup_fd)
 
-        timeout_s = max(0.1, settings.seg_timeout_ms / 1000.0)
+        timeout_s = max(0.1, get_settings().seg_timeout_ms / 1000.0)
         try:
             digest = await asyncio.wait_for(_compute(), timeout=timeout_s)
         except SegActionError:

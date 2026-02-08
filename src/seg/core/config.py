@@ -89,12 +89,34 @@ class Settings(BaseSettings):
         return s
 
 
-# Instantiate settings via `model_validate({})` instead of calling `Settings()`
-# directly.
-#
-# In Pydantic v2, `BaseSettings` always loads configuration from its configured
-# sources (environment variables, .env, secrets, etc.) during validation.
-# Using `model_validate({})` preserves this runtime behavior while avoiding
-# mypy false-positives about missing required constructor arguments for
-# settings fields that are populated from the environment.
-settings = Settings.model_validate({})
+def get_settings() -> Settings:
+    """
+    Lazily load and cache application settings from environment sources.
+
+    This accessor intentionally instantiates `Settings` via
+    `Settings.model_validate({})` instead of calling `Settings()` directly.
+
+    Rationale:
+        - In Pydantic v2, `BaseSettings` loads configuration from its configured
+          sources (environment variables, `.env`, secrets, etc.) during
+          validation, not during object construction.
+        - Calling `model_validate({})` preserves the full runtime behavior of
+          environment-based configuration while avoiding mypy false-positives
+          about missing required constructor arguments.
+        - Deferring settings instantiation avoids loading configuration at
+          import time, which is critical for test isolation and for preventing
+          failures when required environment variables are not yet defined.
+
+    Design considerations:
+        - Settings are loaded lazily and cached to provide a single source of
+          truth at runtime.
+        - Tests can fully control configuration by setting environment
+          variables before invoking this function.
+        - Importing application modules never implicitly depends on the
+          presence of environment configuration.
+
+    Returns:
+        Settings: A fully validated Settings instance loaded from the current
+        environment.
+    """
+    return Settings.model_validate({})

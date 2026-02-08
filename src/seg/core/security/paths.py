@@ -6,7 +6,7 @@ import os
 import stat
 from pathlib import Path
 
-from seg.core.config import settings
+from seg.core.config import get_settings
 
 
 class PathSecurityError(ValueError):
@@ -71,7 +71,7 @@ def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
     rel = sanitize_rel_path(user_path)
 
     # Enforce allowlist (first component) if configured
-    allowed = settings.allowed_subdirs
+    allowed = get_settings().allowed_subdirs
     if allowed and allowed != ["*"]:
         first = rel.split("/", 1)[0]
         if first not in allowed:

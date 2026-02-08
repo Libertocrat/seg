@@ -32,16 +32,22 @@ def clean_seg_environment(monkeypatch):
     This fixture enforces *strict configuration isolation* for all tests by:
 
     - Removing any `SEG_*` variables from the process environment.
-    - Disabling `.env` file loading in `Settings` so tests cannot
-      accidentally inherit developer or CI configuration.
+    - Disabling `.env` file loading in `Settings`.
+    - Clearing the cached Settings instance (`get_settings`) so each test
+      observes only the environment prepared by its fixtures.
 
     Rationale:
-        SEG tests must be deterministic and must never depend on a real
-        `.env` file or shell environment. Any required configuration must
-        be provided explicitly by the test or via fixtures.
+        SEG settings are lazily loaded and cached via `get_settings()`.
+        Without clearing the cache, changes to environment variables
+        performed by fixtures would not take effect consistently.
+
+        This fixture guarantees that:
+        - No test depends on developer or CI `.env` files.
+        - No test depends on execution order.
+        - Every test sees a fresh Settings resolution.
 
     Scope:
-        This fixture is test-only and MUST NOT be used in production code.
+        Test-only fixture. MUST NOT be used in production code.
     """
     # ------------------------------------------------------------------
     # 1. Remove all SEG_* variables from the environment
@@ -53,25 +59,31 @@ def clean_seg_environment(monkeypatch):
     # ------------------------------------------------------------------
     # 2. Disable `.env` loading for Settings during tests
     # ------------------------------------------------------------------
+    original_env_file = None
     try:
         from seg.core.config import Settings
 
-        # Preserve original value to restore after the test
         original_env_file = Settings.model_config.get("env_file", None)
-
-        # Disable dotenv loading explicitly
         monkeypatch.setitem(Settings.model_config, "env_file", None)
+    except Exception:  # noqa: S110
+        # Never fail tests due to configuration import issues
+        pass
 
-    except Exception:
-        # If Settings cannot be imported for any reason,
-        # fail silently to avoid masking unrelated test failures.
-        original_env_file = None
+    # ------------------------------------------------------------------
+    # 3. Clear cached settings to ensure fresh resolution per test
+    # ------------------------------------------------------------------
+    try:
+        from seg.core.config import get_settings
+
+        get_settings.cache_clear()
+    except Exception:  # noqa: S110
+        pass
 
     # Run the test
     yield
 
     # ------------------------------------------------------------------
-    # 3. Restore Settings configuration after the test
+    # 4. Restore Settings configuration after the test
     # ------------------------------------------------------------------
     try:
         if original_env_file is not None:
@@ -79,7 +91,6 @@ def clean_seg_environment(monkeypatch):
         else:
             Settings.model_config.pop("env_file", None)
     except Exception:  # noqa: S110
-        # Never allow cleanup errors to break the test suite
         pass
 
 

@@ -89,116 +89,111 @@ def test_sanitize_normalizes_valid_path():
 # ============================================================================
 
 
-def test_resolve_path_inside_sandbox(tmp_path, monkeypatch):
+def test_resolve_path_inside_sandbox(minimal_safe_env, sandbox_dir, monkeypatch):
     """
     GIVEN a valid relative path inside the sandbox
     WHEN resolve_in_sandbox is called
     THEN the resolved path is inside the sandbox directory
     """
-    sandbox = tmp_path / "sandbox"
-    sandbox.mkdir()
 
-    (sandbox / "uploads").mkdir()
-    (sandbox / "uploads" / "file.txt").touch()
+    (sandbox_dir / "uploads").mkdir()
+    (sandbox_dir / "uploads" / "file.txt").touch()
 
-    monkeypatch.setattr(
-        "seg.core.security.paths.settings.seg_allowed_subdirs",
-        "uploads",
-    )
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
-    resolved = resolve_in_sandbox(sandbox, "uploads/file.txt")
+    resolved = resolve_in_sandbox(sandbox_dir, "uploads/file.txt")
 
     assert resolved.exists()
     assert resolved.is_file()
-    assert str(resolved).startswith(str(sandbox))
+    assert str(resolved).startswith(str(sandbox_dir))
 
 
-def test_resolve_rejects_path_outside_sandbox(tmp_path, monkeypatch):
+def test_resolve_rejects_path_outside_sandbox(
+    minimal_safe_env, sandbox_dir, monkeypatch
+):
     """
     GIVEN a path that would escape the sandbox
     WHEN resolve_in_sandbox is called
     THEN a PathSecurityError is raised
     """
-    sandbox = tmp_path / "sandbox"
-    sandbox.mkdir()
 
-    monkeypatch.setattr(
-        "seg.core.security.paths.settings.seg_allowed_subdirs",
-        "uploads",
-    )
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox, "../outside.txt")
+        resolve_in_sandbox(sandbox_dir, "../outside.txt")
 
 
-def test_resolve_rejects_disallowed_subdir(tmp_path, monkeypatch):
+def test_resolve_rejects_disallowed_subdir(minimal_safe_env, sandbox_dir, monkeypatch):
     """
     GIVEN a path whose first component is not in the allowlist
     WHEN resolve_in_sandbox is called
     THEN a PathSecurityError is raised
     """
-    sandbox = tmp_path / "sandbox"
-    sandbox.mkdir()
-    (sandbox / "secret").mkdir()
+    (sandbox_dir / "secret").mkdir()
 
-    monkeypatch.setattr(
-        "seg.core.security.paths.settings.seg_allowed_subdirs",
-        "uploads",
-    )
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox, "secret/file.txt")
+        resolve_in_sandbox(sandbox_dir, "secret/file.txt")
 
 
-def test_resolve_rejects_symlink_component(tmp_path, monkeypatch):
+def test_resolve_rejects_symlink_component(
+    minimal_safe_env, sandbox_dir, tmp_path, monkeypatch
+):
     """
-    GIVEN a path containing a symlink component
-    WHEN resolve_in_sandbox is called
+    GIVEN a sandbox directory that contains a symlink as one of its path components
+    AND the symlink points outside of the sandbox
+    WHEN resolve_in_sandbox is called with a path traversing that symlink
     THEN a PathSecurityError is raised
-    """
-    sandbox = tmp_path / "sandbox"
-    sandbox.mkdir()
 
-    real_dir = tmp_path / "real"
+    This test enforces the invariant that SEG must never follow symlinks
+    inside the sandbox, even if the symlink name itself is allowlisted.
+    """
+
+    # ------------------------------------------------------------------
+    # Arrange: create a real directory OUTSIDE the sandbox
+    # ------------------------------------------------------------------
+    real_dir = tmp_path / "real_target"
     real_dir.mkdir()
 
-    symlink = sandbox / "uploads"
+    # ------------------------------------------------------------------
+    # Arrange: create a symlink INSIDE the sandbox pointing outside
+    # ------------------------------------------------------------------
+    symlink = sandbox_dir / "uploads"
     symlink.symlink_to(real_dir)
 
-    monkeypatch.setattr(
-        "seg.core.security.paths.settings.seg_allowed_subdirs",
-        "uploads",
-    )
+    # Explicitly allow the symlink name to ensure rejection is due to
+    # symlink traversal, not allowlist filtering.
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
+    # ------------------------------------------------------------------
+    # Act / Assert: resolving a path through the symlink is rejected
+    # ------------------------------------------------------------------
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox, "uploads/file.txt")
+        resolve_in_sandbox(sandbox_dir, "uploads/file.txt")
 
 
-def test_resolve_allows_any_subdir_when_wildcard(tmp_path, monkeypatch):
+def test_resolve_allows_any_subdir_when_wildcard(
+    minimal_safe_env, sandbox_dir, monkeypatch
+):
     """
     GIVEN `SEG_ALLOWED_SUBDIRS` is set to "*"
     WHEN resolving a path whose first component is arbitrary
     THEN the path is allowed as long as it remains under the sandbox
     """
-    sandbox = tmp_path / "sandbox"
-    sandbox.mkdir()
+    (sandbox_dir / "other").mkdir()
+    (sandbox_dir / "other" / "file.txt").touch()
 
-    (sandbox / "other").mkdir()
-    (sandbox / "other" / "file.txt").touch()
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "*")
 
-    monkeypatch.setattr(
-        "seg.core.security.paths.settings.seg_allowed_subdirs",
-        "*",
-    )
-
-    resolved = resolve_in_sandbox(sandbox, "other/file.txt")
+    resolved = resolve_in_sandbox(sandbox_dir, "other/file.txt")
 
     assert resolved.exists()
     assert resolved.is_file()
-    assert str(resolved).startswith(str(sandbox))
+    assert str(resolved).startswith(str(sandbox_dir))
 
 
-def test_resolve_rejects_missing_sandbox_dir(tmp_path):
+def test_resolve_rejects_missing_sandbox_dir(minimal_safe_env, tmp_path):
     """
     GIVEN a non-existent sandbox directory
     WHEN resolve_in_sandbox is called
