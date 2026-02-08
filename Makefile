@@ -1,4 +1,4 @@
-.PHONY: help deps fmt lint typecheck hadolint ci
+.PHONY: help deps fmt lint typecheck hadolint test ci
 
 PYTHON ?= python
 PIP ?= pip
@@ -10,6 +10,7 @@ help:
 	@echo "make lint       - Lint code (ruff + black --check)"
 	@echo "make typecheck  - Type checking (mypy)"
 	@echo "make hadolint   - Lint Dockerfile"
+	@echo "make test       - Run tests (pytest)"
 	@echo "make ci         - Run all checks"
 
 deps:
@@ -28,5 +29,8 @@ typecheck:
 hadolint:
 	hadolint ./Dockerfile
 
-ci: lint typecheck hadolint
+test:
+	pytest -q tests
+
+ci: lint typecheck hadolint test
 	@echo "All checks passed."

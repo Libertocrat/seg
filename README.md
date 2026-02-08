@@ -152,7 +152,7 @@ For sensitive reports, encrypted communication is supported via the maintainerâ€
 - SEG runs in a separate, rootless Docker container
 - Both containers:
 
-  - Share a mounted volume (`SEG_FS_ROOT`)
+  - Share a mounted sandbox directory (`SEG_SANDBOX_DIR`)
   - Communicate over an internal Docker network
 - n8n interacts with SEG using the **HTTP Request** node
 
@@ -201,7 +201,7 @@ The token is provided via environment variables and injected at runtime. In futu
 SEG enforces strict path rules:
 
 - Only **relative paths** are accepted
-- All paths are resolved under `SEG_FS_ROOT`
+- All paths are resolved under `SEG_SANDBOX_DIR`
 - Operations are restricted to allowlisted subdirectories defined by `SEG_ALLOWED_SUBDIRS`
 - Path traversal (`..`) is rejected
 - Symbolic links are always rejected
@@ -382,7 +382,7 @@ Each action has a strict request schema validated using Pydantic models.
 SEG is configured entirely via environment variables:
 
 - `SEG_API_TOKEN` (required)
-- `SEG_FS_ROOT` (required)
+- `SEG_SANDBOX_DIR` (required)
 - `SEG_ALLOWED_SUBDIRS` (CSV, required)
 - `SEG_MAX_BYTES` (default: 104857600)
 - `SEG_TIMEOUT_MS` (default: 5000)

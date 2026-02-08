@@ -1,10 +1,10 @@
 """Secure `delete_file` action implementation.
 
 This module provides the `delete_file` handler used by the dispatcher to
-safely remove regular files inside the configured SEG filesystem root.
+safely remove regular files inside the configured SEG sandbox directory.
 
 Key guarantees:
-- Syntactic validation and resolution under SEG_FS_ROOT and SEG_ALLOWED_SUBDIRS.
+- Syntactic validation and resolution under SEG_SANDBOX_DIR and SEG_ALLOWED_SUBDIRS.
 - Mitigates TOCTOU for the final component using `safe_open_no_follow`.
 - Rejects symbolic links and non-regular files.
 - Maps failures to `SegActionError` with stable error codes
@@ -20,10 +20,10 @@ from pathlib import Path
 from seg.actions.dispatcher import SegActionError
 from seg.actions.file.schemas import DeleteParams, DeleteResult
 from seg.actions.registry import ActionSpec, register_action
-from seg.core.config import settings
+from seg.core.config import get_settings
 from seg.core.security.paths import (
     PathSecurityError,
-    resolve_under_root,
+    resolve_in_sandbox,
     safe_open_no_follow,
 )
 
@@ -37,8 +37,8 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
     policies (no symlinks, regular file only, allowed subdirectories).
 
     Steps:
-      1. Resolve `params.path` under the configured root using
-         `resolve_under_root`.
+      1. Resolve `params.path` under the configured sandbox using
+         `resolve_in_sandbox`.
       2. Atomically validate the final path component with
          `safe_open_no_follow()` to ensure it exists and is a regular file
          without following symlinks.
@@ -47,7 +47,7 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
 
     Args:
         params (DeleteParams): Action parameters.
-            - path: relative path under SEG_FS_ROOT to delete.
+            - path: relative path under SEG_SANDBOX_DIR to delete.
             - require_exists: if True, missing target results in FILE_NOT_FOUND;
               if False, the operation is idempotent and returns deleted=False.
 
@@ -62,9 +62,9 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
             - PERMISSION_DENIED: insufficient permissions to delete the target.
             - INTERNAL_ERROR: internal inspection or unlink failure.
     """
-    root = Path(settings.seg_fs_root)
+    sandbox = Path(get_settings().seg_sandbox_dir)
     try:
-        target = resolve_under_root(root=root, user_path=params.path)
+        target = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
     except PathSecurityError as exc:
         raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
 

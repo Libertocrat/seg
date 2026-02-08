@@ -31,12 +31,12 @@ class ChecksumParams(BaseModel):
 
     Attributes:
         path (str): Path string provided by the client. Interpreted as a path
-            relative to the configured SEG filesystem root and must be resolved
+            relative to the configured SEG sandbox directory and must be resolved
             via the centralized security helpers before use.
         algorithm (str): Digest algorithm to use. Defaults to "sha256".
     """
 
-    path: str = Field(..., description="Path relative to SEG root.")
+    path: str = Field(..., description="Path relative to SEG sandbox directory.")
     algorithm: Algorithm = Field(
         "sha256",
         description="Hash algorithm to use (allowed: sha256, md5, sha1).",
@@ -61,12 +61,12 @@ class DeleteParams(BaseModel):
     """Parameters for the `delete_file` action.
 
     Attributes:
-        path (str): Relative path under SEG_FS_ROOT to delete.
+        path (str): Relative path under SEG_SANDBOX_DIR to delete.
         require_exists (bool): If True, a missing target results in FILE_NOT_FOUND;
             if False, the operation is idempotent and returns deleted=False.
     """
 
-    path: str = Field(..., description="Relative path under SEG_FS_ROOT to delete")
+    path: str = Field(..., description="Relative path under SEG_SANDBOX_DIR to delete")
     require_exists: bool = Field(
         False, description="If true, missing target results in FILE_NOT_FOUND"
     )

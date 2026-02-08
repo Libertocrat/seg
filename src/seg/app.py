@@ -14,10 +14,8 @@ from seg.actions import discover_and_register
 from seg.core import (
     Settings,
     generic_exception_handler,
+    get_settings,
     http_exception_handler,
-)
-from seg.core import (
-    settings as core_settings,
 )
 from seg.middleware.auth import AuthMiddleware
 from seg.middleware.request_id import RequestIDMiddleware
@@ -45,7 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         A configured `FastAPI` application instance.
     """
 
-    settings = settings or core_settings
+    settings = settings or get_settings()
 
     app = FastAPI(
         title="Secure Execution Gateway (SEG)",
@@ -85,6 +83,3 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(execute_router)
 
     return app
-
-
-app = create_app()

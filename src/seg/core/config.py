@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     Attributes:
         seg_api_token: API token required for Bearer authentication.
-        seg_fs_root: Filesystem root used by sandboxed actions.
+        seg_sandbox_dir: Sandbox directory used by sandboxed actions.
         seg_allowed_subdirs: Raw CSV string of allowed subdirectories.
         seg_max_bytes: Maximum allowed bytes for file operations.
         seg_timeout_ms: Per-request timeout (milliseconds).
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     """
 
     seg_api_token: str = Field(...)
-    seg_fs_root: str = Field(...)
+    seg_sandbox_dir: str = Field(...)
     # Read the raw env value as a string to avoid pydantic-settings attempting
     # to JSON-decode a complex type from dotenv. We expose a convenience
     # property `allowed_subdirs` (below) which returns the parsed list.
@@ -66,14 +66,20 @@ class Settings(BaseSettings):
             return ["*"]
         return [p.strip() for p in raw.split(",") if p.strip()]
 
+    @field_validator(
+        "seg_api_token", "seg_sandbox_dir", "seg_allowed_subdirs", mode="before"
+    )
+    def _validate_required_non_empty(cls, v, info):
+        # Ensure required env values exists and are not empty/whitespace.
+        if v is None:
+            raise ValueError(f"{info.field_name} must be set and non-empty")
+        if isinstance(v, str) and v.strip() == "":
+            raise ValueError(f"{info.field_name} must be set and non-empty")
+        return v
+
     @field_validator("seg_allowed_subdirs", mode="before")
     def _validate_seg_allowed_subdirs(cls, v):
-        # Ensure the env value exists and is not empty/whitespace.
-        if v is None:
-            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
         s = str(v).strip()
-        if s == "":
-            raise ValueError("SEG_ALLOWED_SUBDIRS must be set and non-empty")
         # Only allow '*' or CSV of simple names (no slashes)
         if s != "*":
             for part in s.split(","):
@@ -83,12 +89,34 @@ class Settings(BaseSettings):
         return s
 
 
-# Instantiate settings via `model_validate({})` instead of calling `Settings()`
-# directly.
-#
-# In Pydantic v2, `BaseSettings` always loads configuration from its configured
-# sources (environment variables, .env, secrets, etc.) during validation.
-# Using `model_validate({})` preserves this runtime behavior while avoiding
-# mypy false-positives about missing required constructor arguments for
-# settings fields that are populated from the environment.
-settings = Settings.model_validate({})
+def get_settings() -> Settings:
+    """
+    Lazily load and cache application settings from environment sources.
+
+    This accessor intentionally instantiates `Settings` via
+    `Settings.model_validate({})` instead of calling `Settings()` directly.
+
+    Rationale:
+        - In Pydantic v2, `BaseSettings` loads configuration from its configured
+          sources (environment variables, `.env`, secrets, etc.) during
+          validation, not during object construction.
+        - Calling `model_validate({})` preserves the full runtime behavior of
+          environment-based configuration while avoiding mypy false-positives
+          about missing required constructor arguments.
+        - Deferring settings instantiation avoids loading configuration at
+          import time, which is critical for test isolation and for preventing
+          failures when required environment variables are not yet defined.
+
+    Design considerations:
+        - Settings are loaded lazily and cached to provide a single source of
+          truth at runtime.
+        - Tests can fully control configuration by setting environment
+          variables before invoking this function.
+        - Importing application modules never implicitly depends on the
+          presence of environment configuration.
+
+    Returns:
+        Settings: A fully validated Settings instance loaded from the current
+        environment.
+    """
+    return Settings.model_validate({})
