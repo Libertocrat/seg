@@ -444,20 +444,21 @@ Quick checks and fixes:
 - Start the service with the project source on `PYTHONPATH` (example):
 
   ```bash
-  PYTHONPATH=./src uvicorn seg.app:app
+  # using the application factory
+  PYTHONPATH=./src uvicorn --factory seg.app:create_app --host 0.0.0.0 --port 8080 --reload --reload-dir src --log-level info
   ```
 
-- Or install the package in editable mode and run normally:
+  - Or install the package in editable mode and run normally:
 
   ```bash
   pip install -e .
-  uvicorn seg.app:app
+  uvicorn --factory seg.app:create_app
   ```
 
 - Verify registered actions quickly:
 
   ```bash
-  PYTHONPATH=./src python -c "from seg.actions.registry import list_actions; print(list_actions())"
+  PYTHONPATH=./src python -c "from seg.actions import discover_and_register; from seg.actions.registry import list_actions; discover_and_register(); print(list_actions())"
   ```
 
 - Note: the runtime discovery imports `seg.actions` subpackages to execute registration side-effects. If a new action module is not imported (for example because the package `__init__.py` does not import it), that action will not be registered.
