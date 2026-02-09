@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import List
 
 from pydantic import Field, field_validator
@@ -89,6 +90,7 @@ class Settings(BaseSettings):
         return s
 
 
+@lru_cache
 def get_settings() -> Settings:
     """
     Lazily load and cache application settings from environment sources.
