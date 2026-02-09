@@ -132,7 +132,8 @@ SEG enforces a strict sandbox:
 Notes:
 
 - `SEG_ALLOWED_SUBDIRS` examples: `/quarantine`, `/uploads`, `/outputs` (CSV: `quarantine,uploads,outputs`).
--- If `SEG_ALLOWED_SUBDIRS` is empty, SEG will allow access to any path under the configured `SEG_SANDBOX_DIR` (permissive fallback; use with caution).
+
+**Required behavior:** `SEG_ALLOWED_SUBDIRS` is required and MUST NOT be empty. It must be provided either as a CSV of allowlisted subdirectories (for example `tmp,uploads,output`) or the single character `*` to indicate that any subdirectory under `SEG_SANDBOX_DIR` is allowed. The `*` value is a deliberate escape hatch and should be used with extreme caution in production environments.
 
 ---
 

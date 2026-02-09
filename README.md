@@ -4,6 +4,17 @@ Secure Execution Gateway (SEG) is a hardened internal microservice designed to r
 
 SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for controlled file-related operations, enabling production-grade automation without exposing the host or the n8n container to arbitrary command execution risks.
 
+## Contents
+
+- [Quickstart](#quickstart)
+- [Motivation](#motivation)
+- [Design Principles](#design-principles)
+- [High-Level Architecture](#high-level-architecture)
+- [Features (v1)](#features-v1)
+- [Security Model](#security-model)
+- [Development & CI](#development--ci)
+- [Troubleshooting](#troubleshooting)
+
 ---
 
 ## Quickstart
@@ -399,6 +410,18 @@ SEG is designed to run as a rootless Docker container.
 
 A standalone `docker-compose.yml` is included for local testing and integration with n8n or other microservices.
 No public ports should be exposed in production environments.
+
+---
+
+## Development & CI
+
+If you are a developer working on SEG, the repository provides a small set of guides to get started and to reproduce CI checks locally. Start here:
+
+- Development quickstart and contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- CI pipeline, pre-commit policy and tooling requirements: [docs/CI.md](docs/CI.md)
+- Testing philosophy and fixtures: [docs/TESTING.md](docs/TESTING.md)
+
+These documents describe how to reproduce CI locally, the required system dependencies (Linux-based), and the `pre-commit` hooks used by the project.
 
 ---
 
