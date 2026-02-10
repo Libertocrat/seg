@@ -43,7 +43,7 @@ The CI pipeline runs the following steps **in order**:
    - Command:
 
      ```bash
-     black --check src
+     black --check src tests
      ```
 
 2. **Linting**
@@ -52,7 +52,7 @@ The CI pipeline runs the following steps **in order**:
    - Command:
 
      ```bash
-     ruff check src
+     ruff check src tests
      ```
 
 3. **Static type checking**
@@ -61,7 +61,7 @@ The CI pipeline runs the following steps **in order**:
    - Command:
 
      ```bash
-     mypy --config-file mypy.ini src
+     mypy --config-file mypy.ini src tests
      ```
 
 4. **Dockerfile linting**
@@ -78,9 +78,9 @@ The CI pipeline runs the following steps **in order**:
    - Tool: `pytest`
    - Command:
 
-  ```bash
-  pytest -q tests
-  ```
+     ```bash
+     pytest -q tests
+     ```
 
 All steps must pass for the CI job to succeed.
 
@@ -130,16 +130,15 @@ This quickstart assumes a Linux environment and that system packages such as `li
 
 The project uses `pre-commit` to run fast, local checks before pushing changes. The configured hooks are:
 
-- `black`: code formatter (runs on `src` files)
+- `black`: code formatter
 - `ruff`: linter and local formatter
-- `mypy`: static type checks (configured to run on `src/`)
+- `mypy`: static type checks
 - `hadolint`: Dockerfile lint (local hook running system binary)
 - `pytest`: test suite (configured as a local hook)
 
 Notes & recommendations:
 
-- Currently the `pytest` hook is configured as a local hook that runs on `commit` (see `.pre-commit-config.yaml`). Running the full test-suite on every commit can be slow for large changes; consider running tests via CI or moving the `pytest` hook to `pre-push` if local iteration becomes slow.
-- `pre-commit` may install isolated environments for some hooks; the `mypy` hook includes `additional_dependencies` to ensure runtime imports are available to type checks.
+- `pre-commit` runs `black` and `ruff` on both `src/` and `tests/` (so tests are verified for formatting and lint rules locally). The `mypy` pre-commit hook is configured to type-check `src` and `tests` and includes test runtime dependencies to avoid missing-imports in isolated hook environments.
 
 ## Tooling & system requirements
 

@@ -3,7 +3,8 @@
 PYTHON ?= python
 PIP ?= pip
 
-SRC_DIRS = src
+# Include tests directory in formatting/linting/typechecking targets
+SRC_DIRS = src tests
 
 help:
 	@echo "make fmt        - Format code (black)"
@@ -23,6 +24,7 @@ fmt:
 lint:
 	black --check $(SRC_DIRS)
 	ruff check $(SRC_DIRS)
+
 typecheck:
 	mypy --config-file mypy.ini $(SRC_DIRS)
 

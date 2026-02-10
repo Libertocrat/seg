@@ -75,8 +75,8 @@ If any required variable is missing or empty, the script exits with an error.
 
 | Value | Meaning |
 | ----- | -------- |
-| `*` | Root sandbox — `/data` is the sandbox |
-| `uploads,output,tmp` | Subdirectory sandbox — only listed subdirectories |
+| `*` | Root sandbox: `/data` is the sandbox |
+| `uploads,output,tmp` | Subdirectory sandbox: only listed subdirectories |
 | *(unset)* | ❌ Invalid (error) |
 | *(empty)* | ❌ Invalid (error) |
 

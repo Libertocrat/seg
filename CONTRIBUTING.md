@@ -74,13 +74,13 @@ Run a single check locally when iterating quickly:
 
 ```bash
 # Format
-black .
+black src tests
 
 # Lint and auto-fix formatting/import-order issues with ruff
-ruff check --fix .
+ruff check --fix src tests
 
 # Static typing
-mypy --config-file mypy.ini .
+mypy --config-file mypy.ini src tests
 
 # Run tests
 pytest -q tests

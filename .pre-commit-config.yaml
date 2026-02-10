@@ -3,7 +3,7 @@ repos:
     rev: 24.10.0
     hooks:
       - id: black
-        args: ["src"]
+        args: ["src", "tests"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
@@ -14,12 +14,12 @@ repos:
     rev: v1.11.2
     hooks:
       - id: mypy
-        name: mypy (src)
+        name: mypy (src and tests)
         args:
           - --config-file
           - mypy.ini
           - --explicit-package-bases
-        files: ^src/
+        files: ^(src|tests)/
         additional_dependencies:
           # Runtime deps needed for imports
           - fastapi
@@ -27,6 +27,9 @@ repos:
           - pydantic==2.12.0
           - pydantic-settings==2.12.0
           - prometheus-client
+          # Testing deps required when mypy checks test files under 'tests/'
+          - pytest
+          - pytest-asyncio
 
   - repo: local
     hooks:
