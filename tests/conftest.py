@@ -232,3 +232,37 @@ def auth_headers(api_token) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {api_token}",
     }
+
+
+# ============================================================================
+# Filesystem fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def sandbox_file_factory(minimal_safe_env):
+    """
+    Factory fixture to create files inside an allowed sandbox subdirectory.
+
+    Returns:
+        Callable[[str, bytes, str], Path]
+    """
+    from pathlib import Path
+
+    sandbox = Path(minimal_safe_env["SEG_SANDBOX_DIR"])
+    allowed = minimal_safe_env["SEG_ALLOWED_SUBDIRS"].split(",")
+
+    def _create(
+        name: str,
+        content: bytes,
+        subdir: str | None = None,
+    ) -> Path:
+        chosen = subdir or allowed[0]
+        base = sandbox / chosen
+        base.mkdir(parents=True, exist_ok=True)
+
+        path = base / name
+        path.write_bytes(content)
+        return path
+
+    return _create

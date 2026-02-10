@@ -44,10 +44,10 @@ Optional variables (not required by the script, present for documentation):
 
 ### Flags
 
-- `--env-file <path>` — use the specified `.env` file as source of truth
-- `--dry-run` — print the commands that would run without making changes
-- `--force` — apply permission fixes when conflicts are detected
-- `-h`, `--help` — show usage (must be used alone)
+- `--env-file <path>`: use the specified `.env` file as source of truth
+- `--dry-run`: print the commands that would run without making changes
+- `--force`: apply permission fixes when conflicts are detected
+- `-h`, `--help`: show usage (must be used alone)
 
 ### Usage
 
@@ -89,7 +89,7 @@ docker compose up -d
 # Prepares the named volume and then brings up services that mount it.
 ```
 
-- Force-fix conflicts on an existing volume (careful — applies changes):
+- Force-fix conflicts on an existing volume (careful, it applies changes):
 
 ```bash
 ./scripts/init-shared-volume.sh --env-file .env.example --force

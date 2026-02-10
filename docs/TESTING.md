@@ -132,9 +132,10 @@ Breaking this rule is considered a test bug.
 
 In addition to `clean_seg_environment`, SEG provides reusable fixtures such as:
 
-- `minimal_safe_env` – provides the minimal required SEG configuration
-- `sandbox_dir` – creates an isolated filesystem sandbox
-- `api_token` – provides a deterministic authentication token
+- `minimal_safe_env`: provides the minimal required SEG configuration
+- `sandbox_dir`: creates an isolated filesystem sandbox
+- `api_token`: provides a deterministic authentication token
+- `sandbox_file_factory`: helper to create files inside an allowed sandbox subdirectory for tests. Use this fixture to create deterministic test files inside the allowlisted subdirectory (it returns a Path for the created file).
 
 These fixtures are the **only supported mechanism** for providing configuration to tests.
 

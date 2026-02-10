@@ -13,6 +13,8 @@ SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for c
 - [Features (v1)](#features-v1)
 - [Security Model](#security-model)
 - [Development & CI](#development--ci)
+  - Note: CI checks include both `src/` and `tests/` (formatting, linting and
+    type-checking). Run `make ci` locally to reproduce the full pipeline.
 - [Troubleshooting](#troubleshooting)
 
 ---
