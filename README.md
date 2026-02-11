@@ -13,8 +13,6 @@ SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for c
 - [Features (v1)](#features-v1)
 - [Security Model](#security-model)
 - [Development & CI](#development--ci)
-  - Note: CI checks include both `src/` and `tests/` (formatting, linting and
-    type-checking). Run `make ci` locally to reproduce the full pipeline.
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -424,6 +422,8 @@ If you are a developer working on SEG, the repository provides a small set of gu
 - Testing philosophy and fixtures: [docs/TESTING.md](docs/TESTING.md)
 
 These documents describe how to reproduce CI locally, the required system dependencies (Linux-based), and the `pre-commit` hooks used by the project.
+
+Integration tests (FastAPI end-to-end) live under `tests/integration/`. These are run as part of the default `pytest` invocation and in CI.
 
 ---
 

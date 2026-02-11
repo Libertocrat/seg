@@ -49,15 +49,13 @@ async def test_checksum_file_supported_algorithms(
     WHEN checksum_file is called with a supported algorithm
     THEN the correct checksum and file size are returned
     """
-    file_path = sandbox_file_factory(
+    sf = sandbox_file_factory(
         name="test_file.bin",
         content=TEST_FILE_CONTENT,
     )
 
-    relative_path = f"{file_path.parent.name}/{file_path.name}"
-
     params = ChecksumParams(
-        path=relative_path,
+        path=str(sf.rel_path),
         algorithm=algorithm,
     )
 
@@ -124,10 +122,10 @@ async def test_checksum_file_rejects_symlink(sandbox_file_factory, minimal_safe_
         name="target.bin",
         content=TEST_FILE_CONTENT,
     )
-    symlink = target.parent / "link.bin"
-    symlink.symlink_to(target)
+    symlink = target.abs_path.parent / "link.bin"
+    symlink.symlink_to(target.abs_path)
 
-    relative_path = f"{target.parent.name}/{symlink.name}"
+    relative_path = str(target.rel_path.parent / symlink.name)
 
     params = ChecksumParams(
         path=relative_path,
@@ -154,17 +152,15 @@ async def test_checksum_file_rejects_invalid_algorithm(
     WHEN checksum_file is called with an unsupported algorithm
     THEN an INVALID_ALGORITHM SegActionError is raised
     """
-    file_path = sandbox_file_factory(
+    file = sandbox_file_factory(
         name="test_file.bin",
         content=TEST_FILE_CONTENT,
     )
 
-    relative_path = f"{file_path.parent.name}/{file_path.name}"
-
     # Intentionally bypass Pydantic Literal validation to exercise
     # action-level algorithm handling.
     params = ChecksumParams.model_construct(
-        path=relative_path,
+        path=str(file.rel_path),
         algorithm="not-a-real-algo",
     )
 

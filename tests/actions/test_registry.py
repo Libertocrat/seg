@@ -36,27 +36,12 @@ async def dummy_action_handler(params: DummyActionParams):
     return {"value": params.value}
 
 
-@pytest.fixture(autouse=True)
-def clear_action_registry():
-    """
-    GIVEN a global in-memory action registry
-    WHEN a test starts
-    THEN the registry is cleared to guarantee isolation
-    """
-    # Import locally to avoid exposing the private symbol globally
-    from seg.actions import registry
-
-    registry._REGISTRY.clear()
-    yield
-    registry._REGISTRY.clear()
-
-
 # ============================================================================
 # Action registration
 # ============================================================================
 
 
-def test_register_action_successfully():
+def test_register_action_successfully(clean_action_registry):
     """
     GIVEN a valid ActionSpec
     WHEN the action is registered
@@ -78,7 +63,7 @@ def test_register_action_successfully():
     assert retrieved.handler is dummy_action_handler
 
 
-def test_registering_duplicate_action_raises_error():
+def test_registering_duplicate_action_raises_error(clean_action_registry):
     """
     GIVEN an action already registered under a name
     WHEN another action with the same name is registered
@@ -112,7 +97,7 @@ def test_get_action_returns_none_for_unknown_action():
     assert result is None
 
 
-def test_get_action_returns_correct_action():
+def test_get_action_returns_correct_action(clean_action_registry):
     """
     GIVEN a registered action
     WHEN it is retrieved by name
@@ -136,7 +121,7 @@ def test_get_action_returns_correct_action():
 # ============================================================================
 
 
-def test_list_actions_returns_sorted_action_names():
+def test_list_actions_returns_sorted_action_names(clean_action_registry):
     """
     GIVEN multiple registered actions
     WHEN list_actions is called
@@ -158,7 +143,7 @@ def test_list_actions_returns_sorted_action_names():
     assert result == sorted(names)
 
 
-def test_list_actions_is_empty_when_no_actions_registered():
+def test_list_actions_is_empty_when_no_actions_registered(clean_action_registry):
     """
     GIVEN an empty registry
     WHEN list_actions is called
@@ -167,3 +152,87 @@ def test_list_actions_is_empty_when_no_actions_registered():
     result = list_actions()
 
     assert result == []
+
+
+# ============================================================================
+# Registry snapshot and restore
+# ============================================================================
+
+
+def test_registry_public_helpers_snapshot_and_restore(clean_action_registry):
+    """
+    GIVEN a registry with an initial snapshot
+    WHEN a temporary action is registered and `restore_registry` is called
+    THEN the temporary action is removed and the original snapshot is restored
+    """
+    from seg.actions import registry
+
+    # Capture current state
+    snapshot = registry.get_registry_snapshot()
+
+    # Register a temporary action
+    spec = ActionSpec(
+        name="tmp_helper_action",
+        params_model=DummyActionParams,
+        handler=dummy_action_handler,
+    )
+    register_action(spec)
+
+    # Ensure the action is registered now
+    assert "tmp_helper_action" in list_actions()
+
+    # Restore snapshot and ensure the temporary action is gone
+    registry.restore_registry(snapshot)
+    assert "tmp_helper_action" not in list_actions()
+
+
+def test_registry_replace_and_clear_registry(clean_action_registry):
+    """
+    GIVEN the current registry state
+    WHEN `replace_registry({})` is used and `clear_registry()` and new
+        registrations are performed on the replacement
+    THEN the replacement registry reflects those changes and the original
+        registry can be restored without pollution
+    """
+    from seg.actions import registry
+
+    # Shallow copy of the current registry for later restoration
+    original = registry.get_registry_snapshot()
+
+    try:
+        # Replace with an explicitly controlled registry
+        registry.replace_registry({})
+        assert list_actions() == []
+
+        # Clear on empty should be a no-op and not raise
+        registry.clear_registry()
+        assert list_actions() == []
+
+        # Populate the replacement registry and ensure it's visible
+        spec = ActionSpec(
+            name="replace_action",
+            params_model=DummyActionParams,
+            handler=dummy_action_handler,
+        )
+        register_action(spec)
+        assert "replace_action" in list_actions()
+
+    finally:
+        # Restore original and ensure it's back to the initial state
+        registry.restore_registry(original)
+        assert registry.get_registry_snapshot() == original
+
+
+def test_get_registry_snapshot_is_shallow_copy(clean_action_registry):
+    """
+    GIVEN a registry snapshot retrieved via `get_registry_snapshot`
+    WHEN the returned snapshot object is mutated
+    THEN the live registry remains unchanged
+    """
+    from seg.actions import registry
+
+    copy_snapshot = registry.get_registry_snapshot()
+
+    # Mutate the returned copy and ensure live registry unchanged
+    copy_snapshot["__fake__"] = "some value"
+    assert "__fake__" not in registry.get_registry_snapshot()

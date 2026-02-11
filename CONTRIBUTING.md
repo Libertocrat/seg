@@ -84,6 +84,9 @@ mypy --config-file mypy.ini src tests
 
 # Run tests
 pytest -q tests
+
+# Run integration tests only
+pytest -q tests/integration
 ```
 
 Quick environment verification:

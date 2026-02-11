@@ -124,7 +124,45 @@ This fixture guarantees that:
 - It MUST NOT be used in production code
 - Any test requiring configuration must explicitly provide it via fixtures
 
-Breaking this rule is considered a test bug.
+> Breaking these rules is considered a test bug.
+
+---
+
+### `clean_action_registry` (opt-in)
+
+SEG provides an explicit fixture to isolate the global action registry for tests that need to mutate or assert action registration behavior. Tests that register or unregister actions should request the `clean_action_registry` fixture.
+
+- Behavior: the fixture takes a snapshot of the active registry, replaces the active registry with an empty mapping for the duration of the test, and restores the snapshot on teardown.
+
+#### Responsibility
+
+This fixture's responsibility is to provide strong isolation for tests that need to register, replace or inspect action registrations. It ensures that any
+mutations performed by a test do not leak into other tests or into the application's production startup state.
+
+#### Why this fixture exists
+
+Action registration is implemented via import-time side-effects in the `seg.actions` package. While the codebase avoids import-time execution for most
+behaviour, action modules perform explicit `register_action(...)` calls when imported. Tests that need to verify registry behavior therefore must be able
+to mutate the registry safely. The `clean_action_registry` fixture exists to make that mutation deterministic and reversible.
+
+Practical goals:
+
+- Prevent test-order dependencies caused by leftover registered actions.
+- Make tests fail visibly if they rely on global state left behind by other tests.
+- Encourage use of the public registry API so the internal `_REGISTRY` name is never touched directly.
+
+#### Scope and constraints
+
+- This fixture is **opt-in**: tests must request it explicitly (`clean_action_registry`) to opt into registry isolation.
+- It is **test-only** and MUST NOT be used in production code.
+- Prefer the public helpers in `seg.actions.registry`:
+  - `get_registry_snapshot()`: take a shallow snapshot of the registry mapping.
+  - `replace_registry(new)`: rebind the active registry to `new`.
+  - `restore_registry(snapshot)`: restore a previously-captured snapshot.
+  - `clear_registry()`: clear the active mapping in-place.
+- Use `copy.deepcopy()` on a snapshot only when you need to isolate mutations to objects stored inside the registry entries; the standard snapshot is a shallow copy of the mapping and is sufficient for add/remove tests.
+
+This pattern enforces strong isolation for action registration and prevents leaking test-time modifications into other tests or into production startup paths.
 
 ---
 
@@ -221,6 +259,10 @@ Planned tests include:
 - Validating health, execution, and sandbox behavior
 
 These tests will likely use `docker-compose` and run as a CI stage.
+
+### Integration tests (FastAPI)
+
+Integration tests that exercise the running FastAPI application and action dispatch live under `tests/integration/`. They validate middleware, routing, authentication and end-to-end dispatcher/registry interaction. These tests are run as part of the normal `pytest` invocation and in CI.
 
 ---
 
