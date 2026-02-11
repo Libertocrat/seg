@@ -28,8 +28,8 @@ source .venv/bin/activate
 2. Install Python dependencies:
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 3. (Optional) Install tooling used by CI and pre-commit hooks:
@@ -47,17 +47,23 @@ curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint
 4. Install and enable `pre-commit` (recommended):
 
 ```bash
-pip install pre-commit
+python -m pip install pre-commit
 pre-commit install
 ```
 
-5. Run the full CI pipeline locally:
+5. Run CI locally:
 
 ```bash
 make ci
 ```
 
-6. Run the pre-commit locally:
+6. Run the full pipeline locally (ci + build):
+
+```bash
+make pipeline
+```
+
+7. Run the pre-commit locally:
 
 ```bash
 pre-commit run --all-files

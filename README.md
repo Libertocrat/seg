@@ -476,7 +476,7 @@ Quick checks and fixes:
   - Or install the package in editable mode and run normally:
 
   ```bash
-  pip install -e .
+  python -m pip install -e .
   uvicorn --factory seg.app:create_app
   ```
 

@@ -35,7 +35,7 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt
 
 # Copy application code into the image root so the package `seg` is importable
 # from the container working directory (i.e. /app/seg).
