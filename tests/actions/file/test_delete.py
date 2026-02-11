@@ -35,14 +35,12 @@ async def test_delete_file_existing_file_deleted(
         content=b"delete me\n",
     )
 
-    relative_path = f"{target.parent.name}/{target.name}"
-
-    params = DeleteParams(path=relative_path, require_exists=True)
+    params = DeleteParams(path=str(target.rel_path), require_exists=True)
 
     result = await delete_file(params)
 
     assert result.deleted is True
-    assert not target.exists()
+    assert not target.abs_path.exists()
 
 
 # ============================================================================
@@ -127,10 +125,10 @@ async def test_delete_file_rejects_symlink(sandbox_file_factory, minimal_safe_en
         name="target.bin",
         content=b"delete me\n",
     )
-    symlink = target.parent / "link.bin"
-    symlink.symlink_to(target)
+    symlink = target.abs_path.parent / "link.bin"
+    symlink.symlink_to(target.abs_path)
 
-    relative_path = f"{target.parent.name}/{symlink.name}"
+    relative_path = str(target.rel_path.parent / symlink.name)
 
     params = DeleteParams(
         path=relative_path,

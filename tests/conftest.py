@@ -13,15 +13,16 @@ smoke tests. The primary goals are:
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
-from seg.app import create_app
 from seg.core.config import Settings
 
 # ============================================================================
-# Environment isolation
+# Environment and registry isolation
 # ============================================================================
 
 
@@ -92,6 +93,25 @@ def clean_seg_environment(monkeypatch):
             Settings.model_config.pop("env_file", None)
     except Exception:  # noqa: S110
         pass
+
+
+@pytest.fixture
+def clean_action_registry():
+    """
+    GIVEN a global in-memory action registry
+    WHEN a test needs registry isolation
+    THEN it runs with an empty registry and baseline is restored afterward.
+    """
+    from seg.actions import registry
+
+    # Use the public registry API: take a snapshot, replace with an empty
+    # registry for the duration of the test, and restore the snapshot after.
+    snapshot = registry.get_registry_snapshot()
+    registry.replace_registry({})
+    try:
+        yield
+    finally:
+        registry.restore_registry(snapshot)
 
 
 # ============================================================================
@@ -198,6 +218,8 @@ def app(settings):
     Returns:
         FastAPI: Configured application instance.
     """
+    from seg.app import create_app
+
     return create_app(settings)
 
 
@@ -239,15 +261,49 @@ def auth_headers(api_token) -> dict[str, str]:
 # ============================================================================
 
 
+@dataclass(frozen=True)
+class SandboxFile:
+    """
+    Value object representing a file created inside the SEG sandbox for tests.
+
+    This object intentionally exposes multiple path representations to avoid
+    leaking sandbox layout logic into individual tests.
+
+    Attributes:
+        abs_path:
+            Absolute filesystem path to the file on disk.
+            Intended for assertions that require direct filesystem access
+            (existence checks, debugging, etc.).
+
+        rel_path:
+            Path relative to the sandbox root.
+            This is the form expected by SEG actions and MUST be used when
+            constructing execute request payloads.
+
+        subdir:
+            The sandbox subdirectory in which the file was created.
+            Provided for clarity and debugging; tests should rarely need it.
+    """
+
+    abs_path: Path
+    rel_path: Path
+    subdir: str
+
+
 @pytest.fixture
 def sandbox_file_factory(minimal_safe_env):
     """
-    Factory fixture to create files inside an allowed sandbox subdirectory.
+    Factory fixture to create files inside the SEG sandbox for tests.
+
+    This fixture encapsulates all sandbox layout knowledge and returns a
+    SandboxFile value object exposing both absolute and sandbox-relative paths.
+
+    Tests MUST use `SandboxFile.rel_path` when passing paths to SEG actions,
+    and SHOULD avoid performing manual path manipulation.
 
     Returns:
-        Callable[[str, bytes, str], Path]
+        Callable[[name, content, subdir], SandboxFile]
     """
-    from pathlib import Path
 
     sandbox = Path(minimal_safe_env["SEG_SANDBOX_DIR"])
     allowed = minimal_safe_env["SEG_ALLOWED_SUBDIRS"].split(",")
@@ -256,13 +312,19 @@ def sandbox_file_factory(minimal_safe_env):
         name: str,
         content: bytes,
         subdir: str | None = None,
-    ) -> Path:
+    ) -> SandboxFile:
         chosen = subdir or allowed[0]
         base = sandbox / chosen
         base.mkdir(parents=True, exist_ok=True)
 
-        path = base / name
-        path.write_bytes(content)
-        return path
+        abs_path = base / name
+        abs_path.write_bytes(content)
+
+        rel_path = abs_path.relative_to(sandbox)
+        return SandboxFile(
+            abs_path=abs_path,
+            rel_path=rel_path,
+            subdir=chosen,
+        )
 
     return _create

@@ -48,7 +48,7 @@ def test_error_info_accepts_optional_details():
 
 
 # ============================================================================
-# ResponseEnvelope – success path
+# ResponseEnvelope - success path
 # ============================================================================
 
 
@@ -67,7 +67,7 @@ def test_success_response_factory_sets_success_true():
 
 
 # ============================================================================
-# ResponseEnvelope – failure path
+# ResponseEnvelope - failure path
 # ============================================================================
 
 
@@ -108,7 +108,7 @@ def test_failure_response_includes_error_details():
 
 
 # ============================================================================
-# ResponseEnvelope – shape invariants
+# ResponseEnvelope - shape invariants
 # ============================================================================
 
 

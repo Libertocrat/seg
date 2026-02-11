@@ -19,7 +19,7 @@ from seg.core.security.paths import (
 )
 
 # ============================================================================
-# sanitize_rel_path – syntactic security
+# sanitize_rel_path - syntactic security
 # ============================================================================
 
 
@@ -85,7 +85,7 @@ def test_sanitize_normalizes_valid_path():
 
 
 # ============================================================================
-# resolve_in_sandbox – sandbox boundary enforcement
+# resolve_in_sandbox - sandbox boundary enforcement
 # ============================================================================
 
 
@@ -206,7 +206,7 @@ def test_resolve_rejects_missing_sandbox_dir(minimal_safe_env, tmp_path):
 
 
 # ============================================================================
-# safe_open_no_follow – secure file opening
+# safe_open_no_follow - secure file opening
 # ============================================================================
 
 

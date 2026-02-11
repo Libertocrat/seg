@@ -64,20 +64,6 @@ async def unexpected_error_handler(params: DummyActionParams):
     raise RuntimeError("boom")
 
 
-@pytest.fixture(autouse=True)
-def clear_action_registry():
-    """
-    GIVEN a global in-memory action registry
-    WHEN a test starts
-    THEN the registry is cleared to guarantee isolation
-    """
-    from seg.actions import registry
-
-    registry._REGISTRY.clear()
-    yield
-    registry._REGISTRY.clear()
-
-
 def make_request(action: str, params: dict) -> ExecuteRequest:
     """Helper to build ExecuteRequest instances."""
     return ExecuteRequest(action=action, params=params)
@@ -111,7 +97,7 @@ async def test_dispatch_unknown_action_returns_failure_envelope():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_invalid_params_returns_failure_envelope():
+async def test_dispatch_invalid_params_returns_failure_envelope(clean_action_registry):
     """
     GIVEN a registered action
     WHEN params do not conform to the action params model
@@ -141,7 +127,7 @@ async def test_dispatch_invalid_params_returns_failure_envelope():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_success_with_result_model():
+async def test_dispatch_success_with_result_model(clean_action_registry):
     """
     GIVEN a registered action with a result_model
     WHEN the handler executes successfully
@@ -166,7 +152,7 @@ async def test_dispatch_success_with_result_model():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_success_without_result_model():
+async def test_dispatch_success_without_result_model(clean_action_registry):
     """
     GIVEN a registered action without a result_model
     WHEN the handler executes successfully
@@ -195,7 +181,7 @@ async def test_dispatch_success_without_result_model():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_invalid_result_returns_failure_envelope():
+async def test_dispatch_invalid_result_returns_failure_envelope(clean_action_registry):
     """
     GIVEN a registered action with a result_model
     WHEN the handler returns an invalid result
@@ -225,7 +211,7 @@ async def test_dispatch_invalid_result_returns_failure_envelope():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_seg_action_error_is_propagated_cleanly():
+async def test_dispatch_seg_action_error_is_propagated_cleanly(clean_action_registry):
     """
     GIVEN a handler that raises SegActionError
     WHEN dispatch_execute is called
@@ -250,7 +236,7 @@ async def test_dispatch_seg_action_error_is_propagated_cleanly():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_timeout_error_returns_timeout_failure():
+async def test_dispatch_timeout_error_returns_timeout_failure(clean_action_registry):
     """
     GIVEN a handler that raises TimeoutError
     WHEN dispatch_execute is called
@@ -273,7 +259,7 @@ async def test_dispatch_timeout_error_returns_timeout_failure():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_unexpected_error_returns_internal_error():
+async def test_dispatch_unexpected_error_returns_internal_error(clean_action_registry):
     """
     GIVEN a handler that raises an unexpected exception
     WHEN dispatch_execute is called

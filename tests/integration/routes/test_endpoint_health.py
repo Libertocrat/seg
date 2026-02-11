@@ -1,0 +1,37 @@
+"""
+Integration tests for the /health endpoint.
+
+These tests validate the liveness contract of the SEG service.
+They ensure the service is reachable and responds with a stable payload.
+"""
+
+# ============================================================================
+# Health endpoint
+# ============================================================================
+
+
+def test_health_endpoint_returns_200(client):
+    """
+    GIVEN a running SEG application
+    WHEN the /health endpoint is requested
+    THEN it returns HTTP 200
+    """
+    response = client.get("/health")
+
+    assert response.status_code == 200
+
+
+def test_health_endpoint_returns_expected_payload(client):
+    """
+    GIVEN a running SEG application
+    WHEN the /health endpoint is requested
+    THEN it returns the expected health payload
+    """
+    response = client.get("/health")
+
+    body = response.json()
+
+    assert isinstance(body, dict)
+    assert body.get("success") is True
+    assert body.get("data") is not None
+    assert body["data"].get("status") == "ok"

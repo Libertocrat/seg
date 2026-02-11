@@ -56,3 +56,41 @@ def get_action(action_name: str) -> ActionSpec | None:
 def list_actions() -> list[str]:
     # Useful for debugging / audit endpoints later (optional).
     return sorted(_REGISTRY.keys())
+
+
+# Public helpers for safe runtime manipulation / inspection of the registry.
+def get_registry_snapshot() -> dict[str, ActionSpec[Any]]:
+    """Return a shallow copy of the current registry mapping.
+
+    Tests and runtime management code can use this to take a snapshot
+    without holding a reference to the internal dict.
+    """
+    return _REGISTRY.copy()
+
+
+def replace_registry(new_registry: dict[str, ActionSpec[Any]]) -> None:
+    """Replace the internal registry object with `new_registry`.
+
+    This performs a rebinding of the module-level name so callers do not
+    need to reach into `_REGISTRY` directly. Use with care: callers should
+    keep a snapshot if they intend to restore the previous state.
+    """
+    global _REGISTRY
+    _REGISTRY = new_registry
+
+
+def clear_registry() -> None:
+    """Clear all registered actions from the active registry.
+
+    Prefer `replace_registry({})` when you need to swap the object
+    reference instead of mutating in-place.
+    """
+    _REGISTRY.clear()
+
+
+def restore_registry(snapshot: dict[str, ActionSpec[Any]]) -> None:
+    """Restore a previously-captured registry snapshot by rebinding the
+    internal registry name to the provided snapshot.
+    """
+    # This is a convenience wrapper around `replace_registry` to clarify intent
+    replace_registry(snapshot)
