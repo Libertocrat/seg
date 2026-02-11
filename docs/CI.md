@@ -26,7 +26,10 @@ CI is driven by a **single source of truth**: the `Makefile`.
 All checks executed in GitHub Actions can be reproduced locally with:
 
 ```bash
+# Code quality + tests
 make ci
+# Full pipeline (ci + build)
+make pipeline
 ```
 
 This guarantees parity between local development and CI.
@@ -86,6 +89,16 @@ All steps must pass for the CI job to succeed.
 
 ---
 
+## Build / Artifact Separation
+
+SEG enforces a strict separation between source-level checks and artifact construction. In practice this means:
+
+- Pre-commit and the `ci` Make target focus on fast, deterministic source validation (formatting, linting, typing, tests, and Dockerfile linting).
+- Docker image construction is performed separately as a distinct `build` step and is intentionally excluded from pre-commit hooks.
+- The `make pipeline` target reproduces the full local pipeline by running `make ci` followed by `make build`, allowing developers to validate both source integrity and artifact buildability before pushing.
+
+This separation reduces developer friction and keeps pre-commit hooks fast and deterministic while ensuring CI validates artifact buildability in an isolated runner environment.
+
 ## GitHub Actions Workflow
 
 The GitHub Actions workflow (`.github/workflows/ci.yml`) performs:
@@ -109,11 +122,11 @@ python -m venv .venv
 source .venv/bin/activate
 
 # install runtime and dev dependencies
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
 # install pre-commit hooks
-pip install pre-commit
+python -m pip install pre-commit
 pre-commit install
 
 # install hadolint (example)
