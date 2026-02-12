@@ -399,6 +399,7 @@ SEG is configured entirely via environment variables:
 - `SEG_TIMEOUT_MS` (default: 5000)
 - `SEG_RATE_LIMIT_RPS`
 - `SEG_LOG_LEVEL` (default: INFO)
+- `SEG_ENABLE_DOCS` (default: false)
 
 An `.env.example` file is recommended and is included in the repository to document required/runtime defaults.
 

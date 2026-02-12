@@ -40,6 +40,7 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_timeout_ms == 5000
     assert s.seg_rate_limit_rps == 10
     assert s.seg_log_level == "INFO"
+    assert s.seg_enable_docs is False
 
 
 # ===========================================================================
@@ -145,3 +146,43 @@ def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})
+
+
+def test_docs_endpoints_disabled_by_default(client):
+    """
+    GIVEN the application created with default settings
+    WHEN requesting `/openapi.json` and `/docs`
+    THEN the endpoints are not allowed and return 401
+    """
+    resp_openapi = client.get("/openapi.json")
+    assert resp_openapi.status_code == 401
+
+    resp_docs = client.get("/docs")
+    assert resp_docs.status_code == 401
+
+
+def test_docs_endpoints_enabled_when_flag_true(minimal_safe_env, monkeypatch):
+    """
+    GIVEN the required SEG environment variables and `SEG_ENABLE_DOCS=true`
+    WHEN the application is created via the factory
+    THEN `/openapi.json` and `/docs` are available
+    """
+    # minimal_safe_env ensures required vars are present; enable docs explicitly
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
+
+    from fastapi.testclient import TestClient
+
+    from seg.app import create_app
+
+    app = create_app()  # will read settings from the environment
+    client = TestClient(app)
+
+    resp_openapi = client.get("/openapi.json")
+    assert resp_openapi.status_code == 200
+    data = resp_openapi.json()
+    assert isinstance(data, dict)
+    assert "openapi" in data
+
+    resp_docs = client.get("/docs")
+    assert resp_docs.status_code == 200
+    assert "Swagger UI" in resp_docs.text or "ReDoc" in resp_docs.text

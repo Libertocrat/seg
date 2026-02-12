@@ -137,6 +137,9 @@ curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint
 make ci
 ```
 
+> OpenAPI documentation endpoints are disabled by default (`SEG_ENABLE_DOCS=false`).
+> To expose the interactive docs locally for exploration, set `SEG_ENABLE_DOCS=true` in your environment before starting the application.
+
 This quickstart assumes a Linux environment and that system packages such as `libmagic` are available (see Tooling & system requirements below).
 
 ## Pre-commit policy

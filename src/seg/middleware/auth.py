@@ -45,9 +45,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
             A Starlette Response from downstream or a 401 JSONResponse when
             authentication fails.
         """
-        # Exempt health and metrics endpoints from auth. Use prefix matching
-        # so paths like `/metrics/` or `/health/ready` remain exempt.
-        exempt_prefixes = ("/health", "/metrics")
+        # Exempt health and metrics endpoints from auth. Use a list so
+        # additional prefixes can be appended without causing mypy/type
+        # incompatibilities when the collection grows.
+        exempt_prefixes: list[str] = ["/health", "/metrics"]
+        # Exempt docs endpoints when enabled in settings
+        if (
+            getattr(request.app.state, "settings", None)
+            and request.app.state.settings.seg_enable_docs
+        ):
+            exempt_prefixes.extend(["/openapi.json", "/docs", "/redoc"])
+
+        # Use prefix matching to allow for subpaths (e.g. /health/ready)
         if any(
             request.url.path == p or request.url.path.startswith(p + "/")
             for p in exempt_prefixes
