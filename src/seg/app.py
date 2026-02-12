@@ -45,9 +45,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     settings = settings or get_settings()
 
+    # Choose whether to expose the interactive documentation endpoints at
+    # runtime based on the `seg_enable_docs` setting. When disabled these
+    # endpoints are not registered on the application instance.
+    docs_url = "/docs" if settings.seg_enable_docs else None
+    redoc_url = "/redoc" if settings.seg_enable_docs else None
+    openapi_url = "/openapi.json" if settings.seg_enable_docs else None
+
     app = FastAPI(
         title="Secure Execution Gateway (SEG)",
         version="0.1.0",
+        docs_url=docs_url,
+        redoc_url=redoc_url,
+        openapi_url=openapi_url,
     )
 
     # Attach settings to app state (single source of truth)

@@ -403,6 +403,7 @@ Implementation note: start with the Prometheus client library defaults for histo
 - `SEG_TIMEOUT_MS=5000` (ms)
 - `SEG_RATE_LIMIT_RPS=10` (defaults to 10 RPS when not defined)
 - `SEG_LOG_LEVEL=INFO`
+- `SEG_ENABLE_DOCS=false` (default: OpenAPI docs not exposed)
 
 Notes:
 

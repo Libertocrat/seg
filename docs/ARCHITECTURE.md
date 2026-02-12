@@ -265,6 +265,8 @@ core/security/
 
 They are reused by all file-based and input sanitizing actions.
 
+OpenAPI documentation endpoints are disabled by default and are controlled at runtime via the environment variable `SEG_ENABLE_DOCS` (default: `false`). Enable the docs only for local debugging or trusted environments; keep `SEG_ENABLE_DOCS=false` in production to avoid exposing interactive API endpoints.
+
 ---
 
 ### 4.8 Composite Actions

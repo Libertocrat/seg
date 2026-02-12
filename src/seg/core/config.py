@@ -22,6 +22,7 @@ class Settings(BaseSettings):
         seg_timeout_ms: Per-request timeout (milliseconds).
         seg_rate_limit_rps: Rate limit in requests-per-second.
         seg_log_level: Logging verbosity.
+        seg_enable_docs: Enable OpenAPI docs endpoints.
     """
 
     seg_api_token: str = Field(...)
@@ -37,6 +38,7 @@ class Settings(BaseSettings):
     seg_timeout_ms: int = Field(5000)
     seg_rate_limit_rps: int = Field(10)
     seg_log_level: str = Field("INFO")
+    seg_enable_docs: bool = Field(False)
 
     model_config = {
         "env_file": ".env",
