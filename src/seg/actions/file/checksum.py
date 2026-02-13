@@ -1,6 +1,6 @@
 """Safe, sandboxed checksum action implementation.
 
-This module provides the `checksum_file` handler used to compute a streaming
+This module provides the `file_checksum` handler used to compute a streaming
 checksum of a file contained under the configured SEG sandbox directory.
 
 Security and behavior notes:
@@ -38,7 +38,7 @@ from seg.core.security.paths import (
 logger = logging.getLogger("seg.actions.file.checksum")
 
 
-async def checksum_file(params: ChecksumParams) -> ChecksumResult:
+async def file_checksum(params: ChecksumParams) -> ChecksumResult:
     """Compute a streaming checksum of a file inside the SEG sandbox.
 
     The function performs a safe, sandboxed checksum while minimizing TOCTOU
@@ -175,9 +175,9 @@ async def checksum_file(params: ChecksumParams) -> ChecksumResult:
 # Register the action in the explicit allowlist.
 register_action(
     ActionSpec(
-        name="checksum_file",
+        name="file_checksum",
         params_model=ChecksumParams,
         result_model=ChecksumResult,
-        handler=checksum_file,
+        handler=file_checksum,
     )
 )

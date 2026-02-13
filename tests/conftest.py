@@ -1,4 +1,3 @@
-# tests/conftest.py
 """
 Global pytest fixtures for SEG test suite.
 
@@ -12,7 +11,10 @@ smoke tests. The primary goals are:
 
 from __future__ import annotations
 
+import gzip
 import os
+import tarfile
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -328,3 +330,180 @@ def sandbox_file_factory(minimal_safe_env):
         )
 
     return _create
+
+
+# ============================================================================
+# Higher-level file factory for MIME tests
+# ============================================================================
+
+
+@pytest.fixture
+def file_factory(sandbox_file_factory):
+    """
+    High-level factory to generate realistic files by logical type.
+
+    This fixture builds real, structurally valid files for common MIME types
+    without introducing external dependencies.
+
+    Supported types:
+        - "text"
+        - "md"
+        - "csv"
+        - "png"
+        - "pdf"
+        - "zip"
+        - "tar"
+        - "gzip"
+        - "exe"
+        - "elf"
+        - "shell"
+        - "python"
+        - "javascript"
+
+    Returns:
+        Callable[[file_type: str, name: str], SandboxFile]
+    """
+
+    def create(file_type: str, name: str) -> SandboxFile:
+        file_type = file_type.lower()
+
+        # ------------------------------------------------------------------
+        # TEXT
+        # ------------------------------------------------------------------
+        if file_type == "text":
+            return sandbox_file_factory(
+                name=name,
+                content=b"Hello SEG\n",
+            )
+
+        # ------------------------------------------------------------------
+        # MARKDOWN
+        # ------------------------------------------------------------------
+        if file_type == "markdown":
+            md_bytes = (
+                b"# SEG Test Document\n\n"
+                b"This is a markdown file.\n\n"
+                b"- item 1\n"
+                b"- item 2\n"
+            )
+            return sandbox_file_factory(name=name, content=md_bytes)
+
+        # ------------------------------------------------------------------
+        # CSV
+        # ------------------------------------------------------------------
+        if file_type == "csv":
+            csv_bytes = b"id,name,value\n" b"1,alpha,100\n" b"2,beta,200\n"
+            return sandbox_file_factory(name=name, content=csv_bytes)
+
+        # ------------------------------------------------------------------
+        # PNG (minimal valid PNG)
+        # ------------------------------------------------------------------
+        if file_type == "png":
+            png_bytes = (
+                b"\x89PNG\r\n\x1a\n"
+                b"\x00\x00\x00\rIHDR"
+                b"\x00\x00\x00\x01"
+                b"\x00\x00\x00\x01"
+                b"\x08\x02\x00\x00\x00"
+                b"\x90wS\xde"
+                b"\x00\x00\x00\x0aIDAT"
+                b"\x08\xd7c\xf8\x0f\x00\x01\x01\x01\x00"
+                b"\x18\xdd\x8d\x18"
+                b"\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+            return sandbox_file_factory(name=name, content=png_bytes)
+
+        # ------------------------------------------------------------------
+        # PDF (minimal valid PDF)
+        # ------------------------------------------------------------------
+        if file_type == "pdf":
+            pdf_bytes = (
+                b"%PDF-1.4\n"
+                b"1 0 obj\n"
+                b"<< /Type /Catalog >>\n"
+                b"endobj\n"
+                b"trailer\n"
+                b"<< /Root 1 0 R >>\n"
+                b"%%EOF"
+            )
+            return sandbox_file_factory(name=name, content=pdf_bytes)
+
+        # ------------------------------------------------------------------
+        # ZIP
+        # ------------------------------------------------------------------
+        if file_type == "zip":
+            # First create empty placeholder
+            sf = sandbox_file_factory(name=name, content=b"")
+            with zipfile.ZipFile(sf.abs_path, "w") as z:
+                z.writestr("data.bin", os.urandom(256))
+            return sf
+
+        # ------------------------------------------------------------------
+        # TAR
+        # ------------------------------------------------------------------
+        if file_type == "tar":
+            sf = sandbox_file_factory(name=name, content=b"")
+            temp_file = sf.abs_path.parent / "data.bin"
+            temp_file.write_bytes(os.urandom(256))
+            with tarfile.open(sf.abs_path, "w") as t:
+                t.add(temp_file, arcname="data.bin")
+            temp_file.unlink()
+            return sf
+
+        # ------------------------------------------------------------------
+        # GZIP
+        # ------------------------------------------------------------------
+        if file_type == "gzip":
+            sf = sandbox_file_factory(name=name, content=b"")
+            with gzip.open(sf.abs_path, "wb") as g:
+                g.write(os.urandom(256))
+            return sf
+
+        # ------------------------------------------------------------------
+        # EXE (Windows PE / DOS MZ header)
+        # ------------------------------------------------------------------
+        if file_type == "exe":
+            exe_bytes = b"MZ" + b"\x00" * 512
+            return sandbox_file_factory(name=name, content=exe_bytes)
+
+        # ------------------------------------------------------------------
+        # ELF (Linux executable)
+        # ------------------------------------------------------------------
+        if file_type == "elf":
+            elf_bytes = (
+                b"\x7fELF"  # Magic
+                + b"\x02"  # EI_CLASS (64-bit)
+                + b"\x01"  # EI_DATA (little endian)
+                + b"\x01"  # EI_VERSION
+                + (b"\x00" * 9)  # EI_PAD
+                + b"\x02\x00"  # e_type (EXEC)
+                + b"\x3e\x00"  # e_machine (x86-64)
+                + b"\x01\x00\x00\x00"  # e_version
+                + (b"\x00" * 52)
+            )
+            return sandbox_file_factory(name=name, content=elf_bytes)
+
+        # ------------------------------------------------------------------
+        # SHELL SCRIPT
+        # ------------------------------------------------------------------
+        if file_type == "shell":
+            shell_bytes = b"#!/bin/bash\n echo SEG\n"
+            return sandbox_file_factory(name=name, content=shell_bytes)
+
+        # ------------------------------------------------------------------
+        # PYTHON SCRIPT
+        # ------------------------------------------------------------------
+        if file_type == "python":
+            py_bytes = b"#!/usr/bin/env python3\nprint('SEG')\n"
+            return sandbox_file_factory(name=name, content=py_bytes)
+
+        # ------------------------------------------------------------------
+        # JAVASCRIPT
+        # ------------------------------------------------------------------
+        if file_type == "javascript":
+            js_bytes = b"#!/usr/bin/env node\nconsole.log('SEG');\n"
+            return sandbox_file_factory(name=name, content=js_bytes)
+
+        raise ValueError(f"Unsupported file type: {file_type}")
+
+    return create

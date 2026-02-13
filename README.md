@@ -173,12 +173,12 @@ SEG is never exposed publicly and should only be reachable from trusted internal
 
 ## Features (v1)
 
-- File hashing (`checksum_file`)
-- File metadata inspection (`stat_file`)
-- Safe file deletion (`delete_file`)
-- File move / rename within sandbox (`move_file`)
-- MIME type detection using libmagic (`mime_detect`)
-- Composite verification (`verify_file`)
+- File hashing (`file_checksum`)
+- File metadata inspection (`file_stat`)
+- Safe file deletion (`file_delete`)
+- File move / rename within sandbox (`file_move`)
+- MIME type detection using libmagic (`file_mime_detect`)
+- Composite verification (`file_verify`)
 
   - Hash computation
   - MIME policy validation
@@ -351,7 +351,7 @@ Example request:
 
 ```json
 {
-  "action": "checksum_file",
+  "action": "file_checksum",
   "params": {
     "path": "uploads/file.bin",
     "algorithm": "sha256"
@@ -377,12 +377,12 @@ Example response:
 
 ## Supported Actions (v1)
 
-- `checksum_file`
-- `stat_file`
-- `delete_file`
-- `move_file` (used for rename as well)
-- `mime_detect`
-- `verify_file`
+- `file_checksum`
+- `file_stat`
+- `file_delete`
+- `file_move` (used for rename as well)
+- `file_mime_detect`
+- `file_verify`
 
 Each action has a strict request schema validated using Pydantic models.
 

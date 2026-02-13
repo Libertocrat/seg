@@ -55,6 +55,11 @@ def test_settings_defaults_applied(minimal_safe_env):
         "SEG_SANDBOX_DIR",
         "SEG_ALLOWED_SUBDIRS",
     ],
+    ids=[
+        "seg_api_token",
+        "seg_sandbox_dir",
+        "seg_allowed_subdirs",
+    ],
 )
 def test_missing_required_env_raises(minimal_safe_env, monkeypatch, missing_var):
     """
@@ -81,6 +86,11 @@ def test_missing_required_env_raises(minimal_safe_env, monkeypatch, missing_var)
         "SEG_MAX_BYTES",
         "SEG_TIMEOUT_MS",
         "SEG_RATE_LIMIT_RPS",
+    ],
+    ids=[
+        "seg_max_bytes",
+        "seg_timeout_ms",
+        "seg_rate_limit_rps",
     ],
 )
 def test_int_fields_invalid_string(minimal_safe_env, monkeypatch, env_field):
@@ -109,6 +119,12 @@ def test_int_fields_invalid_string(minimal_safe_env, monkeypatch, env_field):
         ("scripts,output", ["scripts", "output"]),
         (" scripts , output ", ["scripts", "output"]),
     ],
+    ids=[
+        "all_subdirs",
+        "single_subdir",
+        "multiple_subdirs",
+        "subdirs_with_whitespace",
+    ],
 )
 def test_allowed_subdirs_valid(minimal_safe_env, monkeypatch, value, expected):
     """
@@ -134,6 +150,15 @@ def test_allowed_subdirs_valid(minimal_safe_env, monkeypatch, value, expected):
         "scripts,/bin",
         "scripts,../etc",
         "scripts,,output",
+    ],
+    ids=[
+        "empty_string",
+        "whitespace_only",
+        "dot",
+        "dot_dot",
+        "absolute_path",
+        "directory_traversal",
+        "empty_element",
     ],
 )
 def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):

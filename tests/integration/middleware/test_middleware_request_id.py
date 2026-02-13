@@ -86,6 +86,11 @@ def test_request_id_is_preserved_when_valid(client):
         "/metrics",
         "/v1/execute",
     ],
+    ids=[
+        "health",
+        "metrics",
+        "v1_execute",
+    ],
 )
 def test_request_id_is_present_across_endpoints(client, auth_headers, path):
     """

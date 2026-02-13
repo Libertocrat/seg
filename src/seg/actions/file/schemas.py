@@ -27,7 +27,7 @@ Algorithm = Literal["sha256", "md5", "sha1"]
 
 
 class ChecksumParams(BaseModel):
-    """Parameters for the `checksum_file` action.
+    """Parameters for the `file_checksum` action.
 
     Attributes:
         path (str): Path string provided by the client. Interpreted as a path
@@ -44,7 +44,7 @@ class ChecksumParams(BaseModel):
 
 
 class ChecksumResult(BaseModel):
-    """Result returned by the `checksum_file` action.
+    """Result returned by the `file_checksum` action.
 
     Attributes:
         algorithm (str): Algorithm actually used (lowercased string).
@@ -58,7 +58,7 @@ class ChecksumResult(BaseModel):
 
 
 class DeleteParams(BaseModel):
-    """Parameters for the `delete_file` action.
+    """Parameters for the `file_delete` action.
 
     Attributes:
         path (str): Relative path under SEG_SANDBOX_DIR to delete.
@@ -73,7 +73,7 @@ class DeleteParams(BaseModel):
 
 
 class DeleteResult(BaseModel):
-    """Result returned by the `delete_file` action.
+    """Result returned by the `file_delete` action.
 
     Attributes:
         deleted (bool): True if a file was deleted, False if it did not exist.
@@ -84,6 +84,24 @@ class DeleteResult(BaseModel):
     )
 
 
+class MimeDetectParams(BaseModel):
+    """Parameters for the `file_mime_detect` action."""
+
+    path: str = Field(
+        ...,
+        description="Path relative to SEG sandbox directory.",
+    )
+
+
+class MimeDetectResult(BaseModel):
+    """Result returned by the `file_mime_detect` action."""
+
+    mime: str = Field(
+        ...,
+        description="Detected MIME type using content-based analysis.",
+    )
+
+
 # Public exports for clarity and documentation tooling.
 __all__ = [
     "Algorithm",
@@ -91,4 +109,6 @@ __all__ = [
     "ChecksumResult",
     "DeleteParams",
     "DeleteResult",
+    "MimeDetectParams",
+    "MimeDetectResult",
 ]
