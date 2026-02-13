@@ -26,6 +26,10 @@ import pytest
         "/health",
         "/metrics",
     ],
+    ids=[
+        "health",
+        "metrics",
+    ],
 )
 @pytest.mark.parametrize(
     "headers",
@@ -33,6 +37,11 @@ import pytest
         {},
         {"Authorization": "Bearer invalid"},
         pytest.param(None, id="valid-auth"),
+    ],
+    ids=[
+        "missing-auth",
+        "invalid-auth",
+        "valid-auth",
     ],
 )
 def test_auth_is_ignored_for_exempt_endpoints(
@@ -63,6 +72,10 @@ def test_auth_is_ignored_for_exempt_endpoints(
     [
         {},
         {"Authorization": "Bearer invalid"},
+    ],
+    ids=[
+        "missing-auth",
+        "invalid-auth",
     ],
 )
 def test_protected_endpoint_rejects_missing_or_invalid_auth(
@@ -100,7 +113,7 @@ def test_protected_endpoint_allows_valid_auth(
     )
 
     payload = {
-        "action": "checksum_file",
+        "action": "file_checksum",
         "params": {
             "path": str(sf.rel_path),
         },

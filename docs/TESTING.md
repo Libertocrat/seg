@@ -72,9 +72,7 @@ SEG enforces **hard isolation** for configuration during tests.
 - `.env` loading is explicitly disabled
 - Tests must set required variables explicitly
 
-Note: Tests must not rely on runtime OpenAPI documentation being available.
-If a test needs the docs endpoints for validation, set `SEG_ENABLE_DOCS=true`
-explicitly in the test configuration; do not rely on developer defaults.
+Note: Tests must not rely on runtime OpenAPI documentation being available. If a test needs the docs endpoints for validation, set `SEG_ENABLE_DOCS=true` explicitly in the test configuration; do not rely on developer defaults.
 
 This guarantees that:
 
@@ -182,6 +180,10 @@ In addition to `clean_seg_environment`, SEG provides reusable fixtures such as:
 These fixtures are the **only supported mechanism** for providing configuration to tests.
 
 For implementation reference, see the test fixtures at [tests/conftest.py](../tests/conftest.py).
+
+Note on `pytest` ids:
+
+- When providing explicit `ids=` for parametrized tests prefer a consistent lower_snake style (for example `all_subdirs`, `missing_auth`) to make test output predictable and easy to grep.
 
 ---
 

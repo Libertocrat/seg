@@ -1,6 +1,6 @@
-"""Secure `delete_file` action implementation.
+"""Secure `file_delete` action implementation.
 
-This module provides the `delete_file` handler used by the dispatcher to
+This module provides the `file_delete` handler used by the dispatcher to
 safely remove regular files inside the configured SEG sandbox directory.
 
 Key guarantees:
@@ -30,7 +30,7 @@ from seg.core.security.paths import (
 logger = logging.getLogger("seg.actions.file.delete")
 
 
-async def delete_file(params: DeleteParams) -> DeleteResult:
+async def file_delete(params: DeleteParams) -> DeleteResult:
     """Safely delete a file inside the SEG sandbox.
 
     Performs deletion while minimizing TOCTOU windows and enforcing sandbox
@@ -72,7 +72,7 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
     target_path: Path = target
 
     # Use safe_open_no_follow to atomically validate final component (no symlink,
-    # regular file) similarly to checksum_file.
+    # regular file) similarly to file_checksum.
     fd: int | None = None
     try:
         fd = safe_open_no_follow(target_path)
@@ -126,9 +126,9 @@ async def delete_file(params: DeleteParams) -> DeleteResult:
 # Register the action
 register_action(
     ActionSpec(
-        name="delete_file",
+        name="file_delete",
         params_model=DeleteParams,
         result_model=DeleteResult,
-        handler=delete_file,
+        handler=file_delete,
     )
 )

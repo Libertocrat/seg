@@ -36,9 +36,9 @@ def test_execute_request_accepts_params_dict():
     """
     params = {"path": "/uploads/file.txt", "algorithm": "sha256"}
 
-    req = ExecuteRequest(action="checksum_file", params=params)
+    req = ExecuteRequest(action="file_checksum", params=params)
 
-    assert req.action == "checksum_file"
+    assert req.action == "file_checksum"
     assert req.params == params
 
 

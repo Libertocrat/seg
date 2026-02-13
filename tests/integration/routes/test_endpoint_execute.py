@@ -48,7 +48,7 @@ def test_execute_returns_success_envelope_for_valid_action(
     )
 
     payload = {
-        "action": "checksum_file",
+        "action": "file_checksum",
         "params": {
             "path": str(file.rel_path),
         },

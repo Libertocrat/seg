@@ -1,5 +1,5 @@
 """
-Unit tests for the checksum_file action.
+Unit tests for the file_checksum action.
 
 These tests freeze filesystem, sandboxing, and checksum invariants:
 - only sandboxed files are readable
@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from seg.actions.dispatcher import SegActionError
-from seg.actions.file.checksum import checksum_file
+from seg.actions.file.checksum import file_checksum
 from seg.actions.file.schemas import ChecksumParams
 
 # ============================================================================
@@ -40,13 +40,18 @@ MD5_EXPECTED = "5dd39cab1c53c2c77cd352983f9641e1"
         ("sha1", SHA1_EXPECTED),
         ("md5", MD5_EXPECTED),
     ],
+    ids=[
+        "sha256",
+        "sha1",
+        "md5",
+    ],
 )
-async def test_checksum_file_supported_algorithms(
+async def test_file_checksum_supported_algorithms(
     sandbox_file_factory, minimal_safe_env, algorithm, expected_checksum
 ):
     """
     GIVEN a file inside an allowed sandbox subdirectory
-    WHEN checksum_file is called with a supported algorithm
+    WHEN file_checksum is called with a supported algorithm
     THEN the correct checksum and file size are returned
     """
     sf = sandbox_file_factory(
@@ -59,7 +64,7 @@ async def test_checksum_file_supported_algorithms(
         algorithm=algorithm,
     )
 
-    result = await checksum_file(params)
+    result = await file_checksum(params)
 
     assert result.algorithm == algorithm
     assert result.checksum == expected_checksum
@@ -72,12 +77,12 @@ async def test_checksum_file_supported_algorithms(
 
 
 @pytest.mark.asyncio
-async def test_checksum_file_rejects_nonexistent_file(
+async def test_file_checksum_rejects_nonexistent_file(
     minimal_safe_env,
 ):
     """
     GIVEN a valid sandbox path that does not exist
-    WHEN checksum_file is called
+    WHEN file_checksum is called
     THEN a FILE_NOT_FOUND SegActionError is raised
     """
     params = ChecksumParams(
@@ -86,18 +91,18 @@ async def test_checksum_file_rejects_nonexistent_file(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await checksum_file(params)
+        await file_checksum(params)
 
     assert exc.value.code == "FILE_NOT_FOUND"
 
 
 @pytest.mark.asyncio
-async def test_checksum_file_rejects_path_traversal(
+async def test_file_checksum_rejects_path_traversal(
     minimal_safe_env,
 ):
     """
     GIVEN a path attempting directory traversal
-    WHEN checksum_file is called
+    WHEN file_checksum is called
     THEN a PATH_NOT_ALLOWED SegActionError is raised
     """
     params = ChecksumParams(
@@ -106,16 +111,16 @@ async def test_checksum_file_rejects_path_traversal(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await checksum_file(params)
+        await file_checksum(params)
 
     assert exc.value.code == "PATH_NOT_ALLOWED"
 
 
 @pytest.mark.asyncio
-async def test_checksum_file_rejects_symlink(sandbox_file_factory, minimal_safe_env):
+async def test_file_checksum_rejects_symlink(sandbox_file_factory, minimal_safe_env):
     """
     GIVEN a symlink inside an allowed sandbox subdirectory
-    WHEN checksum_file is called
+    WHEN file_checksum is called
     THEN a PATH_NOT_ALLOWED SegActionError is raised
     """
     target = sandbox_file_factory(
@@ -133,7 +138,7 @@ async def test_checksum_file_rejects_symlink(sandbox_file_factory, minimal_safe_
     )
 
     with pytest.raises(SegActionError) as exc:
-        await checksum_file(params)
+        await file_checksum(params)
 
     assert exc.value.code == "PATH_NOT_ALLOWED"
 
@@ -144,12 +149,12 @@ async def test_checksum_file_rejects_symlink(sandbox_file_factory, minimal_safe_
 
 
 @pytest.mark.asyncio
-async def test_checksum_file_rejects_invalid_algorithm(
+async def test_file_checksum_rejects_invalid_algorithm(
     sandbox_file_factory, minimal_safe_env
 ):
     """
     GIVEN a valid file inside the sandbox
-    WHEN checksum_file is called with an unsupported algorithm
+    WHEN file_checksum is called with an unsupported algorithm
     THEN an INVALID_ALGORITHM SegActionError is raised
     """
     file = sandbox_file_factory(
@@ -165,6 +170,6 @@ async def test_checksum_file_rejects_invalid_algorithm(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await checksum_file(params)
+        await file_checksum(params)
 
     assert exc.value.code == "INVALID_ALGORITHM"

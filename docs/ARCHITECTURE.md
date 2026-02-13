@@ -160,11 +160,11 @@ An **action** is a single, explicitly allowed operation that SEG can perform.
 
 Examples (v1):
 
-- `checksum_file`
-- `mime_type`
-- `file_stats`
-- `delete_file`
-- `move_file`
+- `file_checksum`
+- `file_mime_detect`
+- `file_stat`
+- `file_delete`
+- `file_move`
 
 Actions are:
 
@@ -271,7 +271,7 @@ OpenAPI documentation endpoints are disabled by default and are controlled at ru
 
 ### 4.8 Composite Actions
 
-Some actions (e.g. `file_stats`) are **composite actions**.
+Some actions (e.g. `file_stat`) are **composite actions**.
 
 They:
 

@@ -33,7 +33,7 @@ SEG provides:
 - A small, well-defined set of **file operations** needed by production workflows
 - Strong **filesystem sandboxing**
 - **Defense-in-depth** against RCE, path traversal, and privilege escalation
-- **Consistent API contracts** aligned with existing microservices coded my [Libertocrat](https://github.com/Libertocrat/)
+- **Consistent API contracts** aligned with existing microservices coded by [Libertocrat](https://github.com/Libertocrat/)
 - Observability via logs and Prometheus metrics
 
 SEG explicitly **does not** aim to be a general-purpose execution engine.
@@ -45,7 +45,7 @@ SEG explicitly **does not** aim to be a general-purpose execution engine.
 - **SEG**: Secure Execution Gateway
 - **Sandbox Dir**: Shared filesystem mount accessible by n8n and SEG (configured via `SEG_SANDBOX_DIR`)
 - **Allowlisted Subdirectories**: Explicit subfolders under the sandbox directory where operations are permitted
-- **Action**: A named, predefined operation (e.g., `sha256_file`)
+- **Action**: A named, predefined operation (e.g., `file_checksum`)
 - **Envelope**: Standard API response structure used across shared services
 
 #### Authors / Maintainers
@@ -249,7 +249,7 @@ Response:
 
 ```json
 {
-  "action": "sha256_file",
+  "action": "file_checksum",
   "params": {
     "path": "uploads/file.bin"
   }
@@ -264,8 +264,7 @@ Response:
   "data": {
     "sha256": "abc...",
     "size_bytes": 12345
-  },
-  "request_id": "uuid"
+  }
 }
 ```
 
@@ -273,7 +272,7 @@ Response:
 
 ## 7. Functional Requirements (Actions)
 
-### 7.1 `sha256_file`
+### 7.1 `file_checksum`
 
 - Computes SHA-256 using streaming I/O
 - Params:
@@ -281,12 +280,12 @@ Response:
   - `path` (relative)
 - Output:
 
-  - `sha256`
+  - `checksum`
   - `size_bytes`
 
 ---
 
-### 7.2 `stat_file`
+### 7.2 `file_stat`
 
 - Params:
 
@@ -300,7 +299,7 @@ Response:
 
 ---
 
-### 7.3 `delete_file`
+### 7.3 `file_delete`
 
 - Params:
 
@@ -312,7 +311,7 @@ Response:
 
 ---
 
-### 7.4 `move_file` (includes rename)
+### 7.4 `file_move` (includes rename)
 
 - Params:
 
@@ -331,7 +330,7 @@ Response:
 
 ---
 
-### 7.5 `mime_detect`
+### 7.5 `file_mime_detect`
 
 - Uses `libmagic`
 - Params:
@@ -345,7 +344,7 @@ Implementation note: the runtime must include the system `libmagic` library and 
 
 ---
 
-### 7.6 `verify_file` (Composite)
+### 7.6 `file_verify` (Composite)
 
 - Params:
 

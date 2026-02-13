@@ -1,5 +1,5 @@
 """
-Unit tests for the delete_file action.
+Unit tests for the file_delete action.
 
 These tests freeze filesystem and sandbox invariants:
 - deletion is restricted to the sandbox
@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from seg.actions.dispatcher import SegActionError
-from seg.actions.file.delete import delete_file
+from seg.actions.file.delete import file_delete
 from seg.actions.file.schemas import DeleteParams
 
 # ============================================================================
@@ -22,12 +22,12 @@ from seg.actions.file.schemas import DeleteParams
 
 
 @pytest.mark.asyncio
-async def test_delete_file_existing_file_deleted(
+async def test_file_delete_existing_file_deleted(
     sandbox_file_factory, minimal_safe_env
 ):
     """
     GIVEN a file inside an allowed sandbox subdirectory
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN the file is deleted and deleted=True is returned
     """
     target = sandbox_file_factory(
@@ -37,7 +37,7 @@ async def test_delete_file_existing_file_deleted(
 
     params = DeleteParams(path=str(target.rel_path), require_exists=True)
 
-    result = await delete_file(params)
+    result = await file_delete(params)
 
     assert result.deleted is True
     assert not target.abs_path.exists()
@@ -49,13 +49,13 @@ async def test_delete_file_existing_file_deleted(
 
 
 @pytest.mark.asyncio
-async def test_delete_file_missing_file_idempotent(
+async def test_file_delete_missing_file_idempotent(
     minimal_safe_env,
 ):
     """
     GIVEN a missing file inside an allowed sandbox subdirectory
     AND require_exists=False
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN deleted=False is returned without error
     """
     params = DeleteParams(
@@ -63,19 +63,19 @@ async def test_delete_file_missing_file_idempotent(
         require_exists=False,
     )
 
-    result = await delete_file(params)
+    result = await file_delete(params)
 
     assert result.deleted is False
 
 
 @pytest.mark.asyncio
-async def test_delete_file_missing_file_requires_exists(
+async def test_file_delete_missing_file_requires_exists(
     minimal_safe_env,
 ):
     """
     GIVEN a missing file inside an allowed sandbox subdirectory
     AND require_exists=True
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN a FILE_NOT_FOUND SegActionError is raised
     """
     params = DeleteParams(
@@ -84,7 +84,7 @@ async def test_delete_file_missing_file_requires_exists(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await delete_file(params)
+        await file_delete(params)
 
     assert exc.value.code == "FILE_NOT_FOUND"
 
@@ -95,12 +95,12 @@ async def test_delete_file_missing_file_requires_exists(
 
 
 @pytest.mark.asyncio
-async def test_delete_file_rejects_path_traversal(
+async def test_file_delete_rejects_path_traversal(
     minimal_safe_env,
 ):
     """
     GIVEN a path attempting directory traversal
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN a PATH_NOT_ALLOWED SegActionError is raised
     """
     params = DeleteParams(
@@ -109,16 +109,16 @@ async def test_delete_file_rejects_path_traversal(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await delete_file(params)
+        await file_delete(params)
 
     assert exc.value.code == "PATH_NOT_ALLOWED"
 
 
 @pytest.mark.asyncio
-async def test_delete_file_rejects_symlink(sandbox_file_factory, minimal_safe_env):
+async def test_file_delete_rejects_symlink(sandbox_file_factory, minimal_safe_env):
     """
     GIVEN a symlink inside an allowed sandbox subdirectory
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN a PATH_NOT_ALLOWED SegActionError is raised
     """
     target = sandbox_file_factory(
@@ -136,7 +136,7 @@ async def test_delete_file_rejects_symlink(sandbox_file_factory, minimal_safe_en
     )
 
     with pytest.raises(SegActionError) as exc:
-        await delete_file(params)
+        await file_delete(params)
 
     assert exc.value.code == "PATH_NOT_ALLOWED"
 
@@ -147,12 +147,12 @@ async def test_delete_file_rejects_symlink(sandbox_file_factory, minimal_safe_en
 
 
 @pytest.mark.asyncio
-async def test_delete_file_rejects_directory(
+async def test_file_delete_rejects_directory(
     minimal_safe_env,
 ):
     """
     GIVEN a directory inside an allowed sandbox subdirectory
-    WHEN delete_file is called
+    WHEN file_delete is called
     THEN a PATH_NOT_ALLOWED SegActionError is raised
     """
     from pathlib import Path
@@ -172,6 +172,6 @@ async def test_delete_file_rejects_directory(
     )
 
     with pytest.raises(SegActionError) as exc:
-        await delete_file(params)
+        await file_delete(params)
 
     assert exc.value.code == "PATH_NOT_ALLOWED"
