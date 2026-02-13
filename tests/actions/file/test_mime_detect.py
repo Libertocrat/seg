@@ -43,7 +43,7 @@ from seg.actions.file.schemas import MimeDetectParams
         pytest.param("shell", "script.sh", ("shell", "text"), id="shell_script"),
         pytest.param("python", "script.py", ("python", "text"), id="python_script"),
         pytest.param(
-            "javascript", "script.js", ("javascript", "text"), id="javascript_script"
+            "javascript", "script.js", ("javascript", "text"), id="javascript"
         ),
     ],
 )
@@ -66,7 +66,6 @@ async def test_file_mime_detect_success(
     result = await file_mime_detect(params)
 
     mime = result.mime.lower()
-    print(f"Detected MIME for {file_type}: {mime}")
 
     assert any(
         keyword in mime for keyword in expected_keywords
