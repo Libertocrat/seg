@@ -162,9 +162,8 @@ Examples (v1):
 
 - `file_checksum`
 - `file_mime_detect`
-- `file_stat`
 - `file_delete`
-- `file_move`
+- `file_verify`
 
 Actions are:
 
@@ -271,7 +270,7 @@ OpenAPI documentation endpoints are disabled by default and are controlled at ru
 
 ### 4.8 Composite Actions
 
-Some actions (e.g. `file_stat`) are **composite actions**.
+Some actions (e.g. `file_verify`) are **composite actions**.
 
 They:
 
@@ -300,8 +299,6 @@ src/seg/
     schemas/
       envelope.py
       execute.py
-      actions/
-        file.py
     security/
       paths.py
       validation.py
@@ -309,16 +306,11 @@ src/seg/
   actions/
     registry.py
     dispatcher.py
-    errors.py
-    types.py
     file/
       checksum.py
-      mime.py
-      stat.py
+      mime_detect.py
       delete.py
-      move.py
-      io.py
-      policy.py
+      verify.py
       schemas.py
 ```
 

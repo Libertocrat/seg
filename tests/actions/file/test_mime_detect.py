@@ -27,7 +27,7 @@ from seg.actions.file.schemas import MimeDetectParams
     "file_type, filename, expected_keywords",
     [
         pytest.param("text", "file.txt", ("text",), id="text_plain"),
-        pytest.param("markdown", "doc.md", ("text",), id="markdown"),
+        pytest.param("md", "doc.md", ("text",), id="markdown"),
         pytest.param("csv", "data.csv", ("csv", "text"), id="csv"),
         pytest.param("png", "image.png", ("png",), id="png_image"),
         pytest.param("pdf", "doc.pdf", ("pdf",), id="pdf_document"),

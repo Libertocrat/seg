@@ -377,9 +377,9 @@ def file_factory(sandbox_file_factory):
             )
 
         # ------------------------------------------------------------------
-        # MARKDOWN
+        # MD
         # ------------------------------------------------------------------
-        if file_type == "markdown":
+        if file_type == "md":
             md_bytes = (
                 b"# SEG Test Document\n\n"
                 b"This is a markdown file.\n\n"

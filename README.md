@@ -174,9 +174,7 @@ SEG is never exposed publicly and should only be reachable from trusted internal
 ## Features (v1)
 
 - File hashing (`file_checksum`)
-- File metadata inspection (`file_stat`)
 - Safe file deletion (`file_delete`)
-- File move / rename within sandbox (`file_move`)
 - MIME type detection using libmagic (`file_mime_detect`)
 - Composite verification (`file_verify`)
 
