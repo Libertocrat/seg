@@ -42,10 +42,12 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
     # Keep messages short and non-sensitive; `exc.detail` is logged but not
     # returned to the client to avoid leaking internal information.
     status_code_map: dict[int, tuple[str, str]] = {
+        400: ("BAD_REQUEST", "Bad request"),
         401: ("UNAUTHORIZED", "Unauthorized"),
         403: ("PATH_NOT_ALLOWED", "Path not allowed"),
         404: ("FILE_NOT_FOUND", "File not found"),
         413: ("FILE_TOO_LARGE", "File too large"),
+        415: ("UNSUPPORTED_MEDIA_TYPE", "Unsupported media type"),
         429: ("RATE_LIMITED", "Rate limited"),
     }
 

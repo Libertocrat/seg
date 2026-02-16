@@ -22,6 +22,10 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# ===========================================================================
+# file_checksum action schemas
+# ===========================================================================
+
 # Lightweight enum for algorithms supported in v1. Expand as needed.
 Algorithm = Literal["sha256", "md5", "sha1"]
 
@@ -57,6 +61,11 @@ class ChecksumResult(BaseModel):
     size_bytes: int = Field(..., description="Size of the file in bytes.")
 
 
+# ===========================================================================
+# file_delete action schemas
+# ===========================================================================
+
+
 class DeleteParams(BaseModel):
     """Parameters for the `file_delete` action.
 
@@ -84,6 +93,11 @@ class DeleteResult(BaseModel):
     )
 
 
+# ===========================================================================
+# file_mime_detect action schemas
+# ===========================================================================
+
+
 class MimeDetectParams(BaseModel):
     """Parameters for the `file_mime_detect` action."""
 
@@ -102,6 +116,50 @@ class MimeDetectResult(BaseModel):
     )
 
 
+# ===========================================================================
+# file_verify action schemas
+# ===========================================================================
+
+
+class VerifyChecksumParams(BaseModel):
+    expected: str = Field(..., description="Expected checksum (hex string).")
+    algorithm: Algorithm = Field(
+        "sha256",
+        description="Hash algorithm (sha256, md5, sha1).",
+    )
+
+
+class FileVerifyParams(BaseModel):
+    path: str = Field(..., description="Path relative to SEG sandbox directory.")
+    expected_mime: str | None = Field(
+        None,
+        description="Expected MIME type. If not provided, inferred from extension.",
+    )
+    allowed_extensions: list[str] | None = Field(
+        None,
+        description="Allowed file extensions (e.g. ['.pdf', '.png']).",
+    )
+    allowed_mime_types: list[str] | None = Field(
+        None,
+        description="Allowed MIME types.",
+    )
+    checksum: VerifyChecksumParams | None = Field(
+        None,
+        description="Optional checksum validation.",
+    )
+
+
+class FileVerifyResult(BaseModel):
+    file_verified: bool
+    size_bytes: int
+    detected_mime: str
+    extension: str
+    mime_matches: bool
+    extension_allowed: bool
+    mime_allowed: bool
+    checksum_matches: bool | None
+
+
 # Public exports for clarity and documentation tooling.
 __all__ = [
     "Algorithm",
@@ -111,4 +169,7 @@ __all__ = [
     "DeleteResult",
     "MimeDetectParams",
     "MimeDetectResult",
+    "VerifyChecksumParams",
+    "FileVerifyParams",
+    "FileVerifyResult",
 ]

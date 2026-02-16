@@ -206,6 +206,8 @@ This contract is **shared with the other microservices** to ensure consistency.
 HTTP status mapping (initial, to be refined per-endpoint):
 
 - `INVALID_REQUEST` -> 400
+- `MIME_MAPPING_NOT_DEFINED` -> 400
+- `FILE_EXTENSION_MISSING` -> 400
 - `UNAUTHORIZED` -> 401
 - `PATH_NOT_ALLOWED` -> 403
 - `FILE_NOT_FOUND` -> 404
@@ -285,21 +287,7 @@ Response:
 
 ---
 
-### 7.2 `file_stat`
-
-- Params:
-
-  - `path`
-- Output:
-
-  - `exists`
-  - `is_file`
-  - `size_bytes`
-  - `mtime_epoch`
-
----
-
-### 7.3 `file_delete`
+### 7.2 `file_delete`
 
 - Params:
 
@@ -311,26 +299,7 @@ Response:
 
 ---
 
-### 7.4 `file_move` (includes rename)
-
-- Params:
-
-  - `src_path`
-  - `dst_path`
-  - `overwrite` (default false)
-- Rules:
-
-  - Both paths must be inside allowlisted subdirs
-  - If destination already exists and `overwrite` is `false`, return `CONFLICT` (409) and do not overwrite.
-- Output:
-
-  - `moved`
-  - `src`
-  - `dst`
-
----
-
-### 7.5 `file_mime_detect`
+### 7.3 `file_mime_detect`
 
 - Uses `libmagic`
 - Params:
@@ -344,20 +313,26 @@ Implementation note: the runtime must include the system `libmagic` library and 
 
 ---
 
-### 7.6 `file_verify` (Composite)
+### 7.4 `file_verify` (Composite)
 
 - Params:
 
-  - `path`
-  - `expected_sha256` (optional)
-  - `expected_mime_prefixes` (optional)
+  - `path` (required): sandbox-relative path to the file.
+  - `expected_mime` (optional): explicit MIME to compare against.
+  - `allowed_mime_types` (optional): list of allowed MIME types.
+  - `allowed_extensions` (optional): list of allowed extensions (with or without leading `.`).
+  - `checksum` (optional object): when present contains `expected` (hex string) and `algorithm` (`sha256`, `md5`, `sha1`).
+
 - Output:
 
-  - `sha256`
-  - `mime`
-  - `size_bytes`
-  - `hash_matches`
-  - `mime_allowed`
+  - `file_verified` (bool)
+  - `size_bytes` (int)
+  - `detected_mime` (string)
+  - `extension` (string)
+  - `mime_matches` (bool)
+  - `extension_allowed` (bool)
+  - `mime_allowed` (bool)
+  - `checksum_matches` (bool|null)
 
 > Antivirus and sandbox scanning are **explicitly out of scope for v1**.
 
