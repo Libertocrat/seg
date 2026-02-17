@@ -170,6 +170,11 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
     monkeypatch.setenv("SEG_API_TOKEN", api_token)
     monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", allowed_subdirs)
+    # Ensure allowed subdirectories exist to simulate a mounted volume with
+    # pre-created directories. This matches production behavior where the
+    # allowed subdirs are present ahead of file operations like move.
+    for sub in allowed_subdirs.split(","):
+        (sandbox_dir / sub).mkdir(parents=True, exist_ok=True)
     return {
         "SEG_API_TOKEN": api_token,
         "SEG_SANDBOX_DIR": str(sandbox_dir),

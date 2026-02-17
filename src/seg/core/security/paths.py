@@ -11,7 +11,30 @@ from seg.core.config import get_settings
 
 
 class PathSecurityError(ValueError):
-    pass
+    """Base class for path validation and sandbox policy errors.
+
+    Handlers should treat this as a generic security-related validation
+    failure (for example path traversal, symlink rejection or sandbox
+    boundary violations). More specific subclasses are provided for
+    call sites that need to distinguish conflict-like conditions.
+    """
+
+
+class DestinationExistsError(PathSecurityError):
+    """Raised when a destination path already exists and is a regular file.
+
+    Handlers can catch this exception to map the condition to a
+    `CONFLICT` semantic (for example when overwrite is not allowed).
+    """
+
+
+class DestinationNotRegularError(PathSecurityError):
+    """Raised when a destination path exists but is not a regular file.
+
+    This indicates the path exists but refers to a directory or other
+    non-regular file type; handlers may choose to map this to a
+    `CONFLICT` or `PATH_NOT_ALLOWED` response depending on context.
+    """
 
 
 logger = logging.getLogger("seg.core.security.paths")
@@ -34,12 +57,23 @@ class ValidatedPath:
 def sanitize_rel_path(user_path: str) -> str:
     """Syntactically validate and normalize a user-supplied relative path.
 
-    This performs only syntactic checks: NULs, backslashes, control
-    characters, absolute paths, traversal (`..`), and a maximum length.
-    It does NOT perform filesystem checks (symlink detection or whether the
-    resolved path is within a sandbox). Callers must combine this with
-    `resolve_in_sandbox` or `safe_open_no_follow` for filesystem-safe
-    operations.
+    Args:
+        user_path: Path supplied by the client.
+
+    Returns:
+        A normalized relative path string with redundant separators and
+        '.' components removed.
+
+    Raises:
+        PathSecurityError: If the path contains NULs, backslashes,
+            control characters, is absolute, contains traversal
+            components, is empty, or exceeds the maximum allowed length.
+
+    Note:
+        This function performs only syntactic validation and does not
+        perform filesystem checks (existence or symlink validation). Use
+        `resolve_in_sandbox` or `safe_open_no_follow` for filesystem-safe
+        operations.
     """
 
     if "\x00" in user_path:
@@ -76,12 +110,24 @@ def sanitize_rel_path(user_path: str) -> str:
 def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
     """Resolve a user-supplied relative path under a configured sandbox.
 
-    This helper validates the relative path syntactically and ensures the
-    resulting normalized path stays under `sandbox_dir`. Note: resolving a Path
-    and later opening it in a separate operation can introduce a
-    TOCTOU (time-of-check/time-of-use) window. For sensitive operations,
-    prefer opening the path atomically via `safe_open_no_follow` or an
-    open-at traversal helper.
+    Args:
+        sandbox_dir: The configured sandbox root directory.
+        user_path: Client-supplied relative path to resolve under the
+            sandbox directory.
+
+    Returns:
+        A canonical `Path` representing the candidate path within the
+        sandbox (string-based normalization is used to avoid following
+        symlinks).
+
+    Raises:
+        PathSecurityError: If the path is outside the sandbox, if the
+            configured sandbox does not exist, or if any existing path
+            component is a symlink.
+
+    Note:
+        Resolving a path and opening it later can introduce TOCTOU
+        windows. For sensitive operations prefer `safe_open_no_follow`.
     """
     rel = sanitize_rel_path(user_path)
 
@@ -124,17 +170,25 @@ def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
 def safe_open_no_follow(path: Path, flags: int = os.O_RDONLY):
     """Open `path` without following a final symlink (POSIX `O_NOFOLLOW`).
 
-    This attempts an `O_NOFOLLOW` open so the final path component is not
-    followed if it is a symlink. The returned file descriptor must be
-    wrapped (for example with `os.fdopen(fd, 'rb')`) and closed by the
-    caller. This helper mitigates symlink-following at open time but does
-    not eliminate TOCTOU if callers previously resolved path strings and
-    then open them later; to avoid that, open the file via this helper as
-    close in time to validation.
+    Args:
+        path: The candidate filesystem path to open.
+        flags: Flags to pass to `os.open` (`os.O_RDONLY` by default).
+
+    Returns:
+        An integer file descriptor opened with `O_NOFOLLOW`. The caller
+        owns and must close the descriptor (for example via `os.close`
+        or wrapping with `os.fdopen`).
 
     Raises:
-        - FileNotFoundError: target does not exist
-        - PathSecurityError: when the open fails for security-related reasons
+        FileNotFoundError: If the target does not exist.
+        PathSecurityError: If the open fails for security-related reasons
+            or if the opened target is not a regular file.
+        OSError: For other low-level OS errors raised by `os.open`/`fstat`.
+
+    Note:
+        This helper reduces symlink-following at open time but does not
+        eliminate TOCTOU if callers resolved paths earlier; prefer to
+        validate and open in close succession.
     """
     # Add O_NOFOLLOW if available on this platform
     nofollow = getattr(os, "O_NOFOLLOW", 0)
@@ -179,33 +233,29 @@ def validate_path(
 ) -> ValidatedPath:
     """Validate and optionally open a user path under the SEG sandbox.
 
-    This helper centralizes common path safety checks used by handlers:
-    - Syntactic validation and sandbox resolution (`resolve_in_sandbox`).
-    - Allowed-subdir enforcement and symlink-component rejection.
-    - Optional existence checks.
-    - Optional secure open with no symlink following on final component.
-
-    When `open_no_follow=True`, the target is opened using
-    `safe_open_no_follow`, which ensures the final component is not a
-    symlink and is a regular file. In this mode, the returned file
-    descriptor is owned by the caller and must be closed by them.
-
     Args:
-        user_path: User-provided path relative to sandbox.
-        sandbox_dir: Optional sandbox root. Defaults to configured sandbox dir.
-        require_exists: If True, raise `FileNotFoundError` when target is absent.
-        require_regular_file: If True, reject non-regular files (only applies
-            when `open_no_follow=False`).
-        open_no_follow: If True, open target via `safe_open_no_follow` and
-            return an owned file descriptor in the result.
-        open_flags: Flags passed to secure open when `open_no_follow` is True.
+        user_path: User-provided path relative to the sandbox.
+        sandbox_dir: Optional sandbox root. Defaults to the configured
+            sandbox directory when `None`.
+        require_exists: If True, raise `FileNotFoundError` when the
+            target is absent. When False, the function may return a
+            `ValidatedPath` with `fd=None` for non-existent targets.
+        require_regular_file: If True, reject non-regular files (applies
+            when `open_no_follow` is False).
+        open_no_follow: If True, open the target via `safe_open_no_follow`
+            and return an owned file descriptor in the result.
+        open_flags: Flags passed to the secure open when
+            `open_no_follow` is True.
 
     Returns:
-        ValidatedPath: Canonical sandboxed path and optional open descriptor.
+        ValidatedPath: Canonical sandboxed `Path` and optional owned
+        file descriptor (`fd`) when `open_no_follow` is True and the
+        target exists.
 
     Raises:
-        PathSecurityError: On sandbox, symlink, or policy violations.
-        FileNotFoundError: If required target is missing.
+        PathSecurityError: On sandbox boundary, symlink, or policy violations.
+        FileNotFoundError: If `require_exists` is True and the target is
+            missing.
         OSError: For low-level open/stat errors not mapped as security errors.
     """
 

@@ -1,8 +1,33 @@
 # **Software Requirements Specification (SRS)**
+---
 
-## Secure Execution Gateway (SEG) for n8n
+### 7.5 `file_move`
 
-**Version:** 1.0
+- Moves or renames a file within the sandbox while preserving extension and
+  enforcing allowlists and symlink/traversal rules.
+
+- Params:
+
+  - `source_path` (relative): source path under an allowlisted subdirectory.
+  - `destination_path` (relative): target path under an allowlisted subdirectory.
+  - `overwrite` (bool, default: false): when true, replaces an existing target file.
+
+- Output:
+
+  - `moved` (bool): true when the file was moved.
+  - `source` (string): resolved source path returned for auditing.
+  - `destination` (string): resolved destination path returned for auditing.
+
+Notes:
+
+- The action MUST reject attempts to change a file extension (for example
+  renaming `foo.txt` to `foo.bin`) and MUST reject symlinks, traversal, and
+  any path that resolves outside `SEG_SANDBOX_DIR` or outside
+  `SEG_ALLOWED_SUBDIRS`.
+
+---
+
+## 8. Observability Requirements
 **Status:** Approved
 **Language:** Python
 **Framework:** FastAPI + Pydantic
@@ -221,7 +246,6 @@ HTTP status mapping (canonical catalog used by the implementation):
 - `TIMEOUT` -> 504
 - `INTERNAL_ERROR` -> 500
 - `INVALID_ALGORITHM` -> 400
-- `INVALID_PARAMS` -> 400
 
 ---
 
@@ -320,7 +344,29 @@ Implementation note: the runtime must include the system `libmagic` library and 
 
 ---
 
-### 7.4 `file_verify` (Composite)
+### 7.4 `file_move`
+
+- Moves or renames a file within the sandbox while preserving extension and enforcing allowlists and symlink/traversal rules.
+
+- Params:
+
+  - `source_path` (relative): source path under an allowlisted subdirectory.
+  - `destination_path` (relative): target path under an allowlisted subdirectory.
+  - `overwrite` (bool, default: false): when true, replaces an existing target file.
+
+- Output:
+
+  - `moved` (bool): true when the file was moved.
+  - `source` (string): resolved source path returned for auditing.
+  - `destination` (string): resolved destination path returned for auditing.
+
+Notes:
+
+- The action MUST reject attempts to change a file extension (for example renaming `foo.txt` to `foo.bin`) and MUST reject symlinks, traversal, and any path that resolves outside `SEG_SANDBOX_DIR` or outside `SEG_ALLOWED_SUBDIRS`.
+
+---
+
+### 7.5 `file_verify` (Composite)
 
 - Params:
 
