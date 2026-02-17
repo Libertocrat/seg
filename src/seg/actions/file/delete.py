@@ -17,14 +17,19 @@ import logging
 import os
 from pathlib import Path
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import DeleteParams, DeleteResult
 from seg.actions.registry import ActionSpec, register_action
-from seg.core.config import get_settings
+from seg.core.errors import (
+    FILE_NOT_FOUND,
+    INTERNAL_ERROR,
+    PATH_NOT_ALLOWED,
+    PERMISSION_DENIED,
+)
+from seg.core.security.file_access import secure_file_open_readonly
 from seg.core.security.paths import (
     PathSecurityError,
-    resolve_in_sandbox,
-    safe_open_no_follow,
+    validate_path,
 )
 
 logger = logging.getLogger("seg.actions.file.delete")
@@ -62,42 +67,39 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
             - PERMISSION_DENIED: insufficient permissions to delete the target.
             - INTERNAL_ERROR: internal inspection or unlink failure.
     """
-    sandbox = Path(get_settings().seg_sandbox_dir)
     try:
-        target = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
+        if params.require_exists:
+            validated = secure_file_open_readonly(params.path)
+        else:
+            # preserve semantics when caller allows missing targets
+            validated = validate_path(
+                user_path=params.path,
+                open_no_follow=True,
+                require_exists=False,
+                require_regular_file=True,
+            )
     except PathSecurityError as exc:
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
+        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
+    except FileNotFoundError as exc:
+        if params.require_exists:
+            raise SegActionError(FILE_NOT_FOUND) from exc
+        return DeleteResult(deleted=False)
 
     # Ensure target is a Path object
-    target_path: Path = target
+    target_path: Path = validated.path
 
-    # Use safe_open_no_follow to atomically validate final component (no symlink,
-    # regular file) similarly to file_checksum.
-    fd: int | None = None
-    try:
-        fd = safe_open_no_follow(target_path)
-    except FileNotFoundError as exc:
-        # Missing target; respect require_exists
-        if params.require_exists:
-            raise SegActionError(
-                code="FILE_NOT_FOUND", message="File not found."
-            ) from exc
+    # Validate final component to safely close TOCTOU window.
+    # The returned fd is owned by this coroutine and must be closed;
+    fd: int | None = validated.fd
+    if fd is None:
+        # Missing target with require_exists=False is idempotent
         return DeleteResult(deleted=False)
-    except PathSecurityError as exc:
-        # Includes symlink/fstype rejections from the helper
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
-    except OSError as exc:
-        logger.exception("safe_open_no_follow failed for %s", target_path)
-        raise SegActionError(
-            code="INTERNAL_ERROR", message="Failed to inspect target"
-        ) from exc
-    finally:
+
+    try:
         # Close fd owned by this coroutine; safe_open_no_follow validated the file.
-        try:
-            if fd is not None:
-                os.close(fd)
-        except OSError:
-            pass
+        os.close(fd)
+    except OSError:
+        pass
 
     # Attempt to unlink/delete the file
     try:
@@ -105,20 +107,17 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
     except FileNotFoundError as exc:
         # Race: file disappeared after validation
         if params.require_exists:
-            raise SegActionError(
-                code="FILE_NOT_FOUND", message="File not found."
-            ) from exc
+            raise SegActionError(FILE_NOT_FOUND) from exc
         return DeleteResult(deleted=False)
     except PermissionError as exc:
         logger.exception("Permission denied when deleting %s", target_path)
         raise SegActionError(
-            code="PERMISSION_DENIED", message="Permission denied while deleting target"
+            PERMISSION_DENIED,
+            "Permission denied while deleting target",
         ) from exc
     except OSError as exc:
         logger.exception("Failed to delete %s", target_path)
-        raise SegActionError(
-            code="INTERNAL_ERROR", message="Failed to delete target"
-        ) from exc
+        raise SegActionError(INTERNAL_ERROR, "Failed to delete target") from exc
 
     return DeleteResult(deleted=True)
 

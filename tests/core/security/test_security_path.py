@@ -16,6 +16,7 @@ from seg.core.security.paths import (
     resolve_in_sandbox,
     safe_open_no_follow,
     sanitize_rel_path,
+    validate_path,
 )
 
 # ============================================================================
@@ -253,3 +254,60 @@ def test_safe_open_rejects_non_regular_file(tmp_path):
 
     with pytest.raises(PathSecurityError):
         safe_open_no_follow(d, os.O_RDONLY)
+
+
+# ============================================================================
+# validate_path - centralized handler helper
+# ============================================================================
+
+
+def test_validate_path_open_returns_fd(minimal_safe_env, sandbox_dir):
+    """
+    GIVEN a regular file inside the sandbox
+    WHEN validate_path is called with open_no_follow=True
+    THEN it returns the resolved path and an owned fd
+    """
+    file_path = sandbox_dir / "tmp" / "file.txt"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text("hello")
+
+    validated = validate_path(
+        user_path="tmp/file.txt",
+        open_no_follow=True,
+        require_exists=True,
+    )
+
+    try:
+        assert validated.path == file_path
+        assert validated.fd is not None
+        assert validated.fd >= 0
+    finally:
+        if validated.fd is not None:
+            os.close(validated.fd)
+
+
+def test_validate_path_missing_allowed_when_not_required(minimal_safe_env):
+    """
+    GIVEN a missing file inside sandbox
+    WHEN validate_path is called with require_exists=False and open_no_follow=True
+    THEN no error is raised and fd is None
+    """
+    validated = validate_path(
+        user_path="tmp/missing.bin",
+        open_no_follow=True,
+        require_exists=False,
+    )
+
+    assert validated.path.name == "missing.bin"
+    assert "tmp" in validated.path.parts
+    assert validated.fd is None
+
+
+def test_validate_path_rejects_traversal(minimal_safe_env):
+    """
+    GIVEN a path traversal attempt
+    WHEN validate_path is called
+    THEN a PathSecurityError is raised
+    """
+    with pytest.raises(PathSecurityError):
+        validate_path(user_path="../outside.txt", open_no_follow=False)

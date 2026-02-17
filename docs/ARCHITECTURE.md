@@ -128,6 +128,8 @@ Examples:
 - `ResponseEnvelope`
 - `ErrorInfo`
 
+Note: Error codes are centralized in `src/seg/core/errors.py` as an `ErrorDef` catalog. The boundary `ErrorInfo.code` values used in `ResponseEnvelope` are drawn from that canonical catalog to ensure stable, machine-friendly error contracts.
+
 Boundary schemas live in:
 
 ```text
@@ -210,6 +212,7 @@ Implementation notes:
 
 - The dispatcher accepts an `ExecuteRequest`, looks up the action in the registry, validates `params` using the action's `params_model`, and calls the handler with the validated model. It returns the handler's result (a Pydantic model or plain dict) to the route layer which is responsible for converting it into the `ResponseEnvelope`.
 - Handlers are allowed to raise small domain exceptions; the route layer or a small adapter maps those to stable `ErrorInfo.code` values and HTTP status codes.
+- Error handling & HTTP propagation: the project centralizes error definitions in `src/seg/core/errors.py` (the `ErrorDef` catalog). The dispatcher normalizes handler failures into the `ResponseEnvelope` together with a transport `http_status` value derived from the `ErrorDef`. The FastAPI route layer then converts the tuple `(ResponseEnvelope, http_status)` into a proper HTTP response (JSON body + HTTP status code), ensuring the canonical error code and the corresponding HTTP status are both returned to clients.
 
 ---
 

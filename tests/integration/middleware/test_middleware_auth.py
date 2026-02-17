@@ -15,6 +15,8 @@ or business logic.
 
 import pytest
 
+from seg.core.errors import UNAUTHORIZED
+
 # ============================================================================
 # Auth middleware – exempt endpoints
 # ============================================================================
@@ -93,7 +95,10 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
         headers=headers,
     )
 
-    assert response.status_code == 401
+    assert response.status_code == UNAUTHORIZED.http_status
+    body = response.json()
+    assert body.get("error") is not None
+    assert body["error"].get("code") == UNAUTHORIZED.code
 
 
 def test_protected_endpoint_allows_valid_auth(
@@ -151,7 +156,7 @@ def test_unauthorized_response_uses_response_envelope_failure(
     # ResponseEnvelope failure invariants
     assert body.get("success") is False
     assert body.get("error") is not None
-    assert body["error"].get("code") == "UNAUTHORIZED"
+    assert body["error"].get("code") == UNAUTHORIZED.code
     assert "message" in body["error"]
 
 

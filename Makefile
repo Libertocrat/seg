@@ -25,6 +25,7 @@ deps:
 
 fmt:
 	black $(SRC_DIRS)
+	ruff check --fix $(SRC_DIRS)
 
 lint:
 	black --check $(SRC_DIRS)

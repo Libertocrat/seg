@@ -20,19 +20,22 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from pathlib import Path
 
 import magic  # python-magic
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import MimeDetectParams, MimeDetectResult
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.config import get_settings
-from seg.core.security.paths import (
-    PathSecurityError,
-    resolve_in_sandbox,
-    safe_open_no_follow,
+from seg.core.errors import (
+    FILE_NOT_FOUND,
+    FILE_TOO_LARGE,
+    INTERNAL_ERROR,
+    PATH_NOT_ALLOWED,
+    TIMEOUT,
 )
+from seg.core.security.file_access import secure_file_open_readonly
+from seg.core.security.paths import PathSecurityError
 
 logger = logging.getLogger("seg.actions.file.mime_detect")
 
@@ -63,21 +66,17 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
         detection inside a blocking thread to avoid blocking the event loop.
     """
 
-    sandbox = Path(get_settings().seg_sandbox_dir)
-
-    # Step 1: Resolve path safely
+    # Step 1: Resolve path safely and open without symlink following
+    fd: int | None = None
     try:
-        path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
+        validated = secure_file_open_readonly(params.path)
+        path = validated.path
+        fd = validated.fd
+        assert fd is not None
     except PathSecurityError as exc:
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
-
-    # Step 2: Open safely (no symlink following)
-    try:
-        fd = safe_open_no_follow(path)
+        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
-        raise SegActionError(code="FILE_NOT_FOUND", message="File not found.") from exc
-    except PathSecurityError as exc:
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
+        raise SegActionError(FILE_NOT_FOUND) from exc
 
     dup_fd: int | None = None
 
@@ -93,8 +92,8 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
             except OSError:
                 pass
             raise SegActionError(
-                code="FILE_TOO_LARGE",
-                message="File exceeds maximum allowed size.",
+                FILE_TOO_LARGE,
+                "File exceeds maximum allowed size.",
             )
 
         # Step 4: Duplicate descriptor for blocking thread
@@ -111,8 +110,8 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
                 )
             logger.exception("Failed to duplicate file descriptor for %s", path)
             raise SegActionError(
-                code="INTERNAL_ERROR",
-                message="Failed to duplicate file descriptor",
+                INTERNAL_ERROR,
+                "Failed to duplicate file descriptor",
             ) from exc
 
         async def _detect() -> str:
@@ -125,13 +124,13 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
                         return m.from_buffer(f.read(8192))
                     except Exception as exc:
                         raise SegActionError(
-                            code="INTERNAL_ERROR",
-                            message="MIME detection failed.",
+                            INTERNAL_ERROR,
+                            "MIME detection failed.",
                         ) from exc
 
             return await asyncio.to_thread(_blocking_detect, dup_fd)
 
-        # Be defensive: `seg_timeout_ms` may be None or invalid in some
+        # Defensive protection: `seg_timeout_ms` may be None or invalid in some
         # environments. Use a small non-zero default and coerce to float.
         timeout_ms = get_settings().seg_timeout_ms
         if timeout_ms is None:
@@ -147,17 +146,18 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
             mime_value = await asyncio.wait_for(_detect(), timeout=timeout_s)
         except asyncio.TimeoutError as exc:
             raise SegActionError(
-                code="TIMEOUT",
-                message="Operation timed out.",
+                TIMEOUT,
+                "Operation timed out.",
             ) from exc
 
         return MimeDetectResult(mime=mime_value)
 
     finally:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
 
 # Register action in explicit allowlist

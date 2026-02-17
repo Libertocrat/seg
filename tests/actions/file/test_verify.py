@@ -17,9 +17,14 @@ import hashlib
 
 import pytest
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import FileVerifyParams, VerifyChecksumParams
 from seg.actions.file.verify import file_verify
+from seg.core.errors import (
+    FILE_EXTENSION_MISSING,
+    FILE_NOT_FOUND,
+    MIME_MAPPING_NOT_DEFINED,
+)
 from seg.core.security.mime_map import EXTENSION_MIME_MAP
 
 # ============================================================================
@@ -235,7 +240,7 @@ async def test_file_verify_extension_missing(
     with pytest.raises(SegActionError) as exc:
         await file_verify(params)
 
-    assert exc.value.code == "FILE_EXTENSION_MISSING"
+    assert exc.value.code == FILE_EXTENSION_MISSING.code
 
 
 @pytest.mark.asyncio
@@ -263,7 +268,7 @@ async def test_file_verify_mapping_not_defined(
     with pytest.raises(SegActionError) as exc:
         await file_verify(params)
 
-    assert exc.value.code == "MIME_MAPPING_NOT_DEFINED"
+    assert exc.value.code == MIME_MAPPING_NOT_DEFINED.code
     assert exc.value.details is not None
     assert exc.value.details.get("extension") == ext
 
@@ -402,4 +407,4 @@ async def test_file_verify_rejects_nonexistent_file(minimal_safe_env):
     with pytest.raises(SegActionError) as exc:
         await file_verify(params)
 
-    assert exc.value.code == "FILE_NOT_FOUND"
+    assert exc.value.code == FILE_NOT_FOUND.code

@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.delete import file_delete
 from seg.actions.file.schemas import DeleteParams
+from seg.core.errors import FILE_NOT_FOUND, PATH_NOT_ALLOWED
 
 # ============================================================================
 # Successful deletion
@@ -86,7 +87,7 @@ async def test_file_delete_missing_file_requires_exists(
     with pytest.raises(SegActionError) as exc:
         await file_delete(params)
 
-    assert exc.value.code == "FILE_NOT_FOUND"
+    assert exc.value.code == FILE_NOT_FOUND.code
 
 
 # ============================================================================
@@ -111,7 +112,7 @@ async def test_file_delete_rejects_path_traversal(
     with pytest.raises(SegActionError) as exc:
         await file_delete(params)
 
-    assert exc.value.code == "PATH_NOT_ALLOWED"
+    assert exc.value.code == PATH_NOT_ALLOWED.code
 
 
 @pytest.mark.asyncio
@@ -138,7 +139,7 @@ async def test_file_delete_rejects_symlink(sandbox_file_factory, minimal_safe_en
     with pytest.raises(SegActionError) as exc:
         await file_delete(params)
 
-    assert exc.value.code == "PATH_NOT_ALLOWED"
+    assert exc.value.code == PATH_NOT_ALLOWED.code
 
 
 # ============================================================================
@@ -174,4 +175,4 @@ async def test_file_delete_rejects_directory(
     with pytest.raises(SegActionError) as exc:
         await file_delete(params)
 
-    assert exc.value.code == "PATH_NOT_ALLOWED"
+    assert exc.value.code == PATH_NOT_ALLOWED.code

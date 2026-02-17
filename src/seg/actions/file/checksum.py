@@ -23,17 +23,21 @@ import asyncio
 import hashlib
 import logging
 import os
-from pathlib import Path
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import ChecksumParams, ChecksumResult
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.config import get_settings
-from seg.core.security.paths import (
-    PathSecurityError,
-    resolve_in_sandbox,
-    safe_open_no_follow,
+from seg.core.errors import (
+    FILE_NOT_FOUND,
+    FILE_TOO_LARGE,
+    INTERNAL_ERROR,
+    INVALID_ALGORITHM,
+    PATH_NOT_ALLOWED,
+    TIMEOUT,
 )
+from seg.core.security.file_access import secure_file_open_readonly
+from seg.core.security.paths import PathSecurityError
 
 logger = logging.getLogger("seg.actions.file.checksum")
 
@@ -74,20 +78,17 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
             - INTERNAL_ERROR: other internal OS or IO failures.
     """
 
-    # Resolve path safely under configured sandbox.
-    sandbox = Path(get_settings().seg_sandbox_dir)
+    fd: int | None = None
     try:
-        path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=params.path)
+        validated = secure_file_open_readonly(params.path)
+        path = validated.path
+        fd = validated.fd
+        assert fd is not None
     except PathSecurityError as exc:
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
-
-    # Open file without following symlinks.
-    try:
-        fd = safe_open_no_follow(path)
+        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
-        raise SegActionError(code="FILE_NOT_FOUND", message="File not found.") from exc
-    except PathSecurityError as exc:
-        raise SegActionError(code="PATH_NOT_ALLOWED", message=str(exc)) from exc
+        raise SegActionError(FILE_NOT_FOUND) from exc
+
     # Duplicate descriptor to hand off to the blocking thread later. We
     # intentionally *do not* close the duplicated fd in this coroutine if
     # the thread is running; the thread is responsible for closing its dup.
@@ -105,8 +106,8 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
             except OSError:
                 pass
             raise SegActionError(
-                code="FILE_TOO_LARGE",
-                message="File exceeds maximum allowed size.",
+                FILE_TOO_LARGE,
+                "File exceeds maximum allowed size.",
             )
         # Compute digest in a blocking thread. Duplicate the fd first so the
         # thread owns a separate descriptor and closing `fd` here (for example
@@ -128,7 +129,8 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                 )
             logger.exception("Failed to duplicate file descriptor for %s", path)
             raise SegActionError(
-                code="INTERNAL_ERROR", message="Failed to duplicate file descriptor"
+                INTERNAL_ERROR,
+                "Failed to duplicate file descriptor",
             ) from exc
 
         async def _compute() -> str:
@@ -137,7 +139,8 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                     h = hashlib.new(algo)
                 except ValueError as exc:
                     raise SegActionError(
-                        code="INVALID_ALGORITHM", message=str(exc)
+                        INVALID_ALGORITHM,
+                        str(exc),
                     ) from exc
                 # Wrap duplicated fd in a file object; this closes dup_fd when done.
                 with os.fdopen(fd_inner, "rb") as f:
@@ -150,7 +153,16 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
 
             return await asyncio.to_thread(_blocking_hash, dup_fd)
 
-        timeout_s = max(0.1, get_settings().seg_timeout_ms / 1000.0)
+        # Defensive protection: `seg_timeout_ms` may be None or invalid in some
+        # environments. Use a small non-zero default and coerce to float.
+        timeout_ms = get_settings().seg_timeout_ms
+        if timeout_ms is None:
+            timeout_s = 0.1
+        else:
+            try:
+                timeout_s = max(0.1, float(timeout_ms) / 1000.0)
+            except Exception:
+                timeout_s = 0.1
         try:
             digest = await asyncio.wait_for(_compute(), timeout=timeout_s)
         except SegActionError:
@@ -158,7 +170,8 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
             raise
         except asyncio.TimeoutError as exc:
             raise SegActionError(
-                code="TIMEOUT", message="Operation timed out."
+                TIMEOUT,
+                "Operation timed out.",
             ) from exc
 
         return ChecksumResult(algorithm=algo, checksum=digest, size_bytes=size_bytes)
@@ -166,10 +179,11 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
         # Always close the original fd owned by this coroutine. The duplicated
         # fd (`dup_fd`) is closed by the worker thread when it finishes; do not
         # attempt to close it here as that would race with the worker.
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
 
 
 # Register the action in the explicit allowlist.

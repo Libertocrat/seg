@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import stat
+from dataclasses import dataclass
 from pathlib import Path
 
 from seg.core.config import get_settings
@@ -14,6 +15,20 @@ class PathSecurityError(ValueError):
 
 
 logger = logging.getLogger("seg.core.security.paths")
+
+
+@dataclass(frozen=True)
+class ValidatedPath:
+    """Result of secure path validation.
+
+    Attributes:
+        path: Canonical path under the configured sandbox.
+        fd: Optional open file descriptor obtained via `safe_open_no_follow`.
+            The caller owns this descriptor and must close it.
+    """
+
+    path: Path
+    fd: int | None = None
 
 
 def sanitize_rel_path(user_path: str) -> str:
@@ -151,3 +166,84 @@ def safe_open_no_follow(path: Path, flags: int = os.O_RDONLY):
         raise
 
     return fd
+
+
+def validate_path(
+    *,
+    user_path: str,
+    sandbox_dir: Path | None = None,
+    require_exists: bool = True,
+    require_regular_file: bool = True,
+    open_no_follow: bool = False,
+    open_flags: int = os.O_RDONLY,
+) -> ValidatedPath:
+    """Validate and optionally open a user path under the SEG sandbox.
+
+    This helper centralizes common path safety checks used by handlers:
+    - Syntactic validation and sandbox resolution (`resolve_in_sandbox`).
+    - Allowed-subdir enforcement and symlink-component rejection.
+    - Optional existence checks.
+    - Optional secure open with no symlink following on final component.
+
+    When `open_no_follow=True`, the target is opened using
+    `safe_open_no_follow`, which ensures the final component is not a
+    symlink and is a regular file. In this mode, the returned file
+    descriptor is owned by the caller and must be closed by them.
+
+    Args:
+        user_path: User-provided path relative to sandbox.
+        sandbox_dir: Optional sandbox root. Defaults to configured sandbox dir.
+        require_exists: If True, raise `FileNotFoundError` when target is absent.
+        require_regular_file: If True, reject non-regular files (only applies
+            when `open_no_follow=False`).
+        open_no_follow: If True, open target via `safe_open_no_follow` and
+            return an owned file descriptor in the result.
+        open_flags: Flags passed to secure open when `open_no_follow` is True.
+
+    Returns:
+        ValidatedPath: Canonical sandboxed path and optional open descriptor.
+
+    Raises:
+        PathSecurityError: On sandbox, symlink, or policy violations.
+        FileNotFoundError: If required target is missing.
+        OSError: For low-level open/stat errors not mapped as security errors.
+    """
+
+    # Resolve sandbox root
+    sandbox = (
+        sandbox_dir if sandbox_dir is not None else Path(get_settings().seg_sandbox_dir)
+    )
+
+    # Resolve and validate the path under sandbox policies
+    resolved_path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=user_path)
+
+    # ------------------------------------------------------------------
+    # Atomic open mode (mitigates TOCTOU for final component)
+    # ------------------------------------------------------------------
+    if open_no_follow:
+        try:
+            fd = safe_open_no_follow(resolved_path, flags=open_flags)
+        except FileNotFoundError:
+            if require_exists:
+                raise
+            return ValidatedPath(path=resolved_path, fd=None)
+
+        return ValidatedPath(path=resolved_path, fd=fd)
+
+    # ------------------------------------------------------------------
+    # Validation-only mode (no atomic open)
+    # ------------------------------------------------------------------
+    if not require_exists:
+        return ValidatedPath(path=resolved_path, fd=None)
+
+    if not resolved_path.exists():
+        raise FileNotFoundError(str(resolved_path))
+
+    # Explicitly reject final-component symlinks before file checks
+    if resolved_path.is_symlink():
+        raise PathSecurityError("Symlinks are not allowed in path components")
+
+    if require_regular_file and not resolved_path.is_file():
+        raise PathSecurityError("Target is not a regular file")
+
+    return ValidatedPath(path=resolved_path, fd=None)
