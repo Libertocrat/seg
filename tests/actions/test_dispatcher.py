@@ -13,8 +13,17 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
-from seg.actions.dispatcher import SegActionError, dispatch_execute
+from seg.actions.dispatcher import dispatch_execute
+from seg.actions.exceptions import SegActionError
 from seg.actions.registry import ActionSpec, register_action
+from seg.core.errors import (
+    ACTION_NOT_FOUND,
+    INTERNAL_ERROR,
+    INVALID_PARAMS,
+    INVALID_RESULT,
+    TIMEOUT,
+    ErrorDef,
+)
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.schemas.execute import ExecuteRequest
 
@@ -47,9 +56,14 @@ async def invalid_result_handler(params: DummyActionParams):
 
 async def seg_error_handler(params: DummyActionParams):
     """Handler that raises a controlled SegActionError."""
-    raise SegActionError(
+    custom_error = ErrorDef(
         code="CUSTOM_ERROR",
-        message="Controlled failure",
+        http_status=418,
+        default_message="Controlled failure",
+    )
+    raise SegActionError(
+        custom_error,
+        "Controlled failure",
         details={"value": params.value},
     )
 
@@ -83,11 +97,12 @@ async def test_dispatch_unknown_action_returns_failure_envelope():
     """
     req = make_request("missing_action", {"value": 1})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
     assert isinstance(response, ResponseEnvelope)
+    assert status == 404
     assert response.success is False
-    assert response.error.code == "ACTION_NOT_FOUND"
+    assert response.error.code == ACTION_NOT_FOUND.code
     assert response.error.details["action"] == "missing_action"
 
 
@@ -114,10 +129,11 @@ async def test_dispatch_invalid_params_returns_failure_envelope(clean_action_reg
 
     req = make_request("validate_params", {"value": "not-an-int"})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 400
     assert response.success is False
-    assert response.error.code == "INVALID_PARAMS"
+    assert response.error.code == INVALID_PARAMS.code
     assert "errors" in response.error.details
 
 
@@ -144,8 +160,9 @@ async def test_dispatch_success_with_result_model(clean_action_registry):
 
     req = make_request("ok_action", {"value": 3})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 200
     assert response.success is True
     assert isinstance(response.data, DummyActionResult)
     assert response.data.doubled == 6
@@ -169,8 +186,9 @@ async def test_dispatch_success_without_result_model(clean_action_registry):
 
     req = make_request("raw_action", {"value": 2})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 200
     assert response.success is True
     assert response.data == {"doubled": 4}
 
@@ -198,10 +216,11 @@ async def test_dispatch_invalid_result_returns_failure_envelope(clean_action_reg
 
     req = make_request("bad_result", {"value": 1})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 500
     assert response.success is False
-    assert response.error.code == "INVALID_RESULT"
+    assert response.error.code == INVALID_RESULT.code
     assert "errors" in response.error.details
 
 
@@ -227,8 +246,9 @@ async def test_dispatch_seg_action_error_is_propagated_cleanly(clean_action_regi
 
     req = make_request("seg_error", {"value": 5})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 418
     assert response.success is False
     assert response.error.code == "CUSTOM_ERROR"
     assert response.error.message == "Controlled failure"
@@ -252,10 +272,11 @@ async def test_dispatch_timeout_error_returns_timeout_failure(clean_action_regis
 
     req = make_request("timeout_action", {"value": 1})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 504
     assert response.success is False
-    assert response.error.code == "TIMEOUT"
+    assert response.error.code == TIMEOUT.code
 
 
 @pytest.mark.asyncio
@@ -275,7 +296,8 @@ async def test_dispatch_unexpected_error_returns_internal_error(clean_action_reg
 
     req = make_request("boom_action", {"value": 1})
 
-    response = await dispatch_execute(req)
+    response, status = await dispatch_execute(req)
 
+    assert status == 500
     assert response.success is False
-    assert response.error.code == "INTERNAL_ERROR"
+    assert response.error.code == INTERNAL_ERROR.code

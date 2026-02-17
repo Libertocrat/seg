@@ -12,9 +12,10 @@ from __future__ import annotations
 
 import pytest
 
-from seg.actions.dispatcher import SegActionError
+from seg.actions.exceptions import SegActionError
 from seg.actions.file.checksum import file_checksum
 from seg.actions.file.schemas import ChecksumParams
+from seg.core.errors import FILE_NOT_FOUND, INVALID_ALGORITHM, PATH_NOT_ALLOWED
 
 # ============================================================================
 # Test constants (frozen contract)
@@ -93,7 +94,7 @@ async def test_file_checksum_rejects_nonexistent_file(
     with pytest.raises(SegActionError) as exc:
         await file_checksum(params)
 
-    assert exc.value.code == "FILE_NOT_FOUND"
+    assert exc.value.code == FILE_NOT_FOUND.code
 
 
 @pytest.mark.asyncio
@@ -113,7 +114,7 @@ async def test_file_checksum_rejects_path_traversal(
     with pytest.raises(SegActionError) as exc:
         await file_checksum(params)
 
-    assert exc.value.code == "PATH_NOT_ALLOWED"
+    assert exc.value.code == PATH_NOT_ALLOWED.code
 
 
 @pytest.mark.asyncio
@@ -140,7 +141,7 @@ async def test_file_checksum_rejects_symlink(sandbox_file_factory, minimal_safe_
     with pytest.raises(SegActionError) as exc:
         await file_checksum(params)
 
-    assert exc.value.code == "PATH_NOT_ALLOWED"
+    assert exc.value.code == PATH_NOT_ALLOWED.code
 
 
 # ============================================================================
@@ -172,4 +173,4 @@ async def test_file_checksum_rejects_invalid_algorithm(
     with pytest.raises(SegActionError) as exc:
         await file_checksum(params)
 
-    assert exc.value.code == "INVALID_ALGORITHM"
+    assert exc.value.code == INVALID_ALGORITHM.code

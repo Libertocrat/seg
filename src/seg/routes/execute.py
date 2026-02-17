@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from seg.actions.dispatcher import dispatch_execute
 from seg.core.schemas.envelope import ResponseEnvelope
@@ -13,7 +14,7 @@ router = APIRouter(prefix="/v1", tags=["execute"])
 
 
 @router.post("/execute", response_model=ResponseEnvelope[Any])
-async def execute(req: ExecuteRequest) -> ResponseEnvelope[Any]:
+async def execute(req: ExecuteRequest) -> JSONResponse:
     """HTTP endpoint that delegates action execution to the dispatcher.
 
     The route is intentionally thin: it validates the HTTP boundary via
@@ -23,4 +24,8 @@ async def execute(req: ExecuteRequest) -> ResponseEnvelope[Any]:
     route returns directly to the client.
     """
 
-    return await dispatch_execute(req)
+    envelope, status = await dispatch_execute(req)
+    return JSONResponse(
+        status_code=status,
+        content=envelope.model_dump(),
+    )

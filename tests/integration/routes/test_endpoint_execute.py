@@ -94,11 +94,13 @@ def test_execute_returns_error_envelope_for_unknown_action(
         json=payload,
     )
 
-    assert response.status_code == 200
+    from seg.core.errors import ACTION_NOT_FOUND
+
+    assert response.status_code == ACTION_NOT_FOUND.http_status
 
     body = response.json()
     assert body.get("success") is False
     assert body.get("data") is None
     assert body.get("error") is not None
-    assert "code" in body["error"]
+    assert body["error"].get("code") == ACTION_NOT_FOUND.code
     assert "message" in body["error"]

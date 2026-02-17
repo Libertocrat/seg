@@ -392,7 +392,7 @@ def file_factory(sandbox_file_factory):
         # CSV
         # ------------------------------------------------------------------
         if file_type == "csv":
-            csv_bytes = b"id,name,value\n" b"1,alpha,100\n" b"2,beta,200\n"
+            csv_bytes = b"id,name,value\n1,alpha,100\n2,beta,200\n"
             return sandbox_file_factory(name=name, content=csv_bytes)
 
         # ------------------------------------------------------------------

@@ -203,18 +203,25 @@ This contract is **shared with the other microservices** to ensure consistency.
 
 ### 5.3 Error Codes (Stable)
 
-HTTP status mapping (initial, to be refined per-endpoint):
+HTTP status mapping (canonical catalog used by the implementation):
 
+- `ACTION_NOT_FOUND` -> 404
+- `INVALID_PARAMS` -> 400
+- `INVALID_RESULT` -> 500
 - `INVALID_REQUEST` -> 400
 - `MIME_MAPPING_NOT_DEFINED` -> 400
 - `FILE_EXTENSION_MISSING` -> 400
 - `UNAUTHORIZED` -> 401
 - `PATH_NOT_ALLOWED` -> 403
+- `PERMISSION_DENIED` -> 403
 - `FILE_NOT_FOUND` -> 404
 - `FILE_TOO_LARGE` -> 413
 - `CONFLICT` -> 409
 - `RATE_LIMITED` -> 429
+- `TIMEOUT` -> 504
 - `INTERNAL_ERROR` -> 500
+- `INVALID_ALGORITHM` -> 400
+- `INVALID_PARAMS` -> 400
 
 ---
 
