@@ -29,7 +29,6 @@ from seg.core.errors import (
 from seg.core.security.file_access import secure_file_open_readonly
 from seg.core.security.paths import (
     PathSecurityError,
-    validate_path,
 )
 
 logger = logging.getLogger("seg.actions.file.delete")
@@ -72,12 +71,7 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
             validated = secure_file_open_readonly(params.path)
         else:
             # preserve semantics when caller allows missing targets
-            validated = validate_path(
-                user_path=params.path,
-                open_no_follow=True,
-                require_exists=False,
-                require_regular_file=True,
-            )
+            validated = secure_file_open_readonly(params.path, require_exists=False)
     except PathSecurityError as exc:
         raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:

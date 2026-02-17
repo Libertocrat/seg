@@ -64,13 +64,13 @@ CLIENT (n8n, CLI, SDK)
         │
         ▼
 ┌──────────────────────────────────────────────┐
-│           BOUNDARY SCHEMAS                    │
+│           BOUNDARY SCHEMAS                   │
 │                                              │
-│  ExecuteRequest                               │
-│  ResponseEnvelope                             │
+│  ExecuteRequest                              │
+│  ResponseEnvelope                            │
 │  ErrorInfo                                   │
 │                                              │
-│  (core/schemas/*)                             │
+│  (core/schemas/*)                            │
 └──────────────────────────────────────────────┘
         │
         ▼
@@ -78,16 +78,16 @@ CLIENT (n8n, CLI, SDK)
 │          ACTION FRAMEWORK (SEG)              │
 │                                              │
 │  Dispatcher                                  │
-│   - Resolves action                           │
-│   - Validates params                          │
-│   - Executes handler                          │
+│   - Resolves action                          │
+│   - Validates params                         │
+│   - Executes handler                         │
 │                                              │
 │  Registry                                    │
-│   - Explicit allowlist of actions             │
+│   - Explicit allowlist of actions            │
 │                                              │
 │  Handler                                     │
-│   - Implements one action                     │
-│   - Applies security & policy                 │
+│   - Implements one action                    │
+│   - Applies security & policy                │
 └──────────────────────────────────────────────┘
         │
         ▼
@@ -165,6 +165,7 @@ Examples (v1):
 - `file_checksum`
 - `file_mime_detect`
 - `file_delete`
+- `file_move`
 - `file_verify`
 
 Actions are:
@@ -311,8 +312,9 @@ src/seg/
     dispatcher.py
     file/
       checksum.py
-      mime_detect.py
       delete.py
+      mime_detect.py
+      move.py
       verify.py
       schemas.py
 ```

@@ -16,6 +16,6 @@ from __future__ import annotations
 # individual modules (e.g. checksum.py). Import modules relatively so
 # the package initializer exposes the submodules when `from seg.actions
 # import file` is used.
-from . import checksum, delete, schemas
+from . import checksum, delete, move, schemas
 
-__all__ = ["checksum", "delete", "schemas"]
+__all__ = ["checksum", "delete", "move", "schemas"]

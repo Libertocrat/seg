@@ -97,7 +97,7 @@ def test_resolve_path_inside_sandbox(minimal_safe_env, sandbox_dir, monkeypatch)
     THEN the resolved path is inside the sandbox directory
     """
 
-    (sandbox_dir / "uploads").mkdir()
+    (sandbox_dir / "uploads").mkdir(parents=True, exist_ok=True)
     (sandbox_dir / "uploads" / "file.txt").touch()
 
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
@@ -160,18 +160,18 @@ def test_resolve_rejects_symlink_component(
     # ------------------------------------------------------------------
     # Arrange: create a symlink INSIDE the sandbox pointing outside
     # ------------------------------------------------------------------
-    symlink = sandbox_dir / "uploads"
+    symlink = sandbox_dir / "malicious_link"
     symlink.symlink_to(real_dir)
 
     # Explicitly allow the symlink name to ensure rejection is due to
     # symlink traversal, not allowlist filtering.
-    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
+    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "malicious_link")
 
     # ------------------------------------------------------------------
     # Act / Assert: resolving a path through the symlink is rejected
     # ------------------------------------------------------------------
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox_dir, "uploads/file.txt")
+        resolve_in_sandbox(sandbox_dir, "malicious_link/file.txt")
 
 
 def test_resolve_allows_any_subdir_when_wildcard(

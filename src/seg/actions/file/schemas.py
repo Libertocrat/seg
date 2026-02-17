@@ -94,6 +94,42 @@ class DeleteResult(BaseModel):
 
 
 # ===========================================================================
+# file_move action schemas
+# ===========================================================================
+
+
+class FileMoveParams(BaseModel):
+    """Parameters for the `file_move` action.
+
+    Attributes:
+        source_path (str): Relative source path under SEG sandbox.
+        destination_path (str): Relative destination path under SEG sandbox.
+        overwrite (bool): Allow overwrite when destination exists.
+    """
+
+    source_path: str = Field(
+        ...,
+        description="Relative path of source file under SEG sandbox.",
+    )
+    destination_path: str = Field(
+        ...,
+        description="Relative destination path under SEG sandbox.",
+    )
+    overwrite: bool = Field(
+        False,
+        description="Allow overwrite if destination exists.",
+    )
+
+
+class FileMoveResult(BaseModel):
+    """Result returned by the `file_move` action."""
+
+    moved: bool
+    source: str
+    destination: str
+
+
+# ===========================================================================
 # file_mime_detect action schemas
 # ===========================================================================
 
@@ -167,6 +203,8 @@ __all__ = [
     "ChecksumResult",
     "DeleteParams",
     "DeleteResult",
+    "FileMoveParams",
+    "FileMoveResult",
     "MimeDetectParams",
     "MimeDetectResult",
     "VerifyChecksumParams",
