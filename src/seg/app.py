@@ -18,6 +18,7 @@ from seg.core import (
     http_exception_handler,
 )
 from seg.middleware.auth import AuthMiddleware
+from seg.middleware.rate_limit import RateLimitMiddleware
 from seg.middleware.request_id import RequestIDMiddleware
 from seg.routes.execute import router as execute_router
 from seg.routes.health import router as health_router
@@ -77,10 +78,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "Action discovery failed during startup"
         )
 
-    # Middlewares (order matters).
-    # Note: Starlette executes the last-added middleware first, so we add Auth
-    # then RequestID to ensure RequestID runs before Auth at request time.
+    # Middlewares (order matters): registration is written so runtime order
+    # becomes RequestID → RateLimit → Auth → Router (Starlette runs last-added
+    # middleware first).
     app.add_middleware(AuthMiddleware, api_token=settings.seg_api_token)
+    app.add_middleware(RateLimitMiddleware, rate_limit_rps=settings.seg_rate_limit_rps)
     app.add_middleware(RequestIDMiddleware)
 
     # Fallback exception handlers
