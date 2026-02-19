@@ -24,9 +24,9 @@ from seg.core.config import Settings, get_settings
 from seg.core.errors import RATE_LIMITED
 from seg.middleware.rate_limit import RATE_LIMITED_TOTAL
 
-# ==========================================================
+# ============================================================================
 # Helpers
-# ==========================================================
+# ============================================================================
 
 
 def _rate_limited_metric_value(path: str, method: str, reason: str) -> float:
@@ -99,9 +99,9 @@ def low_rps_docs_client(low_rps_docs_app):
     return TestClient(low_rps_docs_app)
 
 
-# ==========================================================
+# ============================================================================
 # Section: Happy path
-# ==========================================================
+# ============================================================================
 
 
 def test_request_within_limit_proceeds_without_429(client, auth_headers):
@@ -121,9 +121,9 @@ def test_request_within_limit_proceeds_without_429(client, auth_headers):
     assert "error" in body
 
 
-# ==========================================================
+# ============================================================================
 # Section: Rate limit exceeded
-# ==========================================================
+# ============================================================================
 
 
 def test_rate_limit_exceeded_returns_429_envelope_headers_and_metric(
@@ -155,9 +155,9 @@ def test_rate_limit_exceeded_returns_429_envelope_headers_and_metric(
     assert after == before + 1.0
 
 
-# ==========================================================
+# ============================================================================
 # Section: Retry-After correctness
-# ==========================================================
+# ============================================================================
 
 
 def test_retry_after_is_integer_and_reasonable_for_one_rps(
@@ -178,9 +178,9 @@ def test_retry_after_is_integer_and_reasonable_for_one_rps(
     assert retry_after <= 2
 
 
-# ==========================================================
+# ============================================================================
 # Section: Environment configuration
-# ==========================================================
+# ============================================================================
 
 
 def test_rate_limit_respects_env_configuration(
@@ -216,9 +216,9 @@ def test_rate_limit_respects_env_configuration(
     assert third.status_code == RATE_LIMITED.http_status
 
 
-# ==========================================================
+# ============================================================================
 # Section: Exempt endpoints
-# ==========================================================
+# ============================================================================
 
 
 def test_metrics_endpoint_is_exempt_even_when_bucket_is_exhausted(
@@ -253,9 +253,9 @@ def test_docs_endpoints_are_exempt_when_docs_are_enabled(
     assert docs.status_code == 200
 
 
-# ==========================================================
+# ============================================================================
 # Section: Metric path normalization
-# ==========================================================
+# ============================================================================
 
 
 def test_metric_path_label_is_normalized_on_rejection(low_rps_client, auth_headers):
