@@ -9,7 +9,7 @@ They do NOT test dispatcher internals or action business logic.
 """
 
 # ============================================================================
-# Execute endpoint – request validation
+# Execute endpoint: request validation
 # ============================================================================
 
 
@@ -29,7 +29,7 @@ def test_execute_rejects_invalid_payload(client, auth_headers):
 
 
 # ============================================================================
-# Execute endpoint – happy path
+# Execute endpoint: happy path
 # ============================================================================
 
 
@@ -70,7 +70,7 @@ def test_execute_returns_success_envelope_for_valid_action(
 
 
 # ============================================================================
-# Execute endpoint – domain errors
+# Execute endpoint: domain errors
 # ============================================================================
 
 
