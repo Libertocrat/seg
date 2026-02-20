@@ -1,0 +1,292 @@
+"""
+Integration tests for the RequestIntegrityMiddleware.
+
+These tests validate request-integrity enforcement as an HTTP-level contract.
+They ensure that:
+
+- Unsupported content types are rejected on protected JSON endpoints.
+- Header-integrity violations are rejected before downstream middleware.
+- Conflicting `Content-Length` and `Transfer-Encoding` headers are rejected.
+- Body size limits are enforced using `Content-Length`.
+- Rejections preserve envelope/headers and increment expected metrics.
+
+They do NOT unit-test middleware internals.
+"""
+
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from seg.app import create_app
+from seg.core.config import Settings
+from seg.core.errors import FILE_TOO_LARGE, INVALID_REQUEST
+from seg.middleware.request_integrity import REQUEST_INTEGRITY_REJECTIONS_TOTAL
+
+# ============================================================================
+# Helpers
+# ============================================================================
+
+
+def _integrity_metric_value(path: str, method: str, reason: str) -> float:
+    """Return current seg_request_integrity_rejections_total for labels."""
+    total = 0.0
+    for metric in REQUEST_INTEGRITY_REJECTIONS_TOTAL.collect():
+        for sample in metric.samples:
+            if sample.name != "seg_request_integrity_rejections_total":
+                continue
+            labels = sample.labels
+            if (
+                labels.get("path") == path
+                and labels.get("method") == method
+                and labels.get("reason") == reason
+            ):
+                total += float(sample.value)
+    return total
+
+
+# ============================================================================
+# Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def low_max_bytes_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
+    """Return settings with a strict body-size limit for deterministic tests."""
+    return Settings.model_validate(
+        {
+            "seg_api_token": api_token,
+            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_allowed_subdirs": allowed_subdirs,
+            "seg_max_bytes": 16,
+        }
+    )
+
+
+@pytest.fixture
+def low_max_bytes_app(low_max_bytes_settings):
+    """Create app configured with a small `seg_max_bytes` value."""
+    return create_app(low_max_bytes_settings)
+
+
+@pytest.fixture
+def low_max_bytes_client(low_max_bytes_app):
+    """Create HTTP client bound to low body-limit app."""
+    with TestClient(low_max_bytes_app) as client:
+        yield client
+
+
+# ============================================================================
+# Section: Content-Type enforcement
+# ============================================================================
+
+
+def test_execute_rejects_unsupported_content_type(client, auth_headers):
+    """
+    GIVEN POST /v1/execute requires application/json
+    WHEN a request uses an unsupported content type
+    THEN middleware rejects with HTTP 400 and INVALID_REQUEST envelope
+    AND the seg_request_integrity_rejections_total metric is incremented
+    """
+    reason = "unsupported_content_type"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    # Use "content" with raw bytes to bypass TestClient's default JSON encoding
+    # and content-type. Don't use "data" to avoid HTTPX deprecation warnings.
+    response = client.post(
+        "/v1/execute",
+        content=b"plain-text-payload",
+        headers={
+            **auth_headers,
+            "Content-Type": "text/plain",
+        },
+    )
+
+    assert response.status_code == INVALID_REQUEST.http_status
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == INVALID_REQUEST.code
+    assert body["error"]["message"] == "Unsupported content type"
+    assert "X-Request-Id" in response.headers
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before + 1.0
+
+
+def test_execute_allows_application_json_with_charset(
+    client,
+    auth_headers,
+    sandbox_file_factory,
+):
+    """
+    GIVEN POST /v1/execute requires JSON base media type
+    WHEN Content-Type is application/json with charset parameter
+    THEN request passes request-integrity validation
+    AND the seg_request_integrity_rejections_total metric is not incremented
+    """
+    sf = sandbox_file_factory(name="charset_ok.txt", content=b"hello")
+
+    reason = "unsupported_content_type"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    response = client.post(
+        "/v1/execute",
+        json={
+            "action": "file_checksum",
+            "params": {"path": str(sf.rel_path)},
+        },
+        headers={
+            **auth_headers,
+            "Content-Type": "application/json; charset=utf-8",
+        },
+    )
+
+    assert response.status_code != INVALID_REQUEST.http_status
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before
+
+
+# ============================================================================
+# Section: Header integrity and CL/TE conflict
+# ============================================================================
+
+
+def test_duplicate_authorization_header_is_rejected(api_token, client):
+    """
+    GIVEN duplicate Authorization headers in the same request
+    WHEN request enters request-integrity middleware
+    THEN middleware rejects with INVALID_REQUEST before auth logic
+    AND the seg_request_integrity_rejections_total metric is incremented
+    """
+    reason = "duplicate_authorization"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    response = client.post(
+        "/v1/execute",
+        content=b'{"action":"noop","params":{}}',
+        headers=[
+            ("Authorization", f"Bearer {api_token}"),
+            ("Authorization", "Bearer badtoken"),
+            ("Content-Type", "application/json"),
+        ],
+    )
+
+    assert response.status_code == INVALID_REQUEST.http_status
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == INVALID_REQUEST.code
+    assert body["error"]["message"] == "Duplicate Authorization headers are not allowed"
+    assert "X-Request-Id" in response.headers
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before + 1.0
+
+
+def test_conflicting_content_length_and_transfer_encoding_is_rejected(
+    api_token,
+    client,
+):
+    """
+    GIVEN both Content-Length and Transfer-Encoding headers are present
+    WHEN request enters request-integrity middleware
+    THEN middleware rejects to mitigate CL/TE smuggling ambiguity
+    AND the seg_request_integrity_rejections_total metric is incremented
+    """
+    reason = "conflicting_cl_te"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    response = client.post(
+        "/v1/execute",
+        content=b'{"action":"noop","params":{}}',
+        headers={
+            "Authorization": f"Bearer {api_token}",
+            "Content-Type": "application/json",
+            "Content-Length": "28",
+            "Transfer-Encoding": "chunked",
+        },
+    )
+
+    assert response.status_code == INVALID_REQUEST.http_status
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == INVALID_REQUEST.code
+    assert (
+        body["error"]["message"]
+        == "Conflicting Content-Length and Transfer-Encoding headers"
+    )
+    assert "X-Request-Id" in response.headers
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before + 1.0
+
+
+# ============================================================================
+# Section: Body size enforcement
+# ============================================================================
+
+
+def test_invalid_content_length_is_rejected(low_max_bytes_client, auth_headers):
+    """
+    GIVEN Content-Length must be digits-only
+    WHEN a request sends an invalid Content-Length
+    THEN middleware rejects with INVALID_REQUEST
+    AND the seg_request_integrity_rejections_total metric is incremented
+    """
+    reason = "invalid_content_length"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    response = low_max_bytes_client.post(
+        "/v1/execute",
+        content=b'{"action":"noop","params":{}}',
+        headers={
+            **auth_headers,
+            "Content-Type": "application/json",
+            "Content-Length": "abc",
+        },
+    )
+
+    assert response.status_code == INVALID_REQUEST.http_status
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == INVALID_REQUEST.code
+    assert body["error"]["message"] == "Invalid Content-Length header"
+    assert "X-Request-Id" in response.headers
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before + 1.0
+
+
+def test_content_length_exceeding_limit_is_rejected(low_max_bytes_client, auth_headers):
+    """
+    GIVEN a strict seg_max_bytes limit
+    WHEN Content-Length declares a value above the limit
+    THEN middleware rejects with FILE_TOO_LARGE
+    AND the seg_request_integrity_rejections_total metric is incremented
+    """
+    reason = "content_length_exceeds_limit"
+    before = _integrity_metric_value("/v1/execute", "POST", reason)
+
+    response = low_max_bytes_client.post(
+        "/v1/execute",
+        content=b"{}",
+        headers={
+            **auth_headers,
+            "Content-Type": "application/json",
+            "Content-Length": "999",
+        },
+    )
+
+    assert response.status_code == FILE_TOO_LARGE.http_status
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == FILE_TOO_LARGE.code
+    assert "X-Request-Id" in response.headers
+
+    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    assert after == before + 1.0

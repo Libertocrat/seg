@@ -64,4 +64,4 @@ def test_health_endpoint_returns_200():
     assert response.status_code == 200
     body = response.json()
     assert isinstance(body, dict)
-    assert body.get("data").get("status") == "ok"
+    assert body["data"]["status"] == "ok"

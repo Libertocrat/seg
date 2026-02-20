@@ -97,8 +97,8 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
 
     assert response.status_code == UNAUTHORIZED.http_status
     body = response.json()
-    assert body.get("error") is not None
-    assert body["error"].get("code") == UNAUTHORIZED.code
+    assert body["error"] is not None
+    assert body["error"]["code"] == UNAUTHORIZED.code
 
 
 def test_protected_endpoint_allows_valid_auth(
@@ -154,9 +154,9 @@ def test_unauthorized_response_uses_response_envelope_failure(
     assert isinstance(body, dict)
 
     # ResponseEnvelope failure invariants
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body["error"].get("code") == UNAUTHORIZED.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == UNAUTHORIZED.code
     assert "message" in body["error"]
 
 
