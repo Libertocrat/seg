@@ -32,6 +32,6 @@ def test_health_endpoint_returns_expected_payload(client):
     body = response.json()
 
     assert isinstance(body, dict)
-    assert body.get("success") is True
-    assert body.get("data") is not None
-    assert body["data"].get("status") == "ok"
+    assert body["success"] is True
+    assert body["data"] is not None
+    assert body["data"]["status"] == "ok"

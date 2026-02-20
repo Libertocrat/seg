@@ -174,9 +174,9 @@ def test_generic_slow_handler_is_intercepted_by_timeout(
 
     assert response.status_code == TIMEOUT.http_status
     body = response.json()
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body["error"].get("code") == TIMEOUT.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == TIMEOUT.code
     assert "X-Request-Id" in response.headers
 
     after = _timeout_metric_value("/test-slow", "GET")
@@ -205,10 +205,10 @@ def test_seg_action_error_is_not_converted_to_timeout(
 
     assert response.status_code != TIMEOUT.http_status
     body = response.json()
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body.get("data") is None
-    assert body["error"].get("code") != TIMEOUT.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["data"] is None
+    assert body["error"]["code"] != TIMEOUT.code
 
 
 def test_slow_execute_success_is_intercepted_by_timeout(
@@ -247,9 +247,9 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     assert response.status_code == TIMEOUT.http_status
 
     body = response.json()
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body["error"].get("code") == TIMEOUT.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == TIMEOUT.code
 
     after = _timeout_metric_value("/v1/execute", "POST")
     assert after == before + 1.0
@@ -291,10 +291,10 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     assert response.status_code == TIMEOUT.http_status
 
     body = response.json()
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body["error"].get("code") == TIMEOUT.code
-    assert body["error"].get("code") != INVALID_REQUEST.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == TIMEOUT.code
+    assert body["error"]["code"] != INVALID_REQUEST.code
 
     after = _timeout_metric_value("/v1/execute", "POST")
     assert after == before + 1.0
@@ -345,7 +345,7 @@ def test_slow_health_is_not_intercepted_by_timeout(
 
     assert response.status_code == 200
     body = response.json()
-    assert body.get("success") is True
+    assert body["success"] is True
 
     after = _timeout_metric_value("/health", "GET")
     assert after == before
@@ -404,6 +404,7 @@ def test_timeout_metric_uses_normalized_path(
     after_raw = _timeout_metric_value("/test-slow-normalized/", "GET")
 
     assert response.status_code == TIMEOUT.http_status
-    assert response.json().get("error", {}).get("code") == TIMEOUT.code
+    payload = response.json()
+    assert payload["error"]["code"] == TIMEOUT.code
     assert after_normalized == before_normalized + 1.0
     assert after_raw == before_raw

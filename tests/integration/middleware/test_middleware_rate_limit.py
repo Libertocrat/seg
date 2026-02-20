@@ -144,9 +144,9 @@ def test_rate_limit_exceeded_returns_429_envelope_headers_and_metric(
     assert second.status_code == RATE_LIMITED.http_status
 
     body = second.json()
-    assert body.get("success") is False
-    assert body.get("error") is not None
-    assert body["error"].get("code") == RATE_LIMITED.code
+    assert body["success"] is False
+    assert body["error"] is not None
+    assert body["error"]["code"] == RATE_LIMITED.code
     assert "X-Request-Id" in second.headers
     assert "Retry-After" in second.headers
     assert int(second.headers["Retry-After"]) > 0

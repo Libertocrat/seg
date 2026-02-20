@@ -499,7 +499,11 @@ def file_factory(sandbox_file_factory):
         # PYTHON SCRIPT
         # ------------------------------------------------------------------
         if file_type == "python":
-            py_bytes = b"#!/usr/bin/env python3\nprint('SEG')\n"
+            py_bytes = (
+                b"#!/usr/bin/env python3\n"
+                b"import sys\n"
+                b"sys.stdout.write('SEG\\n')\n"
+            )
             return sandbox_file_factory(name=name, content=py_bytes)
 
         # ------------------------------------------------------------------

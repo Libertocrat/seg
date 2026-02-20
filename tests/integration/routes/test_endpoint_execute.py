@@ -64,9 +64,9 @@ def test_execute_returns_success_envelope_for_valid_action(
 
     body = response.json()
     assert isinstance(body, dict)
-    assert body.get("success") is True
-    assert body.get("data") is not None
-    assert body.get("error") is None
+    assert body["success"] is True
+    assert body["data"] is not None
+    assert body["error"] is None
 
 
 # ============================================================================
@@ -99,8 +99,8 @@ def test_execute_returns_error_envelope_for_unknown_action(
     assert response.status_code == ACTION_NOT_FOUND.http_status
 
     body = response.json()
-    assert body.get("success") is False
-    assert body.get("data") is None
-    assert body.get("error") is not None
-    assert body["error"].get("code") == ACTION_NOT_FOUND.code
+    assert body["success"] is False
+    assert body["data"] is None
+    assert body["error"] is not None
+    assert body["error"]["code"] == ACTION_NOT_FOUND.code
     assert "message" in body["error"]
