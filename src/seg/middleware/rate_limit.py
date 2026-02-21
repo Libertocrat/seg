@@ -14,6 +14,7 @@ from starlette.types import ASGIApp
 
 from seg.core.errors import RATE_LIMITED
 from seg.core.schemas.envelope import ResponseEnvelope
+from seg.core.utils.http import normalize_metric_path
 
 logger = logging.getLogger("seg.middleware.rate_limit")
 
@@ -147,7 +148,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         request_id = getattr(request.state, "request_id", None)
         client_host = request.client.host if request.client else "unknown"
         retry_after_seconds = await self._bucket.time_until_next_token()
-        normalized_path = self._normalize_metric_path(request.url.path)
+        normalized_path = normalize_metric_path(request.url.path)
 
         RATE_LIMITED_TOTAL.labels(
             path=normalized_path,
@@ -193,12 +194,3 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return configured
 
         return 10
-
-    @staticmethod
-    def _normalize_metric_path(path: str) -> str:
-        """Return a canonical path representation for metric labels."""
-
-        clean_path = path.split("?", 1)[0].rstrip("/")
-        if not clean_path:
-            return "/"
-        return clean_path

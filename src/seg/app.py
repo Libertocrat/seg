@@ -18,6 +18,7 @@ from seg.core import (
     http_exception_handler,
 )
 from seg.middleware.auth import AuthMiddleware
+from seg.middleware.observability import ObservabilityMiddleware
 from seg.middleware.rate_limit import RateLimitMiddleware
 from seg.middleware.request_id import RequestIDMiddleware
 from seg.middleware.request_integrity import RequestIntegrityMiddleware
@@ -82,11 +83,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     # Middlewares (order matters): registration is written so runtime order
-    # becomes RequestID → RateLimit → Timeout → RequestIntegrity → Auth → Router
+    # becomes RequestID → Observability → RateLimit → Timeout → RequestIntegrity
+    # → Auth → Router
     # (Starlette runs last-added middleware first).
     app.add_middleware(AuthMiddleware, api_token=settings.seg_api_token)
-    app.add_middleware(TimeoutMiddleware, timeout_ms=settings.seg_timeout_ms)
-    app.add_middleware(RateLimitMiddleware, rate_limit_rps=settings.seg_rate_limit_rps)
     app.add_middleware(
         RequestIntegrityMiddleware,
         max_body_bytes=settings.seg_max_bytes,
@@ -98,6 +98,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
         ],
     )
+    app.add_middleware(TimeoutMiddleware, timeout_ms=settings.seg_timeout_ms)
+    app.add_middleware(RateLimitMiddleware, rate_limit_rps=settings.seg_rate_limit_rps)
+    app.add_middleware(ObservabilityMiddleware)
     app.add_middleware(RequestIDMiddleware)
 
     # Fallback exception handlers

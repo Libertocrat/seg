@@ -14,6 +14,7 @@ from starlette.types import ASGIApp
 from seg.actions.exceptions import SegActionError
 from seg.core.errors import TIMEOUT
 from seg.core.schemas.envelope import ResponseEnvelope
+from seg.core.utils.http import normalize_metric_path
 
 logger = logging.getLogger("seg.middleware.timeout")
 
@@ -113,7 +114,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
 
         request_id = getattr(request.state, "request_id", None)
         client_host = request.client.host if request.client else "unknown"
-        normalized_path = self._normalize_metric_path(request.url.path)
+        normalized_path = normalize_metric_path(request.url.path)
 
         # Increment timeout Prometheus metric
         TIMEOUTS_TOTAL.labels(path=normalized_path, method=request.method).inc()
@@ -173,22 +174,6 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             return max(cls._MIN_TIMEOUT_MS, configured)
 
         return cls._MIN_TIMEOUT_MS
-
-    @staticmethod
-    def _normalize_metric_path(path: str) -> str:
-        """Normalize request paths for stable metric label cardinality.
-
-        Args:
-            path: Original request path.
-
-        Returns:
-            Canonicalized path label.
-        """
-
-        clean_path = path.split("?", 1)[0].rstrip("/")
-        if not clean_path:
-            return "/"
-        return clean_path
 
     @staticmethod
     def _elapsed_ms_since(start: float) -> int:
