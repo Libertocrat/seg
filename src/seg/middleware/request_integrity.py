@@ -35,6 +35,7 @@ from seg.core.security.http_validation import (
     parse_content_length_strict,
     path_has_disallowed_characters,
 )
+from seg.core.utils.http import normalize_metric_path
 from seg.middleware.schemas import ContentTypePolicy
 
 logger = logging.getLogger("seg.middleware.request_integrity")
@@ -379,7 +380,7 @@ class RequestIntegrityMiddleware:
 
         method = (scope.get("method") or "").upper()
         path = scope.get("path") or ""
-        normalized_path = self._normalize_metric_path(path)
+        normalized_path = normalize_metric_path(path)
 
         REQUEST_INTEGRITY_REJECTIONS_TOTAL.labels(
             path=normalized_path,
@@ -435,20 +436,6 @@ class RequestIntegrityMiddleware:
 
         # Safe fallback (should not normally be hit)
         return 1024 * 1024
-
-    @staticmethod
-    def _normalize_metric_path(path: str) -> str:
-        """Return a canonical path string for metric labels.
-
-        Args:
-            path: Original request path.
-
-        Returns:
-            Canonicalized path (without query, no trailing slash except root).
-        """
-
-        clean_path = path.split("?", 1)[0].rstrip("/")
-        return clean_path or "/"
 
 
 __all__ = [
