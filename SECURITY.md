@@ -48,7 +48,7 @@ If you need to send sensitive files, screenshots, or Proofs-of-Concept (PoCs), y
 
 The public PGP key is available in the file [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc) at the root of this repository.
 
-> **PGP fingerprint**:  
+> **PGP fingerprint**:
 > 0093 2D8B E725 68F8 7C60  D138 B00F 1868 1AFD 0A6F
 
 ### Verify the PGP key (optional)

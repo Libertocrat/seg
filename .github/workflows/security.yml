@@ -1,0 +1,65 @@
+name: Security
+
+on:
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Weekly deep security scan (Monday 03:00 UTC)
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  security:
+    name: Deep Security Analysis
+    runs-on: ubuntu-latest
+
+    env:
+      IMAGE_NAME: seg
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up virtual environment and dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: |
+            p/ci
+            p/python
+            p/security-audit
+          generateSarif: false
+
+      # Trivy is installed here, but filesystem scan remains makefile-driven.
+      - name: Install Trivy CLI
+        uses: aquasecurity/setup-trivy@v0.2.2
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          jq --version
+
+      - name: Run Trivy filesystem scan
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          make trivy-fs
+
+      - name: Run Trivy image scan
+        shell: bash
+        run: |
+          source .venv/bin/activate
+          make trivy-image IMAGE_NAME=${{ env.IMAGE_NAME }} IMAGE_TAG=${{ env.IMAGE_TAG }}
