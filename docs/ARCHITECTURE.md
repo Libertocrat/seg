@@ -1,7 +1,7 @@
 # SEG - Architecture Specification
 
-**Status:** Frozen (v1)  
-**Audience:** Developers, reviewers, GitHub Copilot  
+**Status:** Frozen (v1)
+**Audience:** Developers, reviewers, GitHub Copilot
 **Scope:** SEG v1 (file-related secure actions)
 
 ---
@@ -10,7 +10,7 @@
 
 SEG (Secure Execution Gateway) is a hardened FastAPI-based microservice designed to safely execute a **strictly limited and explicitly allowed set of filesystem-related actions** on behalf of upstream systems (e.g. n8n workflows).
 
-SEG is intentionally **not a generic execution engine**.  
+SEG is intentionally **not a generic execution engine**.
 It is a controlled capability gateway with strong boundaries, explicit policies, and a stable external contract.
 
 The primary goals are:

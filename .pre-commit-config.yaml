@@ -1,14 +1,21 @@
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
       - id: black
-        args: ["src", "tests"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.6.9
     hooks:
       - id: ruff
+        args: ["--fix"]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.11.2
@@ -21,15 +28,27 @@ repos:
           - --explicit-package-bases
         files: ^(src|tests)/
         additional_dependencies:
-          # Runtime deps needed for imports
           - fastapi
           - starlette
-          - pydantic==2.12.0
+          - pydantic==2.12.5
           - pydantic-settings==2.12.0
           - prometheus-client
-          # Testing deps required when mypy checks test files under 'tests/'
           - pytest
           - pytest-asyncio
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.1
+    hooks:
+      - id: bandit
+        name: bandit (src)
+        args:
+          - --recursive
+          - --severity-level
+          - medium
+          - --confidence-level
+          - medium
+          - src
+        pass_filenames: false
 
   - repo: local
     hooks:
@@ -46,4 +65,4 @@ repos:
         entry: pytest -q tests
         language: system
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
