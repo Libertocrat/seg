@@ -8,6 +8,7 @@ on:
 
 env:
   IMAGE_NAME: seg
+  IMAGE_OWNER: ${{ github.repository_owner }}
 
 permissions:
   contents: read
@@ -21,6 +22,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # fetch full history for accurate semver parsing
+
+      - name: Normalize image name and owner to lowercase
+        run: |
+          echo "IMAGE_NAME=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+          echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - uses: docker/setup-buildx-action@v3 # enable BuildKit
 
@@ -41,7 +47,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{raw}}
             type=semver,pattern={{version}}
@@ -62,7 +68,7 @@ jobs:
       - name: Scan image before publish (block on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          image-ref: ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
           format: table
           exit-code: "1"
           severity: HIGH,CRITICAL
@@ -92,6 +98,6 @@ jobs:
       - name: Tag and push latest (only if tag is in main)
         if: steps.check_main.outputs.is_main == 'true'
         run: |
-          docker tag ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }} \
-                     ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
-          docker push ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }} \
+                     ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
+          docker push ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:latest
