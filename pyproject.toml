@@ -55,6 +55,15 @@ ignore = [
 
 
 ######################################
+# Bandit (baseline SAST)
+######################################
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "venv", "build", "dist"]
+targets = ["src"]
+
+
+######################################
 # Pytest
 ######################################
 
@@ -79,4 +88,3 @@ markers = [
     "slow: slow tests",
     "integration: integration tests",
 ]
-
