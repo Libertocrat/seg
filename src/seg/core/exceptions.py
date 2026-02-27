@@ -17,9 +17,41 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
+from seg.core.errors import (
+    BAD_REQUEST,
+    FILE_TOO_LARGE,
+    INTERNAL_ERROR,
+    METHOD_NOT_ALLOWED,
+    PATH_NOT_ALLOWED,
+    RATE_LIMITED,
+    RESOURCE_NOT_FOUND,
+    UNAUTHORIZED,
+    UNPROCESSABLE_ENTITY,
+    UNSUPPORTED_MEDIA_TYPE,
+    ErrorDef,
+)
 from seg.core.schemas.envelope import ResponseEnvelope
 
 logger = logging.getLogger("seg.exceptions")
+
+
+# Starlette http exceptions mapping from centralized error definitions.
+STARLETTE_HTTP_STATUS_MAP: dict[int, ErrorDef] = {
+    400: BAD_REQUEST,
+    401: UNAUTHORIZED,
+    403: PATH_NOT_ALLOWED,
+    404: RESOURCE_NOT_FOUND,
+    405: METHOD_NOT_ALLOWED,
+    413: FILE_TOO_LARGE,
+    415: UNSUPPORTED_MEDIA_TYPE,
+    422: UNPROCESSABLE_ENTITY,
+    429: RATE_LIMITED,
+}
+
+for status, err in STARLETTE_HTTP_STATUS_MAP.items():
+    assert err.http_status == status, (
+        f"ErrorDef {err.code} has http_status={err.http_status}, " f"expected {status}"
+    )
 
 
 async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -38,24 +70,22 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
     rid = getattr(request.state, "request_id", None)
     headers = {"X-Request-Id": rid} if rid else {}
 
-    # Map some common HTTP status codes to (machine_code, public_message).
-    # Keep messages short and non-sensitive; `exc.detail` is logged but not
-    # returned to the client to avoid leaking internal information.
-    status_code_map: dict[int, tuple[str, str]] = {
-        400: ("BAD_REQUEST", "Bad request"),
-        401: ("UNAUTHORIZED", "Unauthorized"),
-        403: ("PATH_NOT_ALLOWED", "Path not allowed"),
-        404: ("FILE_NOT_FOUND", "File not found"),
-        413: ("FILE_TOO_LARGE", "File too large"),
-        415: ("UNSUPPORTED_MEDIA_TYPE", "Unsupported media type"),
-        429: ("RATE_LIMITED", "Rate limited"),
-    }
-
-    code, message = status_code_map.get(exc.status_code, ("HTTP_ERROR", "HTTP error"))
-    # Log the original exception detail for operators at debug level.
-    logger.debug("HTTP exception detail (request_id=%s): %s", rid, exc.detail)
-    payload = ResponseEnvelope.failure(code=code, message=message).model_dump()
-    return JSONResponse(status_code=exc.status_code, content=payload, headers=headers)
+    err_def = STARLETTE_HTTP_STATUS_MAP.get(exc.status_code, INTERNAL_ERROR)
+    logger.debug(
+        "HTTP exception detail (request_id=%s, status=%s): %s",
+        rid,
+        exc.status_code,
+        exc.detail,
+    )
+    payload = ResponseEnvelope.failure(
+        code=err_def.code,
+        message=err_def.default_message,
+    ).model_dump()
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=payload,
+        headers=headers,
+    )
 
 
 # `add_exception_handler` has a broader expected type (it accepts handlers for

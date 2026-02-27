@@ -1,13 +1,19 @@
+from typing import Literal
+
 from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from seg.core.schemas.envelope import ResponseEnvelope
 
 router = APIRouter(prefix="", tags=["health"])
 
 
-@router.get("/health", response_class=JSONResponse)
-async def health() -> JSONResponse:
+class HealthResult(BaseModel):
+    status: Literal["ok"]
+
+
+@router.get("/health", response_model=ResponseEnvelope[HealthResult])
+async def health() -> ResponseEnvelope[HealthResult]:
     """Health check endpoint.
 
     Returns a minimal readiness payload as defined in the SRS.
@@ -16,5 +22,4 @@ async def health() -> JSONResponse:
         A JSONResponse containing the readiness status, e.g. `{"status": "ok"}`.
     """
 
-    payload = ResponseEnvelope.success_response({"status": "ok"}).model_dump()
-    return JSONResponse(payload)
+    return ResponseEnvelope.success_response(HealthResult(status="ok"))

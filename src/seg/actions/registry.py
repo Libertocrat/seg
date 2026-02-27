@@ -19,30 +19,117 @@ HandlerFn = Callable[[P], Awaitable[Any]]
 
 @dataclass(frozen=True, slots=True)
 class ActionSpec(Generic[P]):
-    """Specification for a registered action.
+    """Specification object describing a registered SEG action.
 
-    - name: action name used by clients
-    - params_model: Pydantic model class for input params (type P)
-    - handler: async callable that accepts the validated params model (P)
-    - result_model: Optional Pydantic model class describing the result
-      returned by the handler. When present, the dispatcher will validate
-      and normalize handler output against this model.
+    An ActionSpec defines both the runtime behavior and the documentation
+    metadata of an action that can be executed via `/v1/execute`.
+
+    Each action is resolved dynamically by the dispatcher using the `name`
+    field. The dispatcher validates the incoming `params` against
+    `params_model`, invokes the `handler`, and optionally validates the
+    returned result against `result_model`.
+
+    In addition to execution metadata, ActionSpec also carries optional
+    OpenAPI documentation metadata that is used during dynamic schema
+    generation. This allows SEG to expose rich, runtime-aware API
+    documentation without coupling route definitions to individual actions.
+
+    Attributes:
+        name:
+            Unique action identifier used by clients in the `action` field
+            of the `/v1/execute` request body.
+
+        params_model:
+            Pydantic model class describing the validated structure of the
+            `params` field for this action.
+
+        handler:
+            Async callable that receives an instance of `params_model` and
+            performs the action logic. It must return either a plain dict
+            or an instance compatible with `result_model` (if provided).
+
+        result_model:
+            Optional Pydantic model class describing the normalized result
+            schema returned by the handler. When provided, the dispatcher
+            validates and serializes the handler output against this model
+            before embedding it into the ResponseEnvelope. When None,
+            the raw handler output is returned as-is.
+
+        summary:
+            Optional short description used as a concise title for this
+            action in generated OpenAPI documentation. Intended for
+            one-line display in UI tools like Swagger.
+
+        description:
+            Optional extended description of the action. This can include
+            behavioral notes, security constraints, edge-case behavior,
+            or execution guarantees. Used when dynamically generating
+            enriched documentation for `/v1/execute`.
+
+        tags:
+            Optional tuple of tags associated with the action. These may
+            be used to group or classify actions in documentation or
+            tooling layers. While `/v1/execute` remains a single endpoint,
+            tags can be leveraged for logical grouping in future tooling.
+
+        deprecated:
+            Indicates whether the action is deprecated. When True, the
+            generated OpenAPI schema may mark this action as deprecated,
+            signaling clients to migrate away from it.
+
+        params_example:
+            Optional example instance of `params_model` used to generate
+            OpenAPI request examples.
+
+        result_example:
+            Optional example instance of `result_model` used to generate
+            OpenAPI 200 response examples.
     """
+
+    # ------------------------------------------------------------------
+    # Core execution metadata
+    # ------------------------------------------------------------------
 
     name: str
     params_model: type[P]
-    handler: HandlerFn
-    # Optional result model describing the handler output. When `None`, the
-    # dispatcher will return whatever the handler returns without additional
-    # Pydantic validation. Making this optional simplifies registering
-    # lightweight actions that don't expose a stable result schema.
+    handler: "HandlerFn"
     result_model: Optional[type[BaseModel]] = None
+
+    # ------------------------------------------------------------------
+    # Optional OpenAPI documentation metadata
+    # ------------------------------------------------------------------
+
+    summary: str | None = None
+    description: str | None = None
+    tags: tuple[str, ...] = ()
+    deprecated: bool = False
+
+    # ------------------------------------------------------------------
+    # Optional OpenAPI example payloads (strongly typed)
+    # ------------------------------------------------------------------
+
+    params_example: P | None = None
+    result_example: BaseModel | None = None
 
 
 _REGISTRY: dict[str, ActionSpec[Any]] = {}
 
 
 def register_action(spec: ActionSpec[Any]) -> None:
+    # Validate OpenAPI request/response examples
+    if spec.params_example is not None and spec.params_model:
+        if not isinstance(spec.params_example, spec.params_model):
+            raise TypeError(
+                f"Example params for action '{spec.name}' must be instance of "
+                f"{spec.params_model.__name__}"
+            )
+    if spec.result_example is not None and spec.result_model:
+        if not isinstance(spec.result_example, spec.result_model):
+            raise TypeError(
+                f"Example result for action '{spec.name}' must be instance of "
+                f"{spec.result_model.__name__}"
+            )
+
     # Explicit allowlist, and refuse duplicates.
     if spec.name in _REGISTRY:
         raise RuntimeError(f"Action already registered: {spec.name}")

@@ -193,5 +193,31 @@ register_action(
         params_model=ChecksumParams,
         result_model=ChecksumResult,
         handler=file_checksum,
+        summary="Compute a sandboxed file checksum",
+        description="""
+Computes a streaming checksum for a file located inside the SEG sandbox.
+
+This action:
+
+- Enforces strict sandbox path boundaries
+- Rejects unsafe path traversal and symlink patterns
+- Applies `SEG_MAX_BYTES` size constraints
+- Supports configurable hashing algorithms (e.g. sha256, md5, sha1)
+
+Returns structured metadata including:
+
+- Algorithm used
+- Hex digest
+- File size in bytes
+""",
+        tags=("file", "integrity", "checksum"),
+        params_example=ChecksumParams(
+            path="relative/path/to/file.txt", algorithm="sha256"
+        ),
+        result_example=ChecksumResult(
+            algorithm="sha256",
+            checksum="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            size_bytes=24817,
+        ),
     )
 )

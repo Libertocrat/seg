@@ -130,5 +130,30 @@ register_action(
         params_model=FileMoveParams,
         result_model=FileMoveResult,
         handler=file_move,
+        summary="Move a file within the sandbox",
+        description="""
+Moves a file between paths inside the SEG sandbox with strict policy enforcement.
+
+This action:
+
+- Validates both source and destination paths
+- Enforces sandbox boundaries
+- Preserves file extension integrity
+- Supports controlled overwrite behavior
+
+Designed for safe internal file lifecycle operations without exposing
+raw filesystem primitives.
+""",
+        tags=("file", "lifecycle", "move"),
+        params_example=FileMoveParams(
+            source_path="relative/path/to/source.txt",
+            destination_path="relative/path/to/destination.txt",
+            overwrite=False,
+        ),
+        result_example=FileMoveResult(
+            moved=True,
+            source="relative/path/to/source.txt",
+            destination="relative/path/to/destination.txt",
+        ),
     )
 )

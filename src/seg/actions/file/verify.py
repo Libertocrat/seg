@@ -11,6 +11,7 @@ from seg.actions.file.schemas import (
     FileVerifyParams,
     FileVerifyResult,
     MimeDetectParams,
+    VerifyChecksumParams,
 )
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.errors import (
@@ -184,5 +185,46 @@ register_action(
         params_model=FileVerifyParams,
         result_model=FileVerifyResult,
         handler=file_verify,
+        summary="Verify file type and optional checksum",
+        description="""
+Performs composite verification of a sandboxed file.
+
+This action combines multiple validation layers:
+
+- MIME type detection (content-based)
+- Extension allowlist enforcement
+- MIME allowlist enforcement
+- Optional checksum validation
+
+Returns a structured decision model including:
+
+- Detected MIME type
+- Extension validation result
+- MIME allowlist compliance
+- Optional checksum comparison outcome
+- Final verification status
+
+Designed for secure ingestion and validation pipelines.
+""",
+        tags=("file", "validation", "verification"),
+        params_example=FileVerifyParams(
+            path="relative/path/to/file.txt",
+            expected_mime="text/plain",
+            allowed_extensions=[".txt", ".md"],
+            allowed_mime_types=["text/plain", "text/markdown"],
+            checksum=VerifyChecksumParams(
+                expected="5d41402abc4b2a76b9719d911017c592", algorithm="md5"
+            ),
+        ),
+        result_example=FileVerifyResult(
+            file_verified=True,
+            size_bytes=2540,
+            detected_mime="text/plain",
+            extension=".txt",
+            mime_matches=True,
+            extension_allowed=True,
+            mime_allowed=True,
+            checksum_matches=True,
+        ),
     )
 )
