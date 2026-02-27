@@ -167,5 +167,23 @@ register_action(
         params_model=MimeDetectParams,
         result_model=MimeDetectResult,
         handler=file_mime_detect,
+        summary="Detect file MIME type by content",
+        description="""
+Detects the MIME type of a sandboxed file using content-based inspection.
+
+Unlike extension-based heuristics, this action relies on content analysis
+(e.g. libmagic) for accurate detection.
+
+Security and policy enforcement:
+
+- Enforces sandbox boundaries
+- Applies `SEG_MAX_BYTES` size constraints
+- Rejects unsafe path traversal patterns
+
+Returns the detected MIME type for downstream validation workflows.
+""",
+        tags=("file", "validation", "mime"),
+        params_example=MimeDetectParams(path="relative/path/to/file.txt"),
+        result_example=MimeDetectResult(mime="text/plain"),
     )
 )

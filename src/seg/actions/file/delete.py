@@ -123,5 +123,23 @@ register_action(
         params_model=DeleteParams,
         result_model=DeleteResult,
         handler=file_delete,
+        summary="Delete a file from the sandbox",
+        description="""
+Deletes a regular file within the SEG sandbox under strict security controls.
+
+This action:
+
+- Validates the target path against sandbox boundaries
+- Rejects symlink traversal and unsafe patterns
+- Supports idempotent behavior when `require_exists=false`
+- Returns whether the deletion actually occurred
+
+Designed for safe lifecycle management of sandboxed files.
+""",
+        tags=("file", "lifecycle", "delete"),
+        params_example=DeleteParams(
+            path="relative/path/to/file.txt", require_exists=False
+        ),
+        result_example=DeleteResult(deleted=True),
     )
 )

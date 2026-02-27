@@ -7,6 +7,8 @@ exported as `app` for use by ASGI servers (for example, uvicorn).
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -17,6 +19,7 @@ from seg.core import (
     get_settings,
     http_exception_handler,
 )
+from seg.core.openapi import build_openapi_schema
 from seg.middleware.auth import AuthMiddleware
 from seg.middleware.observability import ObservabilityMiddleware
 from seg.middleware.rate_limit import RateLimitMiddleware
@@ -27,6 +30,33 @@ from seg.middleware.timeout import TimeoutMiddleware
 from seg.routes.execute import router as execute_router
 from seg.routes.health import router as health_router
 from seg.routes.metrics import router as metrics_router
+
+
+class SEGApp(FastAPI):
+    """FastAPI subclass that centralizes SEG OpenAPI customization.
+
+    Why this wrapper exists:
+        Replacing `app.openapi` with a lambda/closure works at runtime, but it
+        weakens static analysis and makes override intent less explicit.
+        A dedicated subclass keeps the behavior discoverable, type-checker
+        friendly, and close to FastAPI's extension model.
+    """
+
+    def openapi(self) -> dict[str, Any]:
+        """Build and cache the custom OpenAPI document for this app instance.
+
+        Returns:
+            The cached OpenAPI schema, building it once when needed.
+        """
+
+        # Keep FastAPI's lazy-cache behavior so schema generation remains cheap
+        # after the first request while still allowing a dynamic first build.
+        if self.openapi_schema:
+            return self.openapi_schema
+
+        schema = build_openapi_schema(self)
+        self.openapi_schema = schema
+        return schema
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -57,7 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     redoc_url = "/redoc" if settings.seg_enable_docs else None
     openapi_url = "/openapi.json" if settings.seg_enable_docs else None
 
-    app = FastAPI(
+    app = SEGApp(
         title="Secure Execution Gateway (SEG)",
         version="0.1.0",
         docs_url=docs_url,

@@ -307,7 +307,7 @@ class RequestIntegrityMiddleware:
             scope: ASGI scope where request state is stored.
 
         Returns:
-            Request identifier string (uuid4 hex) stored on the scope.
+            Request identifier string (canonical uuid4) stored on the scope.
         """
 
         state = scope.get("state")
@@ -319,7 +319,7 @@ class RequestIntegrityMiddleware:
         if isinstance(existing, str) and existing:
             return existing
 
-        rid = uuid.uuid4().hex
+        rid = str(uuid.uuid4())
         state["request_id"] = rid
         return rid
 
