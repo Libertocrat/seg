@@ -51,6 +51,12 @@ def clean_seg_environment(monkeypatch):
 
     Scope:
         Test-only fixture. MUST NOT be used in production code.
+
+    Args:
+        monkeypatch: Pytest helper to mutate process environment safely.
+
+    Yields:
+        None. Runs setup before each test and restores settings afterward.
     """
     # ------------------------------------------------------------------
     # 1. Remove all SEG_* variables from the environment
@@ -99,10 +105,10 @@ def clean_seg_environment(monkeypatch):
 
 @pytest.fixture
 def clean_action_registry():
-    """
-    GIVEN a global in-memory action registry
-    WHEN a test needs registry isolation
-    THEN it runs with an empty registry and baseline is restored afterward.
+    """Isolate the global action registry for each test.
+
+    Yields:
+        None. Runs each test with an empty registry and restores baseline.
     """
     from seg.actions import registry
 
@@ -166,6 +172,15 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
     calls. Tests that need to vary one of these values should accept
     `minimal_safe_env` and then call `monkeypatch.setenv(...)` to
     override the specific variable.
+
+    Args:
+        monkeypatch: Pytest helper to set environment variables.
+        sandbox_dir: Sandbox root directory fixture.
+        api_token: Deterministic API token fixture.
+        allowed_subdirs: CSV allowlist of sandbox subdirectories.
+
+    Returns:
+        Mapping of the environment variables configured for the test.
     """
     monkeypatch.setenv("SEG_API_TOKEN", api_token)
     monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
@@ -308,8 +323,12 @@ def sandbox_file_factory(minimal_safe_env):
     Tests MUST use `SandboxFile.rel_path` when passing paths to SEG actions,
     and SHOULD avoid performing manual path manipulation.
 
+    Args:
+        minimal_safe_env: Environment mapping fixture with sandbox metadata.
+
     Returns:
-        Callable[[name, content, subdir], SandboxFile]
+        Callable[[name: str, content: bytes, subdir: str | None], SandboxFile]:
+            Factory function to create files in the sandbox.
     """
 
     sandbox = Path(minimal_safe_env["SEG_SANDBOX_DIR"])
@@ -365,8 +384,11 @@ def file_factory(sandbox_file_factory):
         - "python"
         - "javascript"
 
+    Args:
+        sandbox_file_factory: Low-level sandbox file creation fixture.
+
     Returns:
-        Callable[[file_type: str, name: str], SandboxFile]
+        Callable[[str, str], SandboxFile]: Type-based file builder.
     """
 
     def create(file_type: str, name: str) -> SandboxFile:

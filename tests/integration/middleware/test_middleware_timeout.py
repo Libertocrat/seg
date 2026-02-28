@@ -31,13 +31,21 @@ from seg.core.errors import INVALID_REQUEST, TIMEOUT
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.middleware.timeout import TIMEOUTS_TOTAL
 
-# ==========================================================================
+# ============================================================================
 # Helpers
-# ==========================================================================
+# ============================================================================
 
 
 def _timeout_metric_value(path: str, method: str) -> float:
-    """Return current seg_timeouts_total value for a label set."""
+    """Return current `seg_timeouts_total` value for a label set.
+
+    Args:
+        path: Normalized request path label.
+        method: Uppercase HTTP method label.
+
+    Returns:
+        Aggregated metric value for the provided labels.
+    """
     total = 0.0
     for metric in TIMEOUTS_TOTAL.collect():
         for sample in metric.samples:
@@ -49,14 +57,23 @@ def _timeout_metric_value(path: str, method: str) -> float:
     return total
 
 
-# ==========================================================================
+# ============================================================================
 # Fixtures
-# ==========================================================================
+# ============================================================================
 
 
 @pytest.fixture
 def low_timeout_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
-    """Return settings with a strict 100ms timeout."""
+    """Return settings with a strict 100ms timeout.
+
+    Args:
+        api_token: Authentication token fixture.
+        sandbox_dir: Sandbox root directory fixture.
+        allowed_subdirs: CSV allowlist of sandbox subdirectories.
+
+    Returns:
+        Settings configured for low timeout tests.
+    """
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
@@ -69,25 +86,46 @@ def low_timeout_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
 
 @pytest.fixture
 def low_timeout_app(low_timeout_settings):
-    """Create app configured with 100ms timeout for deterministic tests."""
+    """Create app configured with 100ms timeout for deterministic tests.
+
+    Args:
+        low_timeout_settings: Settings fixture with low timeout.
+
+    Returns:
+        FastAPI application configured for timeout tests.
+    """
     return create_app(low_timeout_settings)
 
 
 @pytest.fixture
 def low_timeout_client(low_timeout_app):
-    """Create HTTP client bound to low-timeout app."""
+    """Create HTTP client bound to low-timeout app.
+
+    Args:
+        low_timeout_app: App fixture configured for timeout tests.
+
+    Yields:
+        TestClient bound to the configured app.
+    """
     with TestClient(low_timeout_app) as client:
         yield client
 
 
-# ==========================================================================
+# ============================================================================
 # Fixtures: Slow endpoint handlers
-# ==========================================================================
+# ============================================================================
 
 
 @pytest.fixture
 def slow_health_endpoint(monkeypatch):
-    """Patch the /health handler to simulate a slow response."""
+    """Patch `/health` to simulate a slow response.
+
+    Args:
+        monkeypatch: Pytest helper for runtime attribute patching.
+
+    Returns:
+        None. The route handler is patched in-place.
+    """
 
     async def slow_health():
         await asyncio.sleep(0.2)
@@ -102,7 +140,14 @@ def slow_health_endpoint(monkeypatch):
 
 @pytest.fixture
 def slow_metrics_endpoint(monkeypatch):
-    """Patch the /metrics handler to simulate a slow response."""
+    """Patch `/metrics` to simulate a slow response.
+
+    Args:
+        monkeypatch: Pytest helper for runtime attribute patching.
+
+    Returns:
+        None. The route handler is patched in-place.
+    """
 
     async def slow_metrics():
         await asyncio.sleep(0.2)
@@ -114,7 +159,14 @@ def slow_metrics_endpoint(monkeypatch):
 
 @pytest.fixture
 def slow_execute_endpoint_success(monkeypatch):
-    """Patch dispatcher to simulate slow successful execution."""
+    """Patch dispatcher to simulate slow successful execution.
+
+    Args:
+        monkeypatch: Pytest helper for runtime attribute patching.
+
+    Returns:
+        None. The dispatcher is patched in-place.
+    """
 
     async def slow_dispatch(req):
         await asyncio.sleep(0.2)
@@ -129,7 +181,14 @@ def slow_execute_endpoint_success(monkeypatch):
 
 @pytest.fixture
 def slow_execute_endpoint_error(monkeypatch):
-    """Patch dispatcher to simulate slow execution that raises SegActionError."""
+    """Patch dispatcher to simulate slow execution returning domain failure.
+
+    Args:
+        monkeypatch: Pytest helper for runtime attribute patching.
+
+    Returns:
+        None. The dispatcher is patched in-place.
+    """
 
     async def slow_dispatch(req):
         await asyncio.sleep(0.2)
@@ -147,9 +206,9 @@ def slow_execute_endpoint_error(monkeypatch):
     )
 
 
-# ==========================================================================
+# ============================================================================
 # Section: Generic slow handler timeout
-# ==========================================================================
+# ============================================================================
 
 
 def test_generic_slow_handler_is_intercepted_by_timeout(
@@ -183,9 +242,9 @@ def test_generic_slow_handler_is_intercepted_by_timeout(
     assert after == before + 1.0
 
 
-# ==========================================================================
+# ============================================================================
 # Section: Execute endpoint behavior
-# ==========================================================================
+# ============================================================================
 
 
 def test_seg_action_error_is_not_converted_to_timeout(
@@ -300,9 +359,9 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     assert after == before + 1.0
 
 
-# ==========================================================================
+# ============================================================================
 # Section: Exempt endpoints
-# ==========================================================================
+# ============================================================================
 
 
 def test_health_endpoint_is_exempt_from_timeout(low_timeout_client):
@@ -372,9 +431,9 @@ def test_slow_metrics_is_not_intercepted_by_timeout(
     assert after == before
 
 
-# ==========================================================================
+# ============================================================================
 # Section: Metrics path normalization
-# ==========================================================================
+# ============================================================================
 
 
 def test_timeout_metric_uses_normalized_path(

@@ -1,0 +1,73 @@
+name: Release Docs
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Python
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+          pip install openapi-spec-validator
+
+      # Export & validate
+      - name: Export OpenAPI schema
+        run: python scripts/export_openapi.py
+
+      - name: Validate OpenAPI schema
+        run: python -m openapi_spec_validator docs/api-docs/generated/openapi.json
+
+      # Node
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Swagger UI
+        run: |
+          npm init -y
+          npm install swagger-ui-dist@5.17.14
+
+      # Download existing site (CRITICAL FIX)
+      - name: Download existing published site
+        uses: actions/download-pages-artifact@v2
+        with:
+          path: site
+        continue-on-error: true
+
+      - name: Build versioned docs site
+        run: |
+          export RELEASE_VERSION=${GITHUB_REF_NAME}
+          python scripts/build_docs_site.py
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+
+    steps:
+      - uses: actions/deploy-pages@v4

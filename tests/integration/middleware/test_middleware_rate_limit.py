@@ -30,7 +30,16 @@ from seg.middleware.rate_limit import RATE_LIMITED_TOTAL
 
 
 def _rate_limited_metric_value(path: str, method: str, reason: str) -> float:
-    """Return current seg_rate_limited_total value for a label set."""
+    """Return current `seg_rate_limited_total` value for a label set.
+
+    Args:
+        path: Normalized request path label.
+        method: Uppercase HTTP method label.
+        reason: Rejection reason label.
+
+    Returns:
+        Aggregated metric value for the provided labels.
+    """
     total = 0.0
     for metric in RATE_LIMITED_TOTAL.collect():
         for sample in metric.samples:
@@ -48,7 +57,16 @@ def _rate_limited_metric_value(path: str, method: str, reason: str) -> float:
 
 @pytest.fixture
 def low_rps_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
-    """Return settings with a strict 1 RPS limit."""
+    """Return settings with a strict 1 RPS limit.
+
+    Args:
+        api_token: Authentication token fixture.
+        sandbox_dir: Sandbox root directory fixture.
+        allowed_subdirs: CSV allowlist of sandbox subdirectories.
+
+    Returns:
+        Settings configured for low-RPS tests.
+    """
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
@@ -61,13 +79,27 @@ def low_rps_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
 
 @pytest.fixture(scope="function")
 def low_rps_app(low_rps_settings):
-    """Create app configured with 1 RPS for deterministic rejection tests."""
+    """Create app configured with 1 RPS for deterministic rejection tests.
+
+    Args:
+        low_rps_settings: Settings fixture with strict rate limit.
+
+    Returns:
+        FastAPI application configured for low-RPS tests.
+    """
     return create_app(low_rps_settings)
 
 
 @pytest.fixture(scope="function")
 def low_rps_client(low_rps_app):
-    """Create HTTP client bound to low-RPS app."""
+    """Create HTTP client bound to low-RPS app.
+
+    Args:
+        low_rps_app: App fixture configured for low-RPS tests.
+
+    Yields:
+        TestClient bound to the configured app.
+    """
     with TestClient(low_rps_app) as client:
         yield client
     # Use context manager to ensure app shutdown; no further cleanup needed.
@@ -75,7 +107,16 @@ def low_rps_client(low_rps_app):
 
 @pytest.fixture
 def low_rps_docs_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
-    """Return settings with docs enabled and strict 1 RPS limit."""
+    """Return settings with docs enabled and strict 1 RPS limit.
+
+    Args:
+        api_token: Authentication token fixture.
+        sandbox_dir: Sandbox root directory fixture.
+        allowed_subdirs: CSV allowlist of sandbox subdirectories.
+
+    Returns:
+        Settings configured for docs-enabled low-RPS tests.
+    """
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
@@ -89,13 +130,27 @@ def low_rps_docs_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
 
 @pytest.fixture
 def low_rps_docs_app(low_rps_docs_settings):
-    """Create app configured with docs enabled and 1 RPS."""
+    """Create app configured with docs enabled and 1 RPS.
+
+    Args:
+        low_rps_docs_settings: Docs-enabled strict rate-limit settings.
+
+    Returns:
+        FastAPI application configured for docs + rate-limit tests.
+    """
     return create_app(low_rps_docs_settings)
 
 
 @pytest.fixture
 def low_rps_docs_client(low_rps_docs_app):
-    """Create HTTP client bound to low-RPS docs-enabled app."""
+    """Create HTTP client bound to low-RPS docs-enabled app.
+
+    Args:
+        low_rps_docs_app: App fixture with docs enabled and low-RPS limit.
+
+    Returns:
+        TestClient bound to the configured app.
+    """
     return TestClient(low_rps_docs_app)
 
 

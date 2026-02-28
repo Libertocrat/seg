@@ -87,6 +87,10 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
         routes=app.routes,
     )
 
+    info = schema.setdefault("info", {})
+    info["contact"] = getattr(app, "contact", None)
+    info["license"] = getattr(app, "license_info", None)
+
     schema["tags"] = [
         {
             "name": "Execution",
@@ -101,6 +105,11 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
             },
         },
     ]
+
+    schema["externalDocs"] = {
+        "description": "Project repository and architectural documentation",
+        "url": "https://github.com/Libertocrat/secure-execution-gateway",
+    }
 
     # Apply SEG-specific patches in stable order.
     # Order matters: security first, then endpoint-level patches,
