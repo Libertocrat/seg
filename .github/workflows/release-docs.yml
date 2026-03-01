@@ -76,21 +76,32 @@ jobs:
       # -------------------------
       - name: Publish to gh-pages branch
         run: |
+          set -e
+
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git fetch origin gh-pages || true
+          # Clone gh-pages into a clean directory
+          git clone --branch gh-pages \
+            https://github.com/${{ github.repository }} gh-pages-dir 2>/dev/null \
+            || git clone --no-checkout https://github.com/${{ github.repository }} gh-pages-dir
 
-          if git show-ref --verify --quiet refs/remotes/origin/gh-pages; then
-            git checkout gh-pages
-          else
+          cd gh-pages-dir
+
+          # If branch didn't exist, create orphan
+          if ! git rev-parse --verify gh-pages >/dev/null 2>&1; then
             git checkout --orphan gh-pages
-            git rm -rf .
+          else
+            git checkout gh-pages
           fi
 
-          cp -r site/* .
+          # Clean everything
+          git rm -rf . || true
+
+          # Copy only generated site
+          cp -r ../site/* .
 
           git add .
           git commit -m "docs: release ${GITHUB_REF_NAME}" || echo "No changes to commit"
 
-          git push origin gh-pages
+          git push origin gh-pages --force
