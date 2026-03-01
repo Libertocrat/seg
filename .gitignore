@@ -5,6 +5,7 @@
 
 # openapi generation output
 docs/api-docs/output/
+site/
 
 # Audio/Media
 *.wav
