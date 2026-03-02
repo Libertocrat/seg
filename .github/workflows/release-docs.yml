@@ -64,7 +64,7 @@ jobs:
           npm install swagger-ui-dist@5.17.14
 
       # -------------------------
-      # Build site locally
+      # Build site
       # -------------------------
       - name: Build versioned docs site
         run: |
@@ -72,36 +72,44 @@ jobs:
           python scripts/build_docs_site.py
 
       # -------------------------
-      # Deploy to gh-pages
+      # Checkout gh-pages branch
       # -------------------------
-      - name: Publish to gh-pages branch
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-dir
+          token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # -------------------------
+      # Publish without deleting previous versions
+      # -------------------------
+      - name: Publish documentation
         run: |
           set -e
 
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          VERSION=${GITHUB_REF_NAME}
 
-          # Clone gh-pages into a clean directory
-          git clone --branch gh-pages \
-            https://github.com/${{ github.repository }} gh-pages-dir 2>/dev/null \
-            || git clone --no-checkout https://github.com/${{ github.repository }} gh-pages-dir
-
-          cd gh-pages-dir
-
-          # If branch didn't exist, create orphan
-          if ! git rev-parse --verify gh-pages >/dev/null 2>&1; then
+          # If gh-pages branch does not exist
+          if [ ! -d "gh-pages-dir/.git" ]; then
+            git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git gh-pages-dir
+            cd gh-pages-dir
             git checkout --orphan gh-pages
+            git rm -rf .
           else
+            cd gh-pages-dir
             git checkout gh-pages
           fi
 
-          # Clean everything
-          git rm -rf . || true
-
-          # Copy only generated site
+          # Copy entire generated site (includes root index + api-docs)
           cp -r ../site/* .
 
-          git add .
-          git commit -m "docs: release ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git config user.name "${{ github.repository_owner }}"
+          git config user.email "${{ github.repository_owner }}@users.noreply.github.com"
 
-          git push origin gh-pages --force
+          git add .
+
+          git commit -m "docs: release ${VERSION}" || echo "No changes to commit"
+
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git gh-pages

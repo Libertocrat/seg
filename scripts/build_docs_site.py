@@ -48,6 +48,13 @@ def main() -> None:
         encoding="utf-8",
     )
 
+    # Create root redirect to /api-docs/
+    root_index = site_root / "index.html"
+    root_index.write_text(
+        '<meta http-equiv="refresh" content="0; url=./api-docs/" />\n',
+        encoding="utf-8",
+    )
+
 
 if __name__ == "__main__":
     main()
