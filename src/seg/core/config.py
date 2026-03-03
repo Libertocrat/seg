@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from functools import lru_cache
 from typing import List
 
@@ -22,6 +23,7 @@ class Settings(BaseSettings):
         seg_timeout_ms: Per-request timeout (milliseconds).
         seg_rate_limit_rps: Rate limit in requests-per-second.
         seg_log_level: Logging verbosity.
+        seg_app_version: Application semantic version (x.y.z).
         seg_enable_docs: Enable OpenAPI docs endpoints.
     """
 
@@ -38,6 +40,7 @@ class Settings(BaseSettings):
     seg_timeout_ms: int = Field(5000)
     seg_rate_limit_rps: int = Field(10)
     seg_log_level: str = Field("INFO")
+    seg_app_version: str = Field("0.1.0")
     seg_enable_docs: bool = Field(False)
 
     model_config = {
@@ -89,6 +92,13 @@ class Settings(BaseSettings):
                 name = part.strip()
                 if name == "" or "/" in name or name in (".", ".."):
                     raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{part}'")
+        return s
+
+    @field_validator("seg_app_version", mode="before")
+    def _validate_seg_app_version(cls, v):
+        s = str(v).strip()
+        if not re.fullmatch(r"\d+\.\d+\.\d+", s):
+            raise ValueError("seg_app_version must use semantic version format x.y.z")
         return s
 
 

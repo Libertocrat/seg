@@ -18,9 +18,18 @@ Thank you for your understanding.
 
 This repository assumes a Linux development environment. The sections below provide the minimal steps to prepare a developer workstation to run linters, tests and reproduce the CI checks locally.
 
-1. Create and activate a Python virtual environment (Python 3.12):
+0. Set local Python development version to 3.12:
 
 ```bash
+pyenv versions | grep 3.12 # Verify pyenv and py 3.12 are installed
+pyenv install 3.12
+pyenv local 3.12
+```
+
+1. Create and activate a Python virtual environment:
+
+```bash
+python --version # Verify its 3.12 before proceeding
 python -m venv .venv
 source .venv/bin/activate
 ```
