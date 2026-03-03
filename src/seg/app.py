@@ -89,7 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = SEGApp(
         title="Secure Execution Gateway (SEG)",
-        version="0.1.0",
+        version=settings.seg_app_version,
         description=(
             "Secure Execution Gateway (SEG) is a hardened execution microservice "
             "designed to expose a strictly allow-listed action surface for automation "

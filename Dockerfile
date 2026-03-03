@@ -6,6 +6,7 @@ ARG NON_ROOT_GROUP=seg
 ARG NON_ROOT_UID=1001
 ARG NON_ROOT_GID=1001
 ARG SEG_PORT=8080
+ARG SEG_APP_VERSION=0.1.0
 
 ENV PATH="/usr/local/bin:$PATH"
 
@@ -49,6 +50,7 @@ USER ${NON_ROOT_USER}
 
 # Runtime environment defaults (can be overridden by docker-compose/env)
 ENV SEG_PORT=${SEG_PORT}
+ENV SEG_APP_VERSION=${SEG_APP_VERSION}
 
 # Expose service port for Docker networking (optional; compose may override)
 EXPOSE ${SEG_PORT}

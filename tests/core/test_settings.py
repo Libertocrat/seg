@@ -40,6 +40,7 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_timeout_ms == 5000
     assert s.seg_rate_limit_rps == 10
     assert s.seg_log_level == "INFO"
+    assert s.seg_app_version == "0.1.0"
     assert s.seg_enable_docs is False
 
 
@@ -101,6 +102,18 @@ def test_int_fields_invalid_string(minimal_safe_env, monkeypatch, env_field):
     """
     # Provide a clearly non-integer string
     monkeypatch.setenv(env_field, "123abc")
+
+    with pytest.raises(ValidationError):
+        Settings.model_validate({})
+
+
+def test_seg_app_version_invalid_format_raises(minimal_safe_env, monkeypatch):
+    """
+    GIVEN SEG_APP_VERSION is set with a non-semver value
+    WHEN Settings are validated
+    THEN validation fails with ValidationError
+    """
+    monkeypatch.setenv("SEG_APP_VERSION", "v1.2.3")
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})
@@ -211,3 +224,25 @@ def test_docs_endpoints_enabled_when_flag_true(minimal_safe_env, monkeypatch):
     resp_docs = client.get("/docs")
     assert resp_docs.status_code == 200
     assert "Swagger UI" in resp_docs.text or "ReDoc" in resp_docs.text
+
+
+def test_openapi_version_reflects_seg_app_version(minimal_safe_env, monkeypatch):
+    """
+    GIVEN SEG_APP_VERSION is provided in the environment
+    WHEN the application OpenAPI document is requested
+    THEN info.version matches the configured SEG_APP_VERSION value
+    """
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
+    monkeypatch.setenv("SEG_APP_VERSION", "7.8.9")
+
+    from fastapi.testclient import TestClient
+
+    from seg.app import create_app
+
+    app = create_app()
+    client = TestClient(app)
+
+    resp_openapi = client.get("/openapi.json")
+    assert resp_openapi.status_code == 200
+    data = resp_openapi.json()
+    assert data["info"]["version"] == "7.8.9"
