@@ -42,6 +42,7 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_log_level == "INFO"
     assert s.seg_app_version == "0.1.0"
     assert s.seg_enable_docs is False
+    assert s.seg_enable_security_headers is True
 
 
 # ============================================================================
