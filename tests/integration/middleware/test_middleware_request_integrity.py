@@ -29,7 +29,16 @@ from seg.middleware.request_integrity import REQUEST_INTEGRITY_REJECTIONS_TOTAL
 
 
 def _integrity_metric_value(path: str, method: str, reason: str) -> float:
-    """Return current seg_request_integrity_rejections_total for labels."""
+    """Return current `seg_request_integrity_rejections_total` for labels.
+
+    Args:
+        path: Normalized request path label.
+        method: Uppercase HTTP method label.
+        reason: Rejection reason label.
+
+    Returns:
+        Aggregated metric value for the provided labels.
+    """
     total = 0.0
     for metric in REQUEST_INTEGRITY_REJECTIONS_TOTAL.collect():
         for sample in metric.samples:
@@ -52,7 +61,16 @@ def _integrity_metric_value(path: str, method: str, reason: str) -> float:
 
 @pytest.fixture
 def low_max_bytes_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
-    """Return settings with a strict body-size limit for deterministic tests."""
+    """Return settings with a strict body-size limit for deterministic tests.
+
+    Args:
+        api_token: Authentication token fixture.
+        sandbox_dir: Sandbox root directory fixture.
+        allowed_subdirs: CSV allowlist of sandbox subdirectories.
+
+    Returns:
+        Settings configured for low body-size limit tests.
+    """
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
@@ -65,13 +83,27 @@ def low_max_bytes_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
 
 @pytest.fixture
 def low_max_bytes_app(low_max_bytes_settings):
-    """Create app configured with a small `seg_max_bytes` value."""
+    """Create app configured with a small `seg_max_bytes` value.
+
+    Args:
+        low_max_bytes_settings: Settings fixture with strict body-size limit.
+
+    Returns:
+        FastAPI application configured for integrity size-limit tests.
+    """
     return create_app(low_max_bytes_settings)
 
 
 @pytest.fixture
 def low_max_bytes_client(low_max_bytes_app):
-    """Create HTTP client bound to low body-limit app."""
+    """Create HTTP client bound to low body-limit app.
+
+    Args:
+        low_max_bytes_app: App fixture configured for low body-size limit.
+
+    Yields:
+        TestClient bound to the configured app.
+    """
     with TestClient(low_max_bytes_app) as client:
         yield client
 

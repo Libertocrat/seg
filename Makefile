@@ -6,7 +6,7 @@
 PYTHON ?= python
 PIP ?= pip
 
-SRC_DIRS = src tests
+SRC_DIRS = src tests scripts
 
 BANDIT_TARGETS = src/
 BANDIT_FLAGS = --recursive --severity-level medium --confidence-level medium

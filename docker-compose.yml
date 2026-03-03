@@ -8,6 +8,7 @@ services:
         NON_ROOT_GROUP: ${NON_ROOT_GROUP}
         NON_ROOT_UID: ${NON_ROOT_UID}
         NON_ROOT_GID: ${NON_ROOT_GID}
+        SEG_APP_VERSION: ${SEG_APP_VERSION}
     restart: unless-stopped
     env_file: .env
     volumes:

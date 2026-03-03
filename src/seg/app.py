@@ -89,10 +89,42 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = SEGApp(
         title="Secure Execution Gateway (SEG)",
-        version="0.1.0",
+        version=settings.seg_app_version,
+        description=(
+            "Secure Execution Gateway (SEG) is a hardened execution microservice "
+            "designed to expose a strictly allow-listed action surface for automation "
+            "platforms and internal systems.\n\n"
+            "It enforces:\n"
+            "- Explicit action registry (no arbitrary command execution)\n"
+            "- Defense-in-depth middleware stack\n"
+            "- Deterministic response envelopes\n"
+            "- Centralized error taxonomy\n"
+            "- Observability-first architecture\n"
+            "- Runtime-aware OpenAPI contract generation"
+        ),
+        contact={
+            "name": "Libertocrat",
+            "url": "https://github.com/Libertocrat/secure-execution-gateway",
+            "email": "libertocrat@proton.me",
+        },
+        license_info={
+            "name": "Apache License 2.0",
+            "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
+        },
         docs_url=docs_url,
         redoc_url=redoc_url,
         openapi_url=openapi_url,
+        swagger_ui_parameters={
+            "docExpansion": "list",
+            "defaultModelsExpandDepth": 0,
+            "defaultModelExpandDepth": 2,
+            "displayRequestDuration": True,
+            "filter": True,
+            "persistAuthorization": True,
+            "deepLinking": True,
+            "showExtensions": True,
+            "showCommonExtensions": True,
+        },
     )
 
     # Attach settings to app state (single source of truth)

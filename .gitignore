@@ -1,5 +1,12 @@
 ###--- USER ADDED ---###
 
+# Virtual environments
+.venv*/
+
+# openapi generation output
+docs/api-docs/output/
+site/
+
 # Audio/Media
 *.wav
 *.mp3

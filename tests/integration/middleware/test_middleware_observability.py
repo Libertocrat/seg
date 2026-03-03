@@ -97,7 +97,14 @@ def inflight_gauge_value() -> float:
 
 @pytest.fixture
 def server_error_client(app):
-    """Create a client with a deterministic route that raises HTTP 500."""
+    """Create a client with a deterministic route that raises HTTP 500.
+
+    Args:
+        app: FastAPI application fixture.
+
+    Yields:
+        TestClient configured to capture 5xx responses as HTTP payloads.
+    """
 
     @app.get("/test-observability-500")
     async def _raise_error() -> dict[str, str]:
