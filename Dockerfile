@@ -56,7 +56,7 @@ ENV SEG_APP_VERSION=${SEG_APP_VERSION}
 EXPOSE ${SEG_PORT}
 
 # Start the FastAPI app with Uvicorn (shell form so env vars are expanded)
-CMD ["sh", "-c", "uvicorn --factory seg.app:create_app --host 0.0.0.0 --port ${SEG_PORT} --proxy-headers"]
+CMD ["sh", "-c", "uvicorn --factory seg.app:create_app --host 0.0.0.0 --port ${SEG_PORT} --proxy-headers --no-server-header"]
 
 # Healthcheck hits internal health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

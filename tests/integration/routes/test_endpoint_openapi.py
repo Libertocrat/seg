@@ -171,19 +171,13 @@ def test_openapi_includes_global_metadata_from_app_settings(
     assert "Runtime-aware OpenAPI contract generation" in info["description"]
 
     assert info["contact"]["name"] == "Libertocrat"
-    assert (
-        info["contact"]["url"]
-        == "https://github.com/Libertocrat/secure-execution-gateway"
-    )
+    assert info["contact"]["url"] == "https://github.com/Libertocrat/seg"
     assert info["contact"]["email"] == "libertocrat@proton.me"
 
     assert info["license"]["name"] == "Apache License 2.0"
     assert info["license"]["url"] == "https://www.apache.org/licenses/LICENSE-2.0.html"
 
-    assert (
-        schema["externalDocs"]["url"]
-        == "https://github.com/Libertocrat/secure-execution-gateway"
-    )
+    assert schema["externalDocs"]["url"] == "https://github.com/Libertocrat/seg"
 
 
 # ============================================================================

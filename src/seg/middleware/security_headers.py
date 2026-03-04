@@ -6,7 +6,10 @@ from typing import Final
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-_REMOVE_HEADERS: Final[set[bytes]] = {b"server", b"x-powered-by"}
+_REMOVE_HEADERS: Final[set[bytes]] = {
+    b"server",
+    b"x-powered-by",
+}
 _BASELINE_HEADERS: Final[list[tuple[bytes, bytes]]] = [
     (b"x-content-type-options", b"nosniff"),
     (b"x-frame-options", b"DENY"),
