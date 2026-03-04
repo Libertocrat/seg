@@ -108,7 +108,7 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
 
     schema["externalDocs"] = {
         "description": "Project repository and architectural documentation",
-        "url": "https://github.com/Libertocrat/secure-execution-gateway",
+        "url": "https://github.com/Libertocrat/seg",
     }
 
     # Apply SEG-specific patches in stable order.

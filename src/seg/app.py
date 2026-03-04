@@ -105,7 +105,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ),
         contact={
             "name": "Libertocrat",
-            "url": "https://github.com/Libertocrat/secure-execution-gateway",
+            "url": "https://github.com/Libertocrat/seg",
             "email": "libertocrat@proton.me",
         },
         license_info={
