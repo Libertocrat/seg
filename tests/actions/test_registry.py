@@ -37,7 +37,7 @@ async def dummy_action_handler(params: DummyActionParams):
 
 
 # ============================================================================
-# Action registration
+# Action Registration
 # ============================================================================
 
 
@@ -82,7 +82,7 @@ def test_registering_duplicate_action_raises_error(clean_action_registry):
 
 
 # ============================================================================
-# Action lookup
+# Action Lookup
 # ============================================================================
 
 

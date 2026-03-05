@@ -18,7 +18,7 @@ from seg.actions.file.schemas import ChecksumParams
 from seg.core.errors import FILE_NOT_FOUND, INVALID_ALGORITHM, PATH_NOT_ALLOWED
 
 # ============================================================================
-# Test constants (frozen contract)
+# Test Constants
 # ============================================================================
 
 TEST_FILE_CONTENT = b"This is a test file\n"
@@ -29,7 +29,7 @@ MD5_EXPECTED = "5dd39cab1c53c2c77cd352983f9641e1"
 
 
 # ============================================================================
-# Successful checksum computation
+# Successful Checksum Computation
 # ============================================================================
 
 
@@ -73,7 +73,7 @@ async def test_file_checksum_supported_algorithms(
 
 
 # ============================================================================
-# Path and sandbox enforcement
+# Path and Sandbox Enforcement
 # ============================================================================
 
 

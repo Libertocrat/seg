@@ -20,7 +20,7 @@ from seg.actions.file.schemas import FileMoveParams
 from seg.core.errors import CONFLICT, FILE_NOT_FOUND, PATH_NOT_ALLOWED
 
 # ============================================================================
-# Successful move scenarios
+# Successful Move Scenarios
 # ============================================================================
 
 

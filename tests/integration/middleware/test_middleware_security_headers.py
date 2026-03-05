@@ -66,7 +66,7 @@ def security_headers_test_client(app):
 
 
 # ============================================================================
-# Section: Baseline headers
+# Baseline Headers
 # ============================================================================
 
 
@@ -88,7 +88,7 @@ def test_baseline_security_headers_are_present(client):
 
 
 # ============================================================================
-# Section: Header removal
+# Header Removal
 # ============================================================================
 
 
@@ -113,7 +113,7 @@ def test_stack_fingerprinting_headers_are_removed(
 
 
 # ============================================================================
-# Section: Baseline overwrite semantics
+# Baseline Overwrite Semantics
 # ============================================================================
 
 
@@ -140,7 +140,7 @@ def test_baseline_headers_are_overwritten_with_authoritative_values(
 
 
 # ============================================================================
-# Section: Settings toggle
+# Settings Toggle
 # ============================================================================
 
 

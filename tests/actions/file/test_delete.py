@@ -18,7 +18,7 @@ from seg.actions.file.schemas import DeleteParams
 from seg.core.errors import FILE_NOT_FOUND, PATH_NOT_ALLOWED
 
 # ============================================================================
-# Successful deletion
+# Successful Deletion
 # ============================================================================
 
 
@@ -45,7 +45,7 @@ async def test_file_delete_existing_file_deleted(
 
 
 # ============================================================================
-# Idempotent behavior
+# Idempotent Behavior
 # ============================================================================
 
 
@@ -91,7 +91,7 @@ async def test_file_delete_missing_file_requires_exists(
 
 
 # ============================================================================
-# Sandbox and path enforcement
+# Sandbox and Path Enforcement
 # ============================================================================
 
 

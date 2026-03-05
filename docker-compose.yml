@@ -11,6 +11,8 @@ services:
         SEG_APP_VERSION: ${SEG_APP_VERSION}
     restart: unless-stopped
     env_file: .env
+    secrets:
+      - seg_api_token
     volumes:
       - type: volume
         source: shared_volume
@@ -22,6 +24,10 @@ networks:
   default_network:
     external: true
     name: ${SHARED_DOCKER_NETWORK}
+
+secrets:
+  seg_api_token:
+    file: ./secrets/seg_api_token.txt
 
 volumes:
   shared_volume:

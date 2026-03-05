@@ -14,7 +14,7 @@ from seg.core.security.http_validation import (
 )
 
 # ============================================================================
-# normalize_content_type: media type normalization
+# Content-Type Normalization
 # ============================================================================
 
 
@@ -52,7 +52,7 @@ def test_normalize_content_type(value, expected):
 
 
 # ============================================================================
-# is_supported_json_content_type: json media type policy
+# JSON Policy Support
 # ============================================================================
 
 
@@ -89,7 +89,7 @@ def test_is_supported_json_content_type(content_type, expected):
 
 
 # ============================================================================
-# parse_content_length_strict: strict numeric parsing
+# Content-Length Parsing
 # ============================================================================
 
 

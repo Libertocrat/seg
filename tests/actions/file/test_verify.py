@@ -28,7 +28,7 @@ from seg.core.errors import (
 from seg.core.security.mime_map import EXTENSION_MIME_MAP
 
 # ============================================================================
-# Successful verification scenarios
+# Successful Verification Scenarios
 # ============================================================================
 
 

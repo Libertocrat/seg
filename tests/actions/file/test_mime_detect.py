@@ -19,7 +19,7 @@ from seg.actions.file.schemas import MimeDetectParams
 from seg.core.errors import FILE_NOT_FOUND, FILE_TOO_LARGE, PATH_NOT_ALLOWED
 
 # ============================================================================
-# Successful MIME detection
+# Successful MIME Detection
 # ============================================================================
 
 
@@ -96,7 +96,7 @@ async def test_file_mime_detect_unknown_binary(
 
 
 # ============================================================================
-# Security enforcement
+# Security Enforcement
 # ============================================================================
 
 

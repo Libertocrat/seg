@@ -18,7 +18,7 @@ import pytest
 from seg.core.errors import UNAUTHORIZED
 
 # ============================================================================
-# Auth middleware: exempt endpoints
+# Exempt Endpoints
 # ============================================================================
 
 
@@ -65,7 +65,7 @@ def test_auth_is_ignored_for_exempt_endpoints(
 
 
 # ============================================================================
-# Auth middleware: protected endpoints
+# Protected Endpoints
 # ============================================================================
 
 

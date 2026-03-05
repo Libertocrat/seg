@@ -6,7 +6,7 @@ They ensure the service is reachable and responds with a stable payload.
 """
 
 # ============================================================================
-# Health endpoint
+# Success Cases
 # ============================================================================
 
 

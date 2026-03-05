@@ -7,7 +7,13 @@ invariants for SEG configuration.
 import pytest
 from pydantic import ValidationError
 
-from seg.core.config import Settings
+from seg.core import config
+from seg.core.config import (
+    Settings,
+    get_settings,
+    load_seg_api_token,
+    validate_api_token,
+)
 
 # ============================================================================
 # Happy path
@@ -22,7 +28,8 @@ def test_settings_load_from_env(minimal_safe_env, api_token, sandbox_dir):
     """
     s = Settings.model_validate({})
 
-    assert s.seg_api_token == api_token
+    # seg_api_token is no longer loaded via environment parsing in Settings.
+    assert s.seg_api_token == ""
     assert s.seg_sandbox_dir == str(sandbox_dir)
     assert s.seg_allowed_subdirs == "tmp,uploads,output,quarantine"
     assert s.allowed_subdirs == ["tmp", "uploads", "output", "quarantine"]
@@ -53,12 +60,10 @@ def test_settings_defaults_applied(minimal_safe_env):
 @pytest.mark.parametrize(
     "missing_var",
     [
-        "SEG_API_TOKEN",
         "SEG_SANDBOX_DIR",
         "SEG_ALLOWED_SUBDIRS",
     ],
     ids=[
-        "seg_api_token",
         "seg_sandbox_dir",
         "seg_allowed_subdirs",
     ],
@@ -187,6 +192,11 @@ def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):
         Settings.model_validate({})
 
 
+# ============================================================================
+# API Docs and OpenAPI
+# ============================================================================
+
+
 def test_docs_endpoints_disabled_by_default(client):
     """
     GIVEN the application created with default settings
@@ -247,3 +257,128 @@ def test_openapi_version_reflects_seg_app_version(minimal_safe_env, monkeypatch)
     assert resp_openapi.status_code == 200
     data = resp_openapi.json()
     assert data["info"]["version"] == "7.8.9"
+
+
+# ============================================================================
+# API Token Loading (Secrets and Fallback)
+# ============================================================================
+
+
+def test_get_settings_loads_token_from_dev_fallback(
+    minimal_safe_env, monkeypatch, tmp_path
+):
+    """
+    GIVEN no Docker secret file
+    WHEN fallback env is set
+    THEN token is injected.
+    """
+    missing_secret = tmp_path / "does-not-exist-seg-api-token"
+    monkeypatch.setattr(config, "SEG_API_TOKEN_SECRET_PATH", missing_secret)
+    get_settings.cache_clear()
+
+    s = get_settings()
+
+    assert s.seg_api_token != ""
+    assert s.seg_api_token == validate_api_token(s.seg_api_token)
+
+
+def test_load_seg_api_token_missing_secret_and_no_fallback_raises(
+    monkeypatch, tmp_path
+):
+    """
+    GIVEN no Docker secret and no SEG_API_TOKEN_DEV.
+    WHEN loading token
+    THEN fail fast.
+    """
+    monkeypatch.setenv("SEG_API_TOKEN_DEV", "")
+    missing_secret = tmp_path / "does-not-exist-seg-api-token"
+    monkeypatch.setattr(config, "SEG_API_TOKEN_SECRET_PATH", missing_secret)
+
+    with pytest.raises(RuntimeError, match="SEG_API_TOKEN Docker secret not found"):
+        load_seg_api_token()
+
+
+def test_load_seg_api_token_empty_secret_raises(tmp_path, monkeypatch):
+    """
+    GIVEN empty Docker secret file
+    WHEN loading token
+    THEN fail fast.
+    """
+    secret_file = tmp_path / "seg_api_token"
+    secret_file.write_text("\n", encoding="utf-8")
+    monkeypatch.setattr(config, "SEG_API_TOKEN_SECRET_PATH", secret_file)
+
+    with pytest.raises(RuntimeError, match="SEG_API_TOKEN Docker secret is empty"):
+        load_seg_api_token()
+
+
+# ============================================================================
+# API Token Validation Logic
+# ============================================================================
+
+
+@pytest.mark.parametrize(
+    "token,error_message",
+    [
+        ("sh0rtt0k3n", "SEG_API_TOKEN must be at least 32 characters long"),
+        (
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "SEG_API_TOKEN must contain characters from at least two "
+            "character classes",
+        ),
+        (
+            "11111111111111111111111111111111",
+            "SEG_API_TOKEN must contain characters from at least two "
+            "character classes",
+        ),
+    ],
+    ids=[
+        "too_short",
+        "only_chars",
+        "only_digits",
+    ],
+)
+def test_validate_api_token_rejects_weak_values(token, error_message):
+    """
+    GIVEN weak/placeholder values
+    WHEN validating token
+    THEN ValueError is raised.
+    """
+    with pytest.raises(ValueError, match=error_message):
+        validate_api_token(token)
+
+
+def test_get_settings_reads_token_from_secret_file(
+    minimal_safe_env, monkeypatch, tmp_path
+):
+    """
+    GIVEN a valid Docker secret file containing a strong API token
+    WHEN `get_settings()` resolves configuration
+    THEN the API token is loaded from the Docker secret and injected
+    into the resulting Settings instance
+    """
+
+    # Create a simulated Docker secrets directory
+    secrets_dir = tmp_path / "run" / "secrets"
+    secrets_dir.mkdir(parents=True)
+
+    token = "A1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6"  # noqa: S105 - test token
+
+    secret_file = secrets_dir / "seg_api_token"
+    secret_file.write_text(token, encoding="utf-8")
+
+    # Redirect the secret path used by the configuration loader
+    monkeypatch.setattr(config, "SEG_API_TOKEN_SECRET_PATH", secret_file)
+
+    # Ensure no dev fallback is used
+    monkeypatch.delenv("SEG_API_TOKEN_DEV", raising=False)
+
+    # Clear cached settings so the new secret path is used
+    get_settings.cache_clear()
+
+    # Resolve settings via the normal configuration entrypoint
+    s = get_settings()
+
+    # Validate token was loaded and validated correctly
+    assert s.seg_api_token == token
+    assert s.seg_api_token == validate_api_token(token)

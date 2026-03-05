@@ -8,7 +8,7 @@ They ensure that metrics are exposed in a format consumable by Prometheus.
 from prometheus_client import CONTENT_TYPE_LATEST
 
 # ============================================================================
-# Metrics endpoint
+# Success Cases
 # ============================================================================
 
 

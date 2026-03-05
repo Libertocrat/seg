@@ -109,7 +109,7 @@ def low_max_bytes_client(low_max_bytes_app):
 
 
 # ============================================================================
-# Section: Content-Type enforcement
+# Content-Type Enforcement
 # ============================================================================
 
 
@@ -181,7 +181,7 @@ def test_execute_allows_application_json_with_charset(
 
 
 # ============================================================================
-# Section: Header integrity and CL/TE conflict
+# Header Integrity and CL/TE Conflict
 # ============================================================================
 
 
@@ -257,7 +257,7 @@ def test_conflicting_content_length_and_transfer_encoding_is_rejected(
 
 
 # ============================================================================
-# Section: Body size enforcement
+# Body Size Enforcement
 # ============================================================================
 
 

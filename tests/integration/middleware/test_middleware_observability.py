@@ -117,7 +117,7 @@ def server_error_client(app):
 
 
 # ============================================================================
-# Section: Happy path request counting (2xx)
+# Happy Path Request Counting
 # ============================================================================
 
 
@@ -143,7 +143,7 @@ def test_successful_request_increments_requests_total_and_duration_count(client)
 
 
 # ============================================================================
-# Section: 404 behavior (4xx classification)
+# 404 Behavior
 # ============================================================================
 
 
@@ -171,7 +171,7 @@ def test_not_found_increments_requests_total_duration_and_errors_4xx(
 
 
 # ============================================================================
-# Section: Downstream middleware rejection (4xx)
+# Downstream Middleware Rejection
 # ============================================================================
 
 
@@ -206,7 +206,7 @@ def test_request_integrity_rejection_is_counted_by_observability_as_4xx(
 
 
 # ============================================================================
-# Section: 5xx behavior (server error classification)
+# 5xx Behavior
 # ============================================================================
 
 
@@ -234,7 +234,7 @@ def test_internal_server_error_increments_requests_duration_and_errors_5xx(
 
 
 # ============================================================================
-# Section: Metrics endpoint exclusion
+# Metrics Endpoint Exclusion
 # ============================================================================
 
 
@@ -271,7 +271,7 @@ def test_metrics_endpoint_is_excluded_from_observability_instrumentation(
 
 
 # ============================================================================
-# Section: Path normalization
+# Path Normalization
 # ============================================================================
 
 
@@ -304,7 +304,7 @@ def test_observability_uses_normalized_path_labels(client):
 
 
 # ============================================================================
-# Section: Inflight gauge safety
+# Inflight Gauge Safety
 # ============================================================================
 
 

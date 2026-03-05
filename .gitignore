@@ -3,6 +3,12 @@
 # Virtual environments
 .venv*/
 
+# Docker secrets
+secrets/*
+# Allow example docker secrets
+!secrets/*.example
+!secrets/*.template
+
 # openapi generation output
 docs/api-docs/output/
 site/

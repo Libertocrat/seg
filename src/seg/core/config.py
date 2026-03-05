@@ -1,19 +1,97 @@
 from __future__ import annotations
 
+import logging
+import os
 import re
+import sys
 from functools import lru_cache
-from typing import List
+from pathlib import Path
+from typing import NoReturn
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
+
+SEG_API_TOKEN_SECRET_PATH = Path("/run/secrets/seg_api_token")
+
+
+def validate_api_token(token: str) -> str:
+    """Validate and sanitize SEG_API_TOKEN.
+
+    Rules:
+        - Trim surrounding whitespace.
+        - Minimum length: 32 characters.
+        - Require at least two character classes among lowercase, uppercase,
+          digits and symbols.
+
+    Args:
+        token: Raw token value from Docker secret or development fallback.
+
+    Returns:
+        Sanitized token string.
+
+    Raises:
+        ValueError: If the token does not satisfy security constraints.
+    """
+
+    sanitized = token.strip()
+
+    if len(sanitized) < 32:
+        raise ValueError("SEG_API_TOKEN must be at least 32 characters long")
+
+    classes = 0
+    classes += int(any(c.islower() for c in sanitized))
+    classes += int(any(c.isupper() for c in sanitized))
+    classes += int(any(c.isdigit() for c in sanitized))
+    classes += int(any(not c.isalnum() for c in sanitized))
+
+    if classes < 2:
+        raise ValueError(
+            "SEG_API_TOKEN must contain characters from at least two character classes"
+        )
+
+    return sanitized
+
+
+def load_seg_api_token() -> str:
+    """Load SEG_API_TOKEN from Docker secret with development fallback.
+
+    Priority:
+        1) /run/secrets/seg_api_token
+        2) SEG_API_TOKEN_DEV (only when secret file is missing)
+
+    Returns:
+        The trimmed raw token.
+
+    Raises:
+        RuntimeError: If secret is missing/empty and fallback is not available.
+    """
+
+    try:
+        raw_secret = SEG_API_TOKEN_SECRET_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        dev_token = os.getenv("SEG_API_TOKEN_DEV", "").strip()
+        if dev_token:
+            return dev_token
+        raise RuntimeError(
+            "SEG_API_TOKEN Docker secret not found at /run/secrets/seg_api_token"
+        ) from None
+
+    token = raw_secret.strip()
+    if token == "":
+        raise RuntimeError("SEG_API_TOKEN Docker secret is empty")
+
+    logger.info("Loaded SEG_API_TOKEN from Docker secret")
+    return token
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment (Pydantic v2).
 
     Pydantic-settings maps environment variables from field names by
-    default (for example, the field `seg_api_token` maps to the
-    environment variable `SEG_API_TOKEN`).
+    default for all settings except `seg_api_token`, which is injected from
+    Docker secret during settings initialization.
 
     Attributes:
         seg_api_token: API token required for Bearer authentication.
@@ -28,7 +106,8 @@ class Settings(BaseSettings):
         seg_enable_security_headers: Enable baseline response security headers.
     """
 
-    seg_api_token: str = Field(...)
+    # Loaded from Docker secret in `get_settings`, not from environment.
+    seg_api_token: str = Field("")
     seg_sandbox_dir: str = Field(...)
     # Read the raw env value as a string to avoid pydantic-settings attempting
     # to JSON-decode a complex type from dotenv. We expose a convenience
@@ -56,7 +135,7 @@ class Settings(BaseSettings):
     }
 
     @property
-    def allowed_subdirs(self) -> List[str]:
+    def allowed_subdirs(self) -> list[str]:
         """Return the allowlist as a list of strings parsed from CSV.
 
         The value is read from the raw environment-backed field
@@ -74,9 +153,7 @@ class Settings(BaseSettings):
             return ["*"]
         return [p.strip() for p in raw.split(",") if p.strip()]
 
-    @field_validator(
-        "seg_api_token", "seg_sandbox_dir", "seg_allowed_subdirs", mode="before"
-    )
+    @field_validator("seg_sandbox_dir", "seg_allowed_subdirs", mode="before")
     def _validate_required_non_empty(cls, v, info):
         # Ensure required env values exists and are not empty/whitespace.
         if v is None:
@@ -102,6 +179,11 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"\d+\.\d+\.\d+", s):
             raise ValueError("seg_app_version must use semantic version format x.y.z")
         return s
+
+
+def abort_config(message: str) -> NoReturn:
+    logger.error("Configuration error: %s", message)
+    sys.exit(1)
 
 
 @lru_cache
@@ -133,6 +215,12 @@ def get_settings() -> Settings:
 
     Returns:
         Settings: A fully validated Settings instance loaded from the current
-        environment.
+        environment and Docker secret sources.
     """
-    return Settings.model_validate({})
+    try:
+        settings = Settings.model_validate({})
+        token = load_seg_api_token()
+        settings.seg_api_token = validate_api_token(token)
+        return settings
+    except (ValueError, RuntimeError, FileNotFoundError) as exc:
+        abort_config(str(exc))

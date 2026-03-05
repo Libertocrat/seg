@@ -17,7 +17,7 @@ import uuid
 import pytest
 
 # ============================================================================
-# Request ID middleware: generation behavior
+# Generation Behavior
 # ============================================================================
 
 
@@ -53,7 +53,7 @@ def test_request_id_is_generated_when_invalid(client):
 
 
 # ============================================================================
-# Request ID middleware: preservation behavior
+# Preservation Behavior
 # ============================================================================
 
 
@@ -75,7 +75,7 @@ def test_request_id_is_preserved_when_valid(client):
 
 
 # ============================================================================
-# Request ID middleware: propagation across endpoints
+# Propagation Across Endpoints
 # ============================================================================
 
 

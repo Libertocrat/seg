@@ -182,7 +182,7 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
     Returns:
         Mapping of the environment variables configured for the test.
     """
-    monkeypatch.setenv("SEG_API_TOKEN", api_token)
+    monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
     monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", allowed_subdirs)
     # Ensure allowed subdirectories exist to simulate a mounted volume with
@@ -191,7 +191,7 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
     for sub in allowed_subdirs.split(","):
         (sandbox_dir / sub).mkdir(parents=True, exist_ok=True)
     return {
-        "SEG_API_TOKEN": api_token,
+        "SEG_API_TOKEN_DEV": api_token,
         "SEG_SANDBOX_DIR": str(sandbox_dir),
         "SEG_ALLOWED_SUBDIRS": allowed_subdirs,
     }

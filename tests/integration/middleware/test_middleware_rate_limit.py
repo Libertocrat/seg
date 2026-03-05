@@ -253,7 +253,7 @@ def test_rate_limit_respects_env_configuration(
     sandbox_dir.mkdir()
     (sandbox_dir / "tmp").mkdir()
 
-    monkeypatch.setenv("SEG_API_TOKEN", api_token)
+    monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
     monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "tmp")
     monkeypatch.setenv("SEG_RATE_LIMIT_RPS", "2")

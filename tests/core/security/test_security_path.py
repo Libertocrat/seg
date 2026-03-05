@@ -20,7 +20,7 @@ from seg.core.security.paths import (
 )
 
 # ============================================================================
-# sanitize_rel_path - syntactic security
+# Path Sanitization
 # ============================================================================
 
 
@@ -86,7 +86,7 @@ def test_sanitize_normalizes_valid_path():
 
 
 # ============================================================================
-# resolve_in_sandbox - sandbox boundary enforcement
+# Sandbox Resolution
 # ============================================================================
 
 

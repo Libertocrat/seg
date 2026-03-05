@@ -207,7 +207,7 @@ def slow_execute_endpoint_error(monkeypatch):
 
 
 # ============================================================================
-# Section: Generic slow handler timeout
+# Generic Slow Handler Timeout
 # ============================================================================
 
 
@@ -243,7 +243,7 @@ def test_generic_slow_handler_is_intercepted_by_timeout(
 
 
 # ============================================================================
-# Section: Execute endpoint behavior
+# Execute Endpoint Behavior
 # ============================================================================
 
 
@@ -360,7 +360,7 @@ def test_slow_execute_error_is_intercepted_by_timeout(
 
 
 # ============================================================================
-# Section: Exempt endpoints
+# Exempt Endpoints
 # ============================================================================
 
 
