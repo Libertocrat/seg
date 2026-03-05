@@ -12,7 +12,7 @@ from seg.core.security.headers import (
 )
 
 # ============================================================================
-# _has_illegal_ctrl_bytes: byte-level control character policy
+# Control Bytes Policy
 # ============================================================================
 
 
@@ -39,7 +39,7 @@ def test_has_illegal_ctrl_bytes_policy(data, allow_tab, expected):
 
 
 # ============================================================================
-# find_header_integrity_violation: structural header invariants
+# Header Integrity Violations
 # ============================================================================
 
 

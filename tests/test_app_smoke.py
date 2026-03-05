@@ -13,7 +13,7 @@ from seg.app import create_app
 from seg.core.config import Settings
 
 # ============================================================================
-# Application startup
+# Application Startup
 # ============================================================================
 
 
@@ -38,7 +38,7 @@ def test_app_starts_successfully(api_token):
 
 
 # ============================================================================
-# Health endpoint
+# Health Endpoint
 # ============================================================================
 
 

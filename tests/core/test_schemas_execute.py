@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from seg.core.schemas.execute import ExecuteRequest
 
 # ============================================================================
-# Happy path
+# Success Cases
 # ============================================================================
 
 
