@@ -1,6 +1,34 @@
 # Secure Execution Gateway (SEG)
 
-Secure Execution Gateway (SEG) is a hardened internal microservice designed to replace unsafe operating system command execution patterns in **n8n** workflows.
+<p align="center">
+  <a href="https://github.com/libertocrat/seg/releases">
+    <img src="https://img.shields.io/github/v/release/libertocrat/seg" alt="Release">
+  </a>
+  <a href="https://github.com/libertocrat/seg/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/libertocrat/seg" alt="License">
+  </a>
+  <a href="https://github.com/libertocrat/seg/actions/workflows/ci.yml">
+    <img src="https://github.com/libertocrat/seg/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://github.com/libertocrat/seg/actions/workflows/security.yml">
+    <img src="https://github.com/libertocrat/seg/actions/workflows/security.yml/badge.svg" alt="Security">
+  </a>
+  <a href="https://github.com/libertocrat/seg/actions/workflows/release.yml">
+    <img src="https://github.com/libertocrat/seg/actions/workflows/release.yml/badge.svg" alt="Release Pipeline">
+  </a>
+  <a href="https://github.com/libertocrat/seg/pkgs/container/seg">
+    <img src="https://img.shields.io/badge/container-ghcr.io-blue?logo=docker" alt="Docker">
+  </a>
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="Python">
+  </a>
+  <a href="https://libertocrat.github.io/seg/">
+    <img src="https://img.shields.io/badge/OpenAPI-3.1-green" alt="OpenAPI">
+  </a>
+</p>
+<br>
+
+Secure Execution Gateway (SEG) is a hardened internal microservice designed to replace unsafe operating system command execution patterns in automation workflows (e.g., n8n) or microservice-based apps.
 
 SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for controlled file-related operations, enabling production-grade automation without exposing the host or the n8n container to arbitrary command execution risks.
 
