@@ -86,12 +86,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           load: true # load into local daemon for Trivy scan
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=seg
+          cache-to: type=gha,mode=max,scope=seg
 
       # -------------------------
-      # Install Trivy
+      # Install & Cache Trivy
       # -------------------------
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}
+
       - name: Install Trivy
         run: |
           sudo apt-get update
@@ -147,9 +154,9 @@ jobs:
       - name: Install dependencies for OpenAPI export
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements/runtime.txt
-          pip install -r requirements/testing.txt
-          pip install -e .
+          python -m pip install -r requirements/runtime.txt
+          python -m pip install -r requirements/testing.txt
+          python -m pip install -e .
 
       - name: Export OpenAPI schema
         run: |

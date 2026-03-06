@@ -51,6 +51,12 @@ jobs:
             p/security-audit
           generateSarif: false
 
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}
+
       # Trivy is installed here, but filesystem scan remains makefile-driven.
       - name: Install Trivy CLI
         run: |
