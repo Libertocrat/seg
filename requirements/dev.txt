@@ -1,0 +1,11 @@
+# SEG Developer dependency set.
+# Python runtime: 3.12
+#
+# Purpose:
+# - Complete local development environment.
+# - Aggregates base, test, lint, and security sets.
+
+-r runtime.txt
+-r testing.txt
+-r linting.txt
+-r security.txt

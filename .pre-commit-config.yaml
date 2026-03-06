@@ -35,6 +35,8 @@ repos:
           - prometheus-client
           - pytest
           - pytest-asyncio
+          - httpx
+          - python-magic
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.1

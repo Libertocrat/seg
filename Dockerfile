@@ -34,16 +34,14 @@ RUN groupadd \
 
 WORKDIR /app
 
-# Install Python dependencies
-COPY requirements.txt ./
-RUN python -m pip install --no-cache-dir -r requirements.txt
+# Install Python runtime dependencies only
+COPY requirements/runtime.txt ./requirements/runtime.txt
+RUN python -m pip install --no-cache-dir -r requirements/runtime.txt
 
 # Copy application code into the image root so the package `seg` is importable
 # from the container working directory (i.e. /app/seg).
-COPY src/ .
-
-# Ensure correct ownership
-RUN chown -R ${NON_ROOT_USER}:${NON_ROOT_GROUP} /app
+# Non-root ownership is ensured at copy time to avoid needing a separate chown layer.
+COPY --chown=${NON_ROOT_USER}:${NON_ROOT_GROUP} src/ .
 
 # Switch to non-root
 USER ${NON_ROOT_USER}

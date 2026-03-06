@@ -121,9 +121,9 @@ Follow these steps to reproduce CI behavior locally on Linux:
 python -m venv .venv
 source .venv/bin/activate
 
-# install runtime and dev dependencies
+# install dev dependencies (includes all others)
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements/dev.txt
 
 # install pre-commit hooks
 python -m pip install pre-commit
@@ -204,7 +204,7 @@ To inspect installed package versions (useful when debugging mypy or pre-commit 
 pip freeze | grep -E "pydantic|fastapi|uvicorn|mypy|ruff|black"
 ```
 
-Note: The `mypy` pre-commit hook defines `additional_dependencies` to ensure type-checking runs in an isolated environment. Keep those settings and `requirements.txt` reasonably aligned to avoid surprising differences between local pre-commit runs and CI.
+Note: The `mypy` pre-commit hook defines `additional_dependencies` to ensure type-checking runs in an isolated environment. Keep those settings and `requirements/dev.txt` reasonably aligned to avoid surprising differences between local pre-commit runs and CI.
 
 ---
 

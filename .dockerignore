@@ -1,26 +1,52 @@
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
+
+# Virtual environments
 .env
-.venv
+.venv/
 venv/
+env/
+
+# Docker secrets
+secrets/*
+!secrets/*.example
+!secrets/README.md
+
+# Build artifacts
 build/
 dist/
 *.egg-info
+*.whl
+*.tar.gz
+
+# Test artifacts
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .cache/
-.venv/
-coverage.xml
 .tox/
+coverage.xml
+.coverage
+.coverage.*
+htmlcov/
+
+# Node artifacts (if any tooling uses it)
 node_modules/
+
+# OS / editor files
 .DS_Store
+.vscode/
+.idea/
+
+# Git
 .git
 .github/
+
+# Local data
 private/
 *.log
 *.sqlite3
