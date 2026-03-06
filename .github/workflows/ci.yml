@@ -19,6 +19,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -------------------------
+      # Environment setup
+      # -------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -32,6 +35,9 @@ jobs:
           restore-keys: |
             pip-${{ runner.os }}-
 
+      # -------------------------
+      # Tooling installation
+      # -------------------------
       # `make` is available on GitHub-hosted runners by default.
 
       - name: Install hadolint
@@ -48,6 +54,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements/dev.txt
 
+      # -------------------------
+      # Quality Gate (Makefile)
+      # -------------------------
       # Keep CI makefile-driven: lint, typecheck, baseline SAST, dependency audit, hadolint, tests.
       - name: Run CI pipeline (make ci)
         shell: bash
@@ -61,6 +70,9 @@ jobs:
     needs: ci
 
     steps:
+      # -------------------------
+      # Build Validation (Buildx)
+      # -------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
