@@ -22,7 +22,7 @@
   <a href="https://www.python.org/">
     <img src="https://img.shields.io/badge/python-3.12-blue?logo=python" alt="Python">
   </a>
-  <a href="https://libertocrat.github.io/seg/">
+  <a href="https://libertocrat.github.io/seg/api-docs/">
     <img src="https://img.shields.io/badge/OpenAPI-3.1-green" alt="OpenAPI">
   </a>
 </p>
