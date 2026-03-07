@@ -1,0 +1,10 @@
+# SEG Linting & Static Analysis dependency set.
+# Python runtime: 3.12
+#
+# Purpose:
+# - Tools for formatting, linting, type-checking, and pre-commit hooks.
+
+ruff==0.14.14
+mypy==1.19.1
+black==26.1.0
+pre-commit==4.5.1

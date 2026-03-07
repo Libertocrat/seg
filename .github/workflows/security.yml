@@ -21,18 +21,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # -------------------------
+      # Environment setup
+      # -------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements/**/*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      # -------------------------
+      # Dependency installation
+      # -------------------------
       - name: Set up virtual environment and dependencies
         run: |
           python -m venv .venv
           source .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install -r requirements/runtime.txt
+          python -m pip install -r requirements/security.txt
 
+      # -------------------------
+      # SAST (Semgrep)
+      # -------------------------
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
@@ -41,6 +59,15 @@ jobs:
             p/python
             p/security-audit
           generateSarif: false
+
+      # -------------------------
+      # Vulnerability Scanning (Trivy)
+      # -------------------------
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}
 
       # Trivy is installed here, but filesystem scan remains makefile-driven.
       - name: Install Trivy CLI

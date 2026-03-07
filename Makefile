@@ -7,10 +7,15 @@ PYTHON ?= python
 PIP ?= pip
 
 SRC_DIRS = src tests scripts
+REQ_RUNTIME = requirements/runtime.txt
+REQ_DEV = requirements/dev.txt
+REQ_TESTING = requirements/testing.txt
+REQ_LINTING = requirements/linting.txt
+REQ_SECURITY = requirements/security.txt
 
 BANDIT_TARGETS = src/
 BANDIT_FLAGS = --recursive --severity-level medium --confidence-level medium
-PIP_AUDIT_FLAGS = -r requirements.txt
+PIP_AUDIT_FLAGS = -r $(REQ_RUNTIME)
 SEMGREP_FLAGS = --error --config p/ci --config p/python --config p/security-audit --exclude .venv .
 TRIVY_FS_FLAGS = fs \
 	--scanners secret,misconfig \
@@ -62,7 +67,7 @@ help:
 
 deps:
 	$(PIP) install -U pip
-	$(PIP) install -r requirements.txt
+	$(PIP) install -r $(REQ_DEV)
 
 deps-local:
 	$(PIP) install -U pipx

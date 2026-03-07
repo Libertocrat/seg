@@ -1,4 +1,7 @@
 repos:
+  # -------------------------
+  # Hooks setup
+  # -------------------------
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
@@ -6,6 +9,9 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
 
+  # -------------------------
+  # Pre-commit checks
+  # -------------------------
   - repo: https://github.com/psf/black
     rev: 24.10.0
     hooks:
@@ -35,6 +41,8 @@ repos:
           - prometheus-client
           - pytest
           - pytest-asyncio
+          - httpx
+          - python-magic
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.9.1
