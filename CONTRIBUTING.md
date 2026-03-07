@@ -38,7 +38,7 @@ source .venv/bin/activate
 
 ```bash
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements/dev.txt
 ```
 
 3. (Optional) Install tooling used by CI and pre-commit hooks:

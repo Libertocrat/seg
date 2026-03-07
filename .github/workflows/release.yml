@@ -31,6 +31,9 @@ jobs:
           echo "IMAGE_NAME=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
           echo "IMAGE_OWNER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
+      # -------------------------
+      # Docker setup
+      # -------------------------
       - uses: docker/setup-buildx-action@v3 # enable BuildKit
 
       # -------------------------
@@ -48,7 +51,7 @@ jobs:
           echo "APP_VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
 
       # -------------------------
-      # Login to GHCR
+      # Artifact distribution (GHCR)
       # -------------------------
       - uses: docker/login-action@v3
         with:
@@ -86,10 +89,19 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64
           load: true # load into local daemon for Trivy scan
+          cache-from: type=gha,scope=seg
+          cache-to: type=gha,mode=max,scope=seg
 
       # -------------------------
-      # Install Trivy
+      # Install & Cache Trivy
       # -------------------------
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}
+
       - name: Install Trivy
         run: |
           sudo apt-get update
@@ -114,7 +126,7 @@ jobs:
             ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
 
       # -------------------------
-      # Push image tags
+      # Artifact distribution (Docker Hub / GHCR)
       # -------------------------
       - name: Push semver + sha + latest tags
         shell: bash
@@ -125,20 +137,28 @@ jobs:
             docker push "$tag"
           done
 
-      # =====================================================
-      # Generate OpenAPI spec for Release assets
-      # =====================================================
-
+      # -------------------------
+      # Release Assets (OpenAPI)
+      # -------------------------
       - name: Setup Python for OpenAPI export
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements/**/*.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
       - name: Install dependencies for OpenAPI export
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          python -m pip install -r requirements/runtime.txt
+          python -m pip install -r requirements/testing.txt
+          python -m pip install -e .
 
       - name: Export OpenAPI schema
         run: |
@@ -149,10 +169,9 @@ jobs:
         run: |
           cp docs/api-docs/output/openapi.json openapi-${{ github.ref_name }}.json
 
-      # =====================================================
-      # Create GitHub Release
-      # =====================================================
-
+      # -------------------------
+      # GitHub Release
+      # -------------------------
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:

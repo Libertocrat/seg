@@ -1,0 +1,9 @@
+# SEG Test & Quality dependency set.
+# Python runtime: 3.12
+#
+# Purpose:
+# - Packages required for executing the test suite and quality gates.
+
+pytest==9.0.2
+pytest-asyncio==1.3.0
+openapi-spec-validator==0.8.3

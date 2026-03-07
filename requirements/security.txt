@@ -1,0 +1,8 @@
+# SEG Security Scanning dependency set.
+# Python runtime: 3.12
+#
+# Purpose:
+# - Dedicated security auditing tools for CI and local workflows.
+
+bandit==1.9.3
+pip-audit==2.10.0
