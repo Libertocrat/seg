@@ -123,6 +123,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+tests/__pycache__/
+tests/.pytest_cache/
+tests/.mypy_cache/
 
 # Translations
 *.mo

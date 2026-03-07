@@ -16,6 +16,10 @@ secrets/*
 !secrets/*.example
 !secrets/README.md
 
+# Documentation + test directories (not needed in docker context)
+docs/
+tests/
+
 # Build artifacts
 build/
 dist/
