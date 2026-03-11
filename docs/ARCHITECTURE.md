@@ -1,5 +1,19 @@
 # SEG Architecture
 
+## Index
+
+- [1. System Overview](#1-system-overview)
+- [2. Repository Structure](#2-repository-structure)
+- [3. FastAPI Application Layer](#3-fastapi-application-layer)
+- [4. Middleware Security Layer](#4-middleware-security-layer)
+- [5. Action Execution Model](#5-action-execution-model)
+- [6. Filesystem Security Model](#6-filesystem-security-model)
+- [7. Configuration System](#7-configuration-system)
+- [8. Observability and Metrics](#8-observability-and-metrics)
+- [9. API Documentation System](#9-api-documentation-system)
+- [10. Container Runtime Model](#10-container-runtime-model)
+- [11. Testing Architecture](#11-testing-architecture)
+
 ## 1. System Overview
 
 Secure Execution Gateway (SEG) is a FastAPI-based internal microservice that exposes a small, allowlisted set of file operations through a single execution endpoint. It is designed to run inside trusted container infrastructure and to operate only inside a configured sandbox directory.
@@ -79,8 +93,8 @@ Actual runtime order:
 
 ```mermaid
 flowchart TD
-Client --> SecurityHeaders
-SecurityHeaders --> RequestID
+Client --> SecurityHeadersOptional[SecurityHeaders optional]
+SecurityHeadersOptional --> RequestID
 RequestID --> Observability
 Observability --> RateLimit
 RateLimit --> Timeout
