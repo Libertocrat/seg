@@ -1,325 +1,235 @@
-# Testing Strategy
+# SEG Testing Strategy
 
-This document describes the testing philosophy, structure, and guarantees of the Secure Execution Gateway (SEG) project.
+## Index
 
-Testing in SEG is not treated as a coverage exercise, but as a **security and correctness contract**. Tests are designed to freeze invariants and prevent regressions in configuration, sandboxing, and execution behavior.
+- [1. Testing Overview](#1-testing-overview)
+- [2. Testing Philosophy](#2-testing-philosophy)
+- [3. Test Suite Structure](#3-test-suite-structure)
+- [4. Unit Testing](#4-unit-testing)
+- [5. Integration Testing](#5-integration-testing)
+- [6. Security Testing](#6-security-testing)
+- [7. Test Fixtures and Utilities](#7-test-fixtures-and-utilities)
+- [8. Running Tests Locally](#8-running-tests-locally)
+- [9. CI Test Execution](#9-ci-test-execution)
 
----
+## 1. Testing Overview
 
-## Goals
+The SEG test suite validates both functional correctness and security-critical behavior.
 
-The testing strategy is designed to:
+The current tests cover:
 
-- Freeze security invariants (sandbox boundaries, symlink handling, path validation)
-- Guarantee deterministic and reproducible test execution
-- Prevent coupling to developer machines or CI environments
-- Validate request/response contracts and error behavior
-- Enable confident extension of SEG with new actions and features
+- action dispatcher and registry behavior
+- file action implementations
+- filesystem sandbox protections
+- middleware enforcement
+- API endpoints
+- request validation and OpenAPI output
+- configuration loading and validation
 
----
+The suite combines unit tests, integration tests, and smoke tests. Unit tests focus on isolated modules and deterministic invariants. Integration tests build a full FastAPI application instance and validate the HTTP contract around middleware, routes, and action dispatch.
 
-## Core Principles
+```mermaid
+flowchart TD
+Developer --> Pytest
+Pytest --> UnitTests
+Pytest --> IntegrationTests
+Pytest --> SmokeTests
+IntegrationTests --> AppFactory
+AppFactory --> Middleware
+AppFactory --> Routes
+Routes --> Dispatcher
+Dispatcher --> ActionHandlers
+ActionHandlers --> SandboxHelpers
+```
 
-### 1. Determinism over Coverage
+## 2. Testing Philosophy
 
-SEG prioritizes **meaningful invariants** over artificial coverage metrics.
+The test suite is designed around deterministic execution and isolation.
 
-A test exists only if it protects one of the following:
+The current design goals are:
 
-- Security boundaries
-- Configuration correctness
-- API contracts
-- Execution wiring
+- deterministic behavior across runs
+- strict isolation from local developer environments
+- independence from `.env` files
+- no reliance on test execution order
+- validation of both success paths and failure paths
+- security-focused checks for filesystem and HTTP handling
 
----
+`tests/conftest.py` enforces this through the autouse fixture `clean_seg_environment`.
 
-### 2. Strict Environment Isolation
+`clean_seg_environment`:
 
-Tests must never depend on:
+- removes all `SEG_*` environment variables from the process environment
+- disables `.env` loading by setting `Settings.model_config["env_file"]` to `None`
+- clears the cached `get_settings()` result before each test
 
-- A local `.env` file
-- Shell environment variables
-- CI-provided configuration
-- Import-time side effects
+This is necessary because application settings are loaded lazily and cached. Without this fixture, local shell variables or a developer `.env` file could leak into tests, and tests that mutate environment variables could become order-dependent.
 
-If a test requires configuration, it must be provided **explicitly via fixtures**.
+The suite also validates both expected and rejected behavior. Many tests assert stable error codes, response envelopes, headers, and metrics, not only successful outcomes.
 
----
+## 3. Test Suite Structure
 
-### 3. No Import-Time Execution
+The test suite is organized under `tests/`.
 
-SEG follows a strict rule:
+| Path | Purpose |
+| ----- | ----- |
+| `tests/test_app_smoke.py` | Basic smoke coverage for app creation and the `/health` endpoint. |
+| `tests/actions` | Unit tests for dispatcher logic, registry behavior, and file action implementations. |
+| `tests/core` | Unit tests for configuration, request and response schemas, and core security helpers. |
+| `tests/integration` | End-to-end HTTP validation for middleware and route behavior using a full app instance. |
 
-> **Application code must not execute at import time.**
+Within those directories:
 
-As a result:
+- `tests/actions/file` covers `file_checksum`, `file_delete`, `file_mime_detect`, `file_move`, and `file_verify`
+- `tests/core/security` covers path security, HTTP validation helpers, and security header behavior
+- `tests/integration/middleware` covers auth, observability, rate limiting, request IDs, request integrity, security headers, and timeout behavior
+- `tests/integration/routes` covers `/v1/execute`, `/health`, `/metrics`, and runtime OpenAPI generation
 
-- The FastAPI app is created via an application factory (`create_app`)
-- No global `app = create_app()` exists
-- Tests import code safely without triggering configuration loading
+## 4. Unit Testing
 
-This is critical for test isolation and CI reliability.
+Unit tests cover isolated behavior in the dispatcher, registry, file actions, schemas, configuration, and path validation helpers.
 
----
+Current unit coverage includes:
 
-## Configuration Isolation
+- `tests/actions/test_dispatcher.py` for action lookup, parameter validation, result validation, propagated domain errors, timeout mapping, and unexpected error handling
+- `tests/actions/test_registry.py` for explicit registration, duplicate prevention, lookup, sorted listing, and public registry helpers
+- `tests/actions/file/*.py` for file action behavior and stable error mapping
+- `tests/core/test_schemas_envelope.py` and `tests/core/test_schemas_execute.py` for request and response schema invariants
+- `tests/core/test_settings.py` for environment-backed settings, defaults, required variables, token loading, docs toggles, and validation rules
+- `tests/core/security/test_security_path.py` and `tests/core/security/test_security_http_validation.py` for sandbox and HTTP helper behavior
 
-SEG enforces **hard isolation** for configuration during tests.
+The file action tests are security-oriented unit tests, not only happy path checks. They verify behavior such as:
 
-### Environment handling
+- supported checksum algorithms and invalid algorithm rejection
+- idempotent delete behavior and rejection of directories or symlinks
+- MIME detection for realistic file types and file size enforcement
+- move overwrite policy, extension preservation, and path restrictions
+- verify policy reporting, checksum validation, and MIME mapping errors
 
-- All `SEG_*` environment variables are removed before each test
-- `.env` loading is explicitly disabled
-- Tests must set required variables explicitly
+The fixture `clean_action_registry` isolates tests that mutate the global action registry.
 
-Note: Tests must not rely on runtime OpenAPI documentation being available. If a test needs the docs endpoints for validation, set `SEG_ENABLE_DOCS=true` explicitly in the test configuration; do not rely on developer defaults.
+`clean_action_registry`:
 
-This guarantees that:
+- snapshots the current registry
+- replaces the active registry with an empty mapping
+- restores the original snapshot after the test
 
-- CI failures are real failures
-- Tests do not pass “by accident” on a developer machine
-- Missing configuration is detected early
+This is necessary because the action registry is global module state. Registry isolation prevents action registration side effects from leaking between tests and keeps dispatcher and registry unit tests deterministic.
 
----
+## 5. Integration Testing
 
-## Global Test Fixtures
+Integration tests live under `tests/integration/` and validate the behavior of the running FastAPI application.
 
-SEG defines a small number of **global, test-only fixtures** in `conftest.py` that are automatically applied to all tests.
+These tests instantiate the application through `create_app()` and exercise the HTTP surface with `TestClient`.
 
-These fixtures are part of the testing architecture and are critical for deterministic and secure test execution.
+Middleware integration coverage includes:
 
----
+- authentication enforcement and exempt endpoints in `test_middleware_auth.py`
+- request integrity checks for content type, duplicate headers, conflicting `Content-Length` and `Transfer-Encoding`, and body size limits in `test_middleware_request_integrity.py`
+- rate limiting behavior, `Retry-After`, exempt endpoints, and metric labels in `test_middleware_rate_limit.py`
+- timeout handling, exempt routes, and timeout metrics in `test_middleware_timeout.py`
+- request ID generation and propagation in `test_middleware_request_id.py`
+- observability counters, duration histograms, error classification, inflight gauges, and path normalization in `test_middleware_observability.py`
+- security header injection, overwrite behavior, and feature toggling in `test_middleware_security_headers.py`
 
-### `clean_seg_environment` (autouse)
+Route integration coverage includes:
 
-This fixture is applied automatically to **every test**.
+- `/v1/execute` request validation, success envelope behavior, and unknown action handling
+- `/health` success payload validation
+- `/metrics` content type and Prometheus text format validation
+- `/openapi.json` validation, security projection, action schema registration, and response overrides when docs are enabled
 
-Its responsibility is to enforce **strict configuration isolation** by:
+These tests validate the assembled application stack rather than individual helper functions.
 
-- Removing all `SEG_*` variables from the process environment
-- Disabling `.env` file loading in `Settings`
-- Clearing the cached settings instance returned by `get_settings()`
+## 6. Security Testing
 
-#### Why this fixture exists
+The test suite includes direct coverage for security-critical logic.
 
-SEG settings are:
+In `tests/core/security`, the current tests validate:
 
-- Loaded lazily
-- Resolved from environment variables
-- Cached for performance and consistency
+- path traversal rejection
+- absolute path rejection
+- backslash rejection
+- control character rejection
+- sandbox root enforcement
+- allowed subdirectory enforcement
+- symlink rejection during path resolution
+- safe opening of regular files without following symlinks
+- strict `Content-Length` parsing and content type normalization
 
-Without clearing the cache and environment before each test:
+In `tests/integration/middleware`, the current tests validate:
 
-- Environment changes performed by fixtures would not take effect
-- Tests could become order-dependent
-- Local `.env` files could silently affect CI behavior
+- authentication enforcement on protected endpoints
+- correct behavior for unauthenticated exempt endpoints
+- rejection of duplicate `Authorization` headers
+- rejection of malformed request bodies and unsupported content types
+- rejection of conflicting `Content-Length` and `Transfer-Encoding` headers
+- enforcement of body size limits
+- rate limiting under low request budgets
+- timeout enforcement and timeout exemptions for `/health` and `/metrics`
+- request ID propagation on both successful and failing responses
+- security header insertion and fingerprinting header removal
 
-This fixture guarantees that:
+The action unit tests also reinforce security behavior by checking sandbox restrictions, symlink rejection, and stable error mapping inside file operations.
 
-- No test depends on developer or CI `.env` files
-- No test depends on execution order
-- Every test observes a fresh and explicit configuration state
+## 7. Test Fixtures and Utilities
 
-#### Scope and constraints
+Shared fixtures in `tests/conftest.py` provide the common test environment.
 
-- This fixture is **test-only**
-- It MUST NOT be used in production code
-- Any test requiring configuration must explicitly provide it via fixtures
+### Environment and configuration isolation
 
-> Breaking these rules is considered a test bug.
+- `clean_seg_environment` enforces environment isolation for every test
+- `minimal_safe_env` sets a deterministic minimal SEG configuration with `SEG_API_TOKEN_DEV`, `SEG_SANDBOX_DIR`, and `SEG_ALLOWED_SUBDIRS`
 
----
+### Application fixtures
 
-### `clean_action_registry` (opt-in)
+- `settings` builds a valid `Settings` instance directly with `Settings.model_validate(...)`
+- `app` creates a FastAPI application through `create_app(settings)`
+- `client` returns a `TestClient` bound to that app
 
-SEG provides an explicit fixture to isolate the global action registry for tests that need to mutate or assert action registration behavior. Tests that register or unregister actions should request the `clean_action_registry` fixture.
+### Authentication helpers
 
-- Behavior: the fixture takes a snapshot of the active registry, replaces the active registry with an empty mapping for the duration of the test, and restores the snapshot on teardown.
+- `api_token` provides a deterministic bearer token for tests
+- `auth_headers` returns `Authorization: Bearer <token>` headers for protected endpoint requests
 
-#### Responsibility
+### Filesystem helpers
 
-This fixture's responsibility is to provide strong isolation for tests that need to register, replace or inspect action registrations. It ensures that any
-mutations performed by a test do not leak into other tests or into the application's production startup state.
+- `sandbox_dir` creates a temporary sandbox root
+- `sandbox_file_factory` creates files inside allowed sandbox subdirectories and returns both absolute and sandbox-relative paths
+- `file_factory` creates realistic sample files for MIME-sensitive tests, including text, markdown, CSV, PNG, PDF, ZIP, TAR, GZIP, EXE, ELF, shell, Python, and JavaScript files
 
-#### Why this fixture exists
+These fixtures keep tests reproducible, avoid reliance on machine-local configuration, and provide realistic filesystem inputs without external dependencies.
 
-Action registration is implemented via import-time side-effects in the `seg.actions` package. While the codebase avoids import-time execution for most
-behaviour, action modules perform explicit `register_action(...)` calls when imported. Tests that need to verify registry behavior therefore must be able
-to mutate the registry safely. The `clean_action_registry` fixture exists to make that mutation deterministic and reversible.
+## 8. Running Tests Locally
 
-Practical goals:
+The local entry point is defined in the `Makefile`.
 
-- Prevent test-order dependencies caused by leftover registered actions.
-- Make tests fail visibly if they rely on global state left behind by other tests.
-- Encourage use of the public registry API so the internal `_REGISTRY` name is never touched directly.
+Typical commands are:
 
-#### Scope and constraints
+```bash
+make test
+```
 
-- This fixture is **opt-in**: tests must request it explicitly (`clean_action_registry`) to opt into registry isolation.
-- It is **test-only** and MUST NOT be used in production code.
-- Prefer the public helpers in `seg.actions.registry`:
-  - `get_registry_snapshot()`: take a shallow snapshot of the registry mapping.
-  - `replace_registry(new)`: rebind the active registry to `new`.
-  - `restore_registry(snapshot)`: restore a previously-captured snapshot.
-  - `clear_registry()`: clear the active mapping in-place.
-- Use `copy.deepcopy()` on a snapshot only when you need to isolate mutations to objects stored inside the registry entries; the standard snapshot is a shallow copy of the mapping and is sufficient for add/remove tests.
+This runs:
 
-This pattern enforces strong isolation for action registration and prevents leaking test-time modifications into other tests or into production startup paths.
+```bash
+pytest -q tests
+```
 
----
+Developers can also run `pytest` directly. Project level pytest configuration in `pyproject.toml` sets:
 
-### Other Common Fixtures
+- `testpaths = ["tests"]`
+- `pythonpath = ["src"]`
+- `addopts = "-ra --strict-markers"`
 
-In addition to `clean_seg_environment`, SEG provides reusable fixtures such as:
+Testing dependencies are declared in `requirements/testing.txt`, and `requirements/dev.txt` includes the testing, linting, runtime, and security requirement sets.
 
-- `minimal_safe_env`: provides the minimal required SEG configuration
-- `sandbox_dir`: creates an isolated filesystem sandbox
-- `api_token`: provides a deterministic authentication token
-- `sandbox_file_factory`: helper to create files inside an allowed sandbox subdirectory for tests. Use this fixture to create deterministic test files inside the allowlisted subdirectory (it returns a Path for the created file).
+## 9. CI Test Execution
 
-These fixtures are the **only supported mechanism** for providing configuration to tests.
+The same test suite is executed automatically in GitHub Actions.
 
-For implementation reference, see the test fixtures at [tests/conftest.py](../tests/conftest.py).
+The CI workflow in `.github/workflows/ci.yml` creates a Python 3.12 virtual environment, installs `requirements/dev.txt`, and runs `make ci`. The `make ci` target includes `make test` as part of the quality gate.
 
-Note on `pytest` ids:
-
-- When providing explicit `ids=` for parametrized tests prefer a consistent lower_snake style (for example `all_subdirs`, `missing_auth`) to make test output predictable and easy to grep.
-
----
-
-## Test Categories
-
-### 1. Unit Tests
-
-Unit tests validate isolated components without involving FastAPI or I/O.
-
-Examples:
-
-- `Settings` validation and defaults
-- Schema validation (`ExecuteRequest`, `ResponseEnvelope`)
-- Path sanitization and sandbox resolution
-- Action logic (checksum, delete, etc.)
-
-These tests are fast, deterministic, and require no network or server.
-
----
-
-### 2. Security Tests
-
-Security tests freeze the invariants that define SEG’s sandbox model.
-
-They verify that SEG:
-
-- Never escapes its sandbox directory
-- Never follows symlinks (even if allowlisted)
-- Rejects traversal attempts and malformed paths
-- Enforces allowlists correctly
-- Rejects unsafe filesystem operations
-
-Security tests are intentionally strict and fail loudly.
-
----
-
-### 3. Contract Tests
-
-Contract tests validate stable API and data shapes.
-
-Examples:
-
-- Response envelope structure:
-
-  ```json
-  { "success": true, "data": ..., "error": null }
-  ```
-
-- Error responses:
-
-  ```json
-  { "success": false, "data": null, "error": {...} }
-  ```
-
-These tests ensure backward compatibility and predictable client behavior.
-
----
-
-### 4. Integration Tests (FastAPI)
-
-Integration tests validate that components are wired correctly:
-
-- Middleware execution order
-- Authentication behavior
-- Endpoint routing
-- Dispatcher and registry integration
-
-These tests use FastAPI’s `TestClient` and a controlled test configuration.
-
----
-
-### 5. Future: Container-Level Integration Tests
-
-Planned tests include:
-
-- Running SEG inside a Docker container
-- Using a runner container on the same network
-- Issuing real HTTP requests (`curl`-style)
-- Validating health, execution, and sandbox behavior
-
-These tests will likely use `docker-compose` and run as a CI stage.
-
-### Integration tests (FastAPI)
-
-Integration tests that exercise the running FastAPI application and action dispatch live under `tests/integration/`. They validate middleware, routing, authentication and end-to-end dispatcher/registry interaction. These tests are run as part of the normal `pytest` invocation and in CI.
-
----
-
-## Fixtures Philosophy
-
-Fixtures are the **only supported way** to provide configuration in tests.
-
-Common fixtures include:
-
-- `minimal_safe_env` – provides required SEG variables
-- `sandbox_dir` – creates a temporary sandbox directory
-- `api_token` – deterministic authentication token
-
-Fixtures override the environment, not application code.
-
----
-
-## What SEG Does *Not* Test (By Design)
-
-SEG intentionally does **not** test:
-
-- Uvicorn internals
-- FastAPI framework behavior
-- Docker runtime correctness
-- OS-specific kernel behavior
-
-These are treated as trusted dependencies.
-
----
-
-## Failure Philosophy
-
-A failing test usually means one of the following:
-
-- A security invariant was violated
-- A configuration dependency leaked into code
-- An import-time side effect was introduced
-- A contract changed unintentionally
-
-Tests are expected to fail early and loudly.
-
----
-
-## Summary
-
-- Tests protect security and correctness, not metrics
-- Configuration is explicit and isolated
-- No import-time side effects are allowed
-- Application factory pattern is mandatory
-- Tests are designed to scale with new actions and features
-
-If tests pass, SEG is considered safe to extend.
+For pipeline details, see [docs/CI.md](./CI.md).
 
 ---

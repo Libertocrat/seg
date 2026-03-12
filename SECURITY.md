@@ -1,8 +1,20 @@
 # Security Policy
 
-If you discover a security vulnerability or have security concerns, please report them directly to the project maintainer:
+Secure Execution Gateway (SEG) is designed as an internal service with a defense-in-depth security model. The project includes authentication, strict action allowlisting, sandboxed filesystem access, request validation middleware, and container-based isolation.
 
-- Contact: Libertocrat - <libertocrat@proton.me>
+Detailed security design and threat analysis are documented separately:
+
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): system architecture and security-relevant components
+- [docs/THREAT_MODEL.md](./docs/THREAD_MODEL.md): threat analysis, attack surfaces, and mitigations
+- [docs/CI.md](./docs/CI.md): automated testing, security checks, and CI workflows
+
+This document focuses on vulnerability reporting and coordinated disclosure.
+
+## Deployment Model
+
+SEG is intended to run as an **internal service** inside trusted container infrastructure. It is typically deployed inside a Docker network and accessed only by other trusted services.
+
+The service is not designed to be exposed directly to the public Internet.
 
 ## Supported Versions
 
@@ -12,17 +24,34 @@ Pre-release versions, development branches, and forks are not guaranteed to rece
 
 ## Reporting a Vulnerability
 
-1. Send an email to the address above with a clear summary of the issue.
-2. Include reproducible steps, environment details (OS, Python version, container runtime), and any relevant logs or files.
-3. If the issue allows escalation or access to sensitive data, include **"SECURITY"** in the email subject to prioritize the report.
+If you discover a security vulnerability or have security concerns, please report them directly to the project maintainer.
 
-Please do **NOT** publish details about the vulnerability publicly until a fix or mitigation plan has been provided.
+Contact:
+
+Libertocrat - <libertocrat@proton.me>
+
+Please include the following information:
+
+- a clear summary of the issue
+- affected versions (commit SHA, tag, or release version)
+- environment details (OS, Python version, container runtime)
+- reproducible steps or a minimal Proof-of-Concept
+- relevant logs or configuration details (sanitized of secrets)
+- potential impact (for example data exposure, privilege escalation, or denial of service)
+
+If the issue allows escalation or access to sensitive data, include **SECURITY** in the email subject to prioritize the report.
+
+Please do NOT publish details about the vulnerability publicly until a fix or mitigation plan has been provided.
 
 ## Response and Handling
 
-- Reports will be handled confidentially.
-- We aim to acknowledge **critical security reports within 72 hours**.
-- The maintainer will provide an estimated timeline for mitigation or remediation after initial triage.
+Security reports will be handled confidentially.
+
+The maintainer aims to:
+
+- Acknowledge critical reports within **72 hours**
+- Provide an estimated timeline for remediation after initial triage
+- Coordinate disclosure with the reporter
 
 ## Preferred Disclosure Channels
 
@@ -59,4 +88,11 @@ gpg --show-keys --fingerprint SECURITY_PGP_KEY.asc
 
 ## Coordination and Disclosure
 
-We will coordinate disclosure with the reporter. Public disclosure will only occur after a fix or mitigation is available, or if explicitly agreed upon with the reporter.
+Vulnerabilities will be disclosed publicly only after:
+
+- A fix or mitigation has been implemented.
+- Disclosure has been coordinated with the reporter.
+
+The project follows a responsible disclosure approach in order to protect users while security fixes are prepared.
+
+---
