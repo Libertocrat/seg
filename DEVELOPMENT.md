@@ -1,0 +1,550 @@
+# SEG Development Guide
+
+## Index
+
+- [1. Development Overview](#1-development-overview)
+- [2. Development Environment Requirements](#2-development-environment-requirements)
+- [3. Repository Layout](#3-repository-layout)
+- [4. Environment Setup](#4-environment-setup)
+- [5. Dependency Sets](#5-dependency-sets)
+- [6. Makefile Developer Workflow](#6-makefile-developer-workflow)
+- [7. Pre-commit Hooks](#7-pre-commit-hooks)
+- [8. Running Individual Checks](#8-running-individual-checks)
+- [9. Developer Utilities](#9-developer-utilities)
+- [10. Developer Tools Architecture](#10-developer-tools-architecture)
+- [11. Reproducing CI Locally](#11-reproducing-ci-locally)
+- [12. Troubleshooting](#12-troubleshooting)
+
+## 1. Development Overview
+
+This document describes the local development workflow for SEG.
+
+It explains how to:
+
+- set up a local development environment
+- run SEG locally
+- execute quality checks
+- reproduce CI pipelines
+- use developer helper utilities in `scripts/` and the `Makefile`
+
+SEG development assumes a Linux environment.
+
+The current development workflow is built around:
+
+- Python 3.12
+- Docker
+- Make
+- Git
+- pre-commit
+- quality, testing, and security tooling
+
+The `Makefile` provides a consistent interface between local development and
+the CI pipelines. It also includes local DX commands such as `deps`,
+`deps-local`, and `fmt`.
+
+```mermaid
+flowchart TD
+Developer --> SetupEnvironment
+SetupEnvironment --> InstallDependencies
+InstallDependencies --> PreCommitHooks
+PreCommitHooks --> MakeTargets
+MakeTargets --> LocalCI
+LocalCI --> GitHubActions
+```
+
+## 2. Development Environment Requirements
+
+The current local workflow depends on the following tools.
+
+| Tool | Purpose |
+| --- | --- |
+| Python 3.12 | SEG runtime and development |
+| Docker | container runtime and local stack execution |
+| Git | version control |
+| Make | developer task execution |
+| curl | local API checks and helper downloads |
+
+Python 3.12 is the supported development version. It can be installed and
+managed with `pyenv` before creating the project virtual environment.
+
+Additional tools are required for some workflows:
+
+- `hadolint` for Dockerfile linting
+- `jq` for parsing Trivy JSON reports
+- `semgrep` for deep SAST scans
+- `trivy` for filesystem and image scanning
+
+### 2.1 Installing Required CLI Tools
+
+>![IMPORTANT]
+> Some local workflows depend on the system-level CLI tools listed above, that are **not installed through Python requirements** and are **not managed by the Makefile dependency targets**.
+
+The following instructions assume a Debian or Ubuntu based environment.
+
+#### Installing jq
+
+`jq` is a lightweight JSON processor used by some local scripts and security workflows.
+
+Installation:
+
+```bash
+sudo apt update
+sudo apt install -y jq
+```
+
+Verify installation:
+
+```bash
+jq --version
+```
+
+#### Installing Trivy
+
+Trivy is used for vulnerability scanning of both the repository filesystem and the container image built from the project.
+
+```bash
+# Install required packages
+sudo apt update
+sudo apt install -y wget gnupg lsb-release
+
+# Create keyring directory
+sudo mkdir -p /etc/apt/keyrings
+
+# Download Trivy GPG key
+wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key \
+  | gpg --dearmor \
+  | sudo tee /etc/apt/keyrings/trivy.gpg > /dev/null
+
+# Add the Trivy repository
+echo "deb [signed-by=/etc/apt/keyrings/trivy.gpg] \
+https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" \
+  | sudo tee /etc/apt/sources.list.d/trivy.list
+
+# Update package index
+sudo apt update
+
+# Install Trivy
+sudo apt install -y trivy
+```
+
+Verify installation:
+
+```bash
+trivy --version
+```
+
+Once installed, the following commands become available locally:
+
+```bash
+make trivy-fs
+make trivy-image
+```
+
+#### Installing Hadolint
+
+`hadolint` is used to lint the project Dockerfile and is also executed by the CI pipeline.
+
+Installation:
+
+```bash
+curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
+  -o /usr/local/bin/hadolint
+
+sudo chmod +x /usr/local/bin/hadolint
+```
+
+Verify installation:
+
+```bash
+hadolint --version
+```
+
+## 3. Repository Layout
+
+The repository is organized into a small number of top level directories.
+
+| Directory | Purpose |
+| --- | --- |
+| `src/` | SEG application source code |
+| `tests/` | smoke, unit, and integration tests |
+| `scripts/` | developer and release helper utilities |
+| `docs/` | technical documentation |
+| `requirements/` | dependency sets for runtime, testing, linting, security, and development |
+| `.github/workflows/` | CI, security, release, and docs publishing workflows |
+
+Detailed technical references are documented in:
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/TESTING.md](docs/TESTING.md)
+- [docs/CI.md](docs/CI.md)
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+
+## 4. Environment Setup
+
+### Python version
+
+Use Python 3.12 before creating the virtual environment.
+
+```bash
+pyenv install 3.12
+pyenv local 3.12
+```
+
+Verify the active interpreter:
+
+```bash
+python --version
+```
+
+### Virtual environment
+
+Create and activate a local virtual environment.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### Install dependencies
+
+Install the development dependency set.
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements/dev.txt
+```
+
+`requirements/dev.txt` aggregates runtime, testing, linting, and security
+dependencies into one local setup.
+
+### Local container stack
+
+The local container workflow uses `.env.example`, `docker-compose.yml`, and the
+helper scripts in `scripts/`.
+
+Typical local startup flow:
+
+```bash
+# Copy and set environment variables
+cp .env.example .env
+
+# Set a strong api token in "secrets/seg_api_token.txt", or generate one running:
+openssl rand -hex 32 > ./secrets/seg_api_token.txt
+
+# Create and configure shared volume if it doesn't exist
+./scripts/init-shared-volume.sh --env-file .env
+
+docker compose up -d --build
+```
+
+To inspect the running stack:
+
+```bash
+docker compose logs -f
+docker compose ps
+```
+
+## 5. Dependency Sets
+
+Python dependencies are split across the `requirements/` directory.
+
+| File | Purpose |
+| --- | --- |
+| `runtime.txt` | production runtime dependencies |
+| `testing.txt` | test framework and test support dependencies |
+| `linting.txt` | formatting, linting, typing, and pre-commit tools |
+| `security.txt` | security scanning tools |
+| `dev.txt` | aggregate development environment |
+
+This separation allows local workflows and CI jobs to install only the
+dependency sets they need.
+
+`dev.txt` currently aggregates:
+
+- `runtime.txt`
+- `testing.txt`
+- `linting.txt`
+- `security.txt`
+
+## 6. Makefile Developer Workflow
+
+The `Makefile` is the main local developer interface.
+
+Important targets are:
+
+| Target | Purpose |
+| --- | --- |
+| `make deps` | install Python dependencies from `requirements/dev.txt` |
+| `make deps-local` | install local CLI tooling with `pipx` and `semgrep` |
+| `make fmt` | apply formatting fixes |
+| `make quality` | run linting, type checking, and tests |
+| `make ci` | run the local CI quality gate |
+| `make build` | build the Docker image locally |
+| `make deep-security` | run Semgrep and Trivy scans |
+| `make full` | run the full local pipeline |
+
+Current target behavior:
+
+- `make deps` upgrades `pip` and installs `requirements/dev.txt`
+- `make deps-local` installs `pipx`, installs `semgrep` with `pipx`, and
+	reminds the developer to install Trivy system-wide
+- `make fmt` runs `black`, `ruff check --fix`, `trailing-whitespace`, and
+	`end-of-file-fixer`
+- `make quality` runs `lint`, `typecheck`, and `test`
+- `make ci` runs `quality` and `ci-security`
+- `make build` runs `docker build -t seg:local .`
+- `make deep-security` runs `semgrep`, `trivy-fs`, and `trivy-image`
+- `make full` runs `ci`, `build`, and `deep-security`
+
+These commands mirror the CI pipelines documented in [docs/CI.md](docs/CI.md),
+except for local DX oriented commands such as `fmt`, `deps`, and `deps-local`.
+
+```mermaid
+flowchart TD
+quality --> ci
+ci-security --> ci
+ci --> build
+build --> deep-security
+deep-security --> full
+```
+
+## 7. Pre-commit Hooks
+
+SEG uses `pre-commit` to enforce local quality checks before changes move into
+CI.
+
+The current hook set includes:
+
+- trailing whitespace cleanup
+- end-of-file fixer
+- YAML validation
+- Black formatting
+- Ruff linting with `--fix`
+- MyPy type checking for `src/` and `tests/`
+- Bandit security scanning for `src/`
+- Hadolint for `Dockerfile`
+- pytest execution for `tests/`
+
+Install and enable the hooks with:
+
+```bash
+pre-commit install
+```
+
+Run the full hook set manually with:
+
+```bash
+pre-commit run --all-files
+```
+
+## 8. Running Individual Checks
+
+Direct commands are useful for fast local iteration.
+
+Formatting:
+
+```bash
+black src tests scripts
+```
+
+Linting:
+
+```bash
+ruff check --fix src tests scripts
+```
+
+Typing:
+
+```bash
+mypy --config-file mypy.ini src tests scripts
+```
+
+Testing:
+
+```bash
+pytest -q tests
+```
+
+Integration tests:
+
+```bash
+pytest -q tests/integration
+```
+
+## 9. Developer Utilities
+
+The repository includes developer utilities in `scripts/`.
+
+That directory has its own reference document in [scripts/README.md](scripts/README.md).
+
+### 9.1 Shared Docker Volume Initialization
+
+Script:
+
+`scripts/init-shared-volume.sh`
+
+Purpose:
+
+Prepare the Docker volume used by SEG as its shared filesystem sandbox.
+
+Responsibilities:
+
+- create the Docker volume if missing
+- enforce group ownership and `setgid` permissions
+- create configured sandbox subdirectories when needed
+
+Required variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `SHARED_VOLUME_NAME` | Docker volume name |
+| `NON_ROOT_GID` | group ID that must own the sandbox path |
+| `SEG_ALLOWED_SUBDIRS` | allowed sandbox root or subdirectories |
+
+Example usage:
+
+```bash
+scripts/init-shared-volume.sh --env-file .env
+```
+
+The initializer prepares the mounted volume at `/data` inside its temporary
+helper container. In the SEG container, the same volume is mounted at
+`SEG_SANDBOX_DIR`, which defaults to `/data` in `.env.example` and can be
+changed in `.env`.
+
+### 9.2 SEG Local Port Forwarding
+
+Script:
+
+`scripts/seg-forward.sh`
+
+Purpose:
+
+Create a temporary localhost port forward to a running SEG container.
+
+Common uses:
+
+- access Swagger UI
+- send `curl` requests
+- run host-side integration checks against the containerized service
+- inspect API behavior without publishing ports in Compose
+
+The script uses a temporary `alpine/socat` container on the shared Docker
+network.
+
+Required variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `SHARED_DOCKER_NETWORK` | Docker network |
+| `SEG_PORT` | SEG container port |
+| `COMPOSE_PROJECT_NAME` | container autodetection prefix |
+
+Example usage:
+
+```bash
+scripts/seg-forward.sh --env-file .env
+```
+
+The script prints URLs such as:
+
+```text
+http://localhost:<PORT>/docs
+http://localhost:<PORT>/openapi.json
+http://localhost:<PORT>/health
+```
+
+`PORT` is auto-assigned by default or can be set with `--local-port`.
+
+More details for both scripts are available in [scripts/README.md](scripts/README.md)
+and through each script's `--help` output.
+
+## 10. Developer Tools Architecture
+
+The local developer utilities are designed to improve DX without changing the
+production container configuration.
+
+```mermaid
+flowchart TD
+Developer --> DockerCompose
+DockerCompose --> SEGContainer
+
+Developer --> DevTools
+DevTools --> InitVolume
+DevTools --> SegForward
+
+InitVolume --> DockerVolume
+SegForward --> SEGContainer
+```
+
+The local tools operate around the main container stack rather than changing
+the application runtime model.
+
+## 11. Reproducing CI Locally
+
+Developers can reproduce the main CI quality gate locally with:
+
+```bash
+make ci
+```
+
+This runs:
+
+- linting
+- type checking
+- tests
+- baseline security checks through Bandit, pip-audit, and Hadolint
+
+For deeper local validation, run:
+
+```bash
+make full
+```
+
+This adds:
+
+- Docker image build
+- Semgrep
+- Trivy filesystem scan
+- Trivy image scan
+
+Note that `make ci` and `make full` require the relevant local tools to be
+installed. In particular, `hadolint`, `jq`, `semgrep`, and `trivy` are not all
+installed by `requirements/dev.txt`.
+
+## 12. Troubleshooting
+
+Common local troubleshooting steps:
+
+Clear the MyPy cache and rerun the CI gate:
+
+```bash
+rm -rf .mypy_cache && make ci
+```
+
+Verify the active Python version:
+
+```bash
+python --version
+```
+
+Verify installed Python dependencies:
+
+```bash
+pip freeze
+```
+
+Verify required local CLI tools:
+
+```bash
+command -v hadolint jq semgrep trivy
+```
+
+Inspect helper script usage:
+
+```bash
+scripts/init-shared-volume.sh --help
+scripts/seg-forward.sh --help
+```
+
+---
