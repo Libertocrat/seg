@@ -76,7 +76,7 @@ Additional tools are required for some workflows:
 
 ### 2.1 Installing Required CLI Tools
 
->![IMPORTANT]
+> [!IMPORTANT]
 > Some local workflows depend on the system-level CLI tools listed above, that are **not installed through Python requirements** and are **not managed by the Makefile dependency targets**.
 
 The following instructions assume a Debian or Ubuntu based environment.
