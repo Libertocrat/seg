@@ -1,7 +1,8 @@
 # SEG Development Guide
 
-## Index
+## Table of Contents
 
+- [0. Quick Start](#0-quick-start)
 - [1. Development Overview](#1-development-overview)
 - [2. Development Environment Requirements](#2-development-environment-requirements)
 - [3. Repository Layout](#3-repository-layout)
@@ -14,6 +15,27 @@
 - [10. Developer Tools Architecture](#10-developer-tools-architecture)
 - [11. Reproducing CI Locally](#11-reproducing-ci-locally)
 - [12. Troubleshooting](#12-troubleshooting)
+
+## 0. Quick Start
+
+Minimal setup for contributors who want to run the project and execute the local CI checks. To run the full DevSecOps pipeline locally, see [2. Development Environment Requirements](#2-development-environment-requirements) and [4. Environment Setup](#4-environment-setup).
+
+```bash
+git clone https://github.com/Libertocrat/seg.git
+cd seg
+
+pyenv install 3.12
+pyenv local 3.12
+
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements/dev.txt
+make deps-local
+
+pre-commit install
+make ci
+```
 
 ## 1. Development Overview
 
@@ -67,17 +89,19 @@ The current local workflow depends on the following tools.
 Python 3.12 is the supported development version. It can be installed and
 managed with `pyenv` before creating the project virtual environment.
 
-Additional tools are required for some workflows:
+Additional CLI tools are required for some workflows:
 
-- `hadolint` for Dockerfile linting
-- `jq` for parsing Trivy JSON reports
-- `semgrep` for deep SAST scans
-- `trivy` for filesystem and image scanning
+- Manual installation:
+  - `hadolint` for Dockerfile linting
+  - `jq` for parsing Trivy JSON reports
+  - `trivy` for filesystem and image scanning
+- `Makefile` managed:
+  - `semgrep` for deep SAST scans
 
 ### 2.1 Installing Required CLI Tools
 
 > [!IMPORTANT]
-> Some local workflows depend on the system-level CLI tools listed above, that are **not installed through Python requirements** and are **not managed by the Makefile dependency targets**.
+> Some local workflows depend on the system-level CLI tools listed above, that are **not installed through Python requirements**.
 
 The following instructions assume a Debian or Ubuntu based environment.
 
@@ -159,6 +183,22 @@ Verify installation:
 hadolint --version
 ```
 
+#### Install semgrep
+
+Install with a single command by using the dedicated `Makefile` target.
+
+```bash
+make deps-local
+```
+
+The command installs `pipx` and `semgrep` and confirms pipx binary is added to `PATH`.
+
+Verify installation:
+
+```bash
+semgrep --version
+```
+
 ## 3. Repository Layout
 
 The repository is organized into a small number of top level directories.
@@ -180,6 +220,14 @@ Detailed technical references are documented in:
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
 ## 4. Environment Setup
+
+Make sure the CLI tools outlined in section [2.1 Installing Required CLI Tools](#21-installing-required-cli-tools) are installed before continuing.
+
+Confirm they exist:
+
+```bash
+command -v hadolint jq semgrep trivy
+```
 
 ### Python version
 
@@ -222,14 +270,23 @@ dependencies into one local setup.
 The local container workflow uses `.env.example`, `docker-compose.yml`, and the
 helper scripts in `scripts/`.
 
+> [!IMPORTANT]
+> Create the `secrets/` directory, generate the API token file, and ensure the
+> external Docker network exists before running `docker compose up`.
+
 Typical local startup flow:
 
 ```bash
 # Copy and set environment variables
 cp .env.example .env
 
-# Set a strong api token in "secrets/seg_api_token.txt", or generate one running:
+# Set a strong API token in "secrets/seg_api_token.txt", or generate one running:
+mkdir -p secrets
 openssl rand -hex 32 > ./secrets/seg_api_token.txt
+
+# Ensure the shared Docker network exists.
+# Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env.
+docker network create docker-network || true
 
 # Create and configure shared volume if it doesn't exist
 ./scripts/init-shared-volume.sh --env-file .env
@@ -287,9 +344,9 @@ Current target behavior:
 
 - `make deps` upgrades `pip` and installs `requirements/dev.txt`
 - `make deps-local` installs `pipx`, installs `semgrep` with `pipx`, and
-	reminds the developer to install Trivy system-wide
+  reminds the developer to install Trivy system-wide
 - `make fmt` runs `black`, `ruff check --fix`, `trailing-whitespace`, and
-	`end-of-file-fixer`
+  `end-of-file-fixer`
 - `make quality` runs `lint`, `typecheck`, and `test`
 - `make ci` runs `quality` and `ci-security`
 - `make build` runs `docker build -t seg:local .`
@@ -514,33 +571,42 @@ installed by `requirements/dev.txt`.
 
 ## 12. Troubleshooting
 
-Common local troubleshooting steps:
-
-Clear the MyPy cache and rerun the CI gate:
+### Clear the MyPy cache and rerun the CI gate
 
 ```bash
 rm -rf .mypy_cache && make ci
 ```
 
-Verify the active Python version:
+### Verify the active Python version
 
 ```bash
 python --version
 ```
 
-Verify installed Python dependencies:
+### Verify installed Python dependencies
 
 ```bash
 pip freeze
 ```
 
-Verify required local CLI tools:
+### Verify required local CLI tools
 
 ```bash
 command -v hadolint jq semgrep trivy
 ```
 
-Inspect helper script usage:
+### Semgrep crashes after update
+
+If `semgrep` fails to run or crashes after an update (for example with a segmentation fault), reinstall it using pipx.
+
+```bash
+pipx uninstall semgrep
+make deps-local
+```
+
+This forces `pipx` to recreate the isolated environment used by the Semgrep CLI.
+
+### Inspect helper script usage
 
 ```bash
 scripts/init-shared-volume.sh --help

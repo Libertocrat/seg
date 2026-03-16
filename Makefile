@@ -17,6 +17,7 @@ BANDIT_TARGETS = src/
 BANDIT_FLAGS = --recursive --severity-level medium --confidence-level medium
 PIP_AUDIT_FLAGS = -r $(REQ_RUNTIME)
 SEMGREP_FLAGS = --error --config p/ci --config p/python --config p/security-audit --exclude .venv .
+SEMGREP_VERSION := 1.155.0
 TRIVY_FS_FLAGS = fs \
 	--scanners secret,misconfig \
 	--severity HIGH,CRITICAL \
@@ -71,7 +72,7 @@ deps:
 
 deps-local:
 	$(PIP) install -U pipx
-	pipx install --force semgrep
+	pipx install --force "semgrep==$(SEMGREP_VERSION)"
 	pipx ensurepath || true
 	@echo "Ensure Trivy is installed system-wide (apt install trivy)"
 

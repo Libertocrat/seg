@@ -13,6 +13,10 @@ environments.
 
 The repository is not currently accepting external code contributions.
 
+> [!IMPORTANT]
+> External pull requests are currently paused while the project stabilizes its
+> public API, security model, and release workflow.
+
 The project is still stabilizing several core areas before opening the pull
 request process to external contributors:
 

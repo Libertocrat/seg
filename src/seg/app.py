@@ -146,8 +146,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     # Middlewares (order matters): registration is written so runtime order
-    # becomes SecurityHeaders (optional) → RequestID → Observability →
-    # RateLimit → Timeout → RequestIntegrity → Auth → Router
+    # becomes SecurityHeaders (optional) -> RequestID -> Observability ->
+    # RateLimit -> Timeout -> RequestIntegrity -> Auth -> Router
     # (Starlette runs last-added middleware first).
     app.add_middleware(AuthMiddleware, api_token=settings.seg_api_token)
     app.add_middleware(

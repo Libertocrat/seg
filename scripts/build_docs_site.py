@@ -19,6 +19,8 @@ OPENAPI_OUTPUT_PATH = Path("docs/api-docs/output/openapi.json")
 
 
 def main() -> None:
+    """Build the static Swagger UI site for the requested release version."""
+
     version = os.environ["RELEASE_VERSION"]
 
     site_root = Path("site")

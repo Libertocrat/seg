@@ -1,6 +1,6 @@
 # SEG Testing Strategy
 
-## Index
+## Table of Contents
 
 - [1. Testing Overview](#1-testing-overview)
 - [2. Testing Philosophy](#2-testing-philosophy)
@@ -45,6 +45,10 @@ ActionHandlers --> SandboxHelpers
 ## 2. Testing Philosophy
 
 The test suite is designed around deterministic execution and isolation.
+
+> [!IMPORTANT]
+> Tests are intentionally isolated from local shell variables and `.env` files.
+> This prevents machine-specific configuration from changing test outcomes.
 
 The current design goals are:
 

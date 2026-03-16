@@ -1,4 +1,5 @@
-# src/seg/actions/registry.py
+"""In-memory registry for SEG action specifications."""
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
@@ -116,6 +117,16 @@ _REGISTRY: dict[str, ActionSpec[Any]] = {}
 
 
 def register_action(spec: ActionSpec[Any]) -> None:
+    """Register a new action specification.
+
+    Args:
+        spec: Fully defined action specification to add to the allowlist.
+
+    Raises:
+        TypeError: If example payloads do not match their declared models.
+        RuntimeError: If another action is already registered with the same name.
+    """
+
     # Validate OpenAPI request/response examples
     if spec.params_example is not None and spec.params_model:
         if not isinstance(spec.params_example, spec.params_model):
@@ -137,10 +148,25 @@ def register_action(spec: ActionSpec[Any]) -> None:
 
 
 def get_action(action_name: str) -> ActionSpec | None:
+    """Return a registered action by name.
+
+    Args:
+        action_name: Client-visible action identifier.
+
+    Returns:
+        The matching action specification, or `None` if it is not registered.
+    """
+
     return _REGISTRY.get(action_name)
 
 
 def list_actions() -> list[str]:
+    """List all registered action names in sorted order.
+
+    Returns:
+        Sorted action names currently present in the registry.
+    """
+
     # Useful for debugging / audit endpoints later (optional).
     return sorted(_REGISTRY.keys())
 

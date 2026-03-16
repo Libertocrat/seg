@@ -11,11 +11,16 @@ ARG SEG_APP_VERSION=0.1.0
 ENV PATH="/usr/local/bin:$PATH"
 
 # Install runtime deps (libmagic) and curl for healthcheck
+# Distribution is upgraded to apply security updates and ensure latest bug fixes
+# apt-get cleanup is done in the same layer to minimize image size
 RUN apt-get update \
+    && apt-get dist-upgrade -y \
     && apt-get install -y --no-install-recommends \
-       ca-certificates \
-       curl \
-       libmagic1 \
+        ca-certificates \
+        curl \
+        libmagic1 \
+    && apt-get purge -y --auto-remove \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root group/user (deterministic, minimal, hadolint-clean)

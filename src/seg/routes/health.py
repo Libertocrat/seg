@@ -1,3 +1,5 @@
+"""Health route definitions for SEG."""
+
 from typing import Literal
 
 from fastapi import APIRouter
@@ -9,6 +11,8 @@ router = APIRouter(prefix="", tags=["health"])
 
 
 class HealthResult(BaseModel):
+    """Readiness payload returned by the health endpoint."""
+
     status: Literal["ok"]
 
 

@@ -13,7 +13,7 @@
 </p>
 <br>
 
-## Index
+## Table of Contents
 
 - [1. CI Overview](#1-ci-overview)
 - [2. CI Architecture](#2-ci-architecture)
@@ -277,6 +277,10 @@ SecurityWorkflow --> TrivyImage
 
 The workflow in `.github/workflows/release.yml` automates container releases and GitHub release assets.
 
+> [!IMPORTANT]
+> Publishing is reserved for version tags matching `v*`. Regular pushes and
+> pull requests do not publish container images or GitHub release artifacts.
+
 It is triggered by:
 
 - pushes of tags matching `v*`
@@ -330,6 +334,10 @@ ExportOpenAPI --> GitHubRelease
 ## 8. Documentation Publishing Pipeline (release-docs.yml)
 
 The workflow in `.github/workflows/release-docs.yml` publishes versioned API documentation to the `gh-pages` branch.
+
+> [!NOTE]
+> The docs publishing workflow adds new versioned content without removing
+> previously published API documentation versions.
 
 It is triggered by pushes of tags matching `v*`.
 

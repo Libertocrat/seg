@@ -1,6 +1,6 @@
 # SEG Architecture
 
-## Index
+## Table of Contents
 
 - [1. System Overview](#1-system-overview)
 - [2. Repository Structure](#2-repository-structure)
@@ -257,6 +257,11 @@ AllowedDirectories --> FileOperation
 ## 7. Configuration System
 
 Configuration is defined in `src/seg/core/config.py` with a Pydantic `BaseSettings` model.
+
+> [!IMPORTANT]
+> `SEG_SANDBOX_DIR` and `SEG_ALLOWED_SUBDIRS` must be configured before SEG can
+> start. If either value is missing or invalid, configuration loading aborts
+> the process.
 
 ### Loading behavior
 

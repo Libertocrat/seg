@@ -5,7 +5,7 @@ Secure Execution Gateway (SEG) is designed as an internal service with a defense
 Detailed security design and threat analysis are documented separately:
 
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): system architecture and security-relevant components
-- [docs/THREAT_MODEL.md](./docs/THREAD_MODEL.md): threat analysis, attack surfaces, and mitigations
+- [docs/THREAT_MODEL.md](./docs/THREAT_MODEL.md): threat analysis, attack surfaces, and mitigations
 - [docs/CI.md](./docs/CI.md): automated testing, security checks, and CI workflows
 
 This document focuses on vulnerability reporting and coordinated disclosure.
@@ -15,6 +15,11 @@ This document focuses on vulnerability reporting and coordinated disclosure.
 SEG is intended to run as an **internal service** inside trusted container infrastructure. It is typically deployed inside a Docker network and accessed only by other trusted services.
 
 The service is not designed to be exposed directly to the public Internet.
+
+> [!WARNING]
+> Do not expose SEG directly on a public edge. The service assumes a trusted
+> internal network and intentionally leaves `/health`, `/metrics`, and optional
+> docs endpoints unauthenticated.
 
 ## Supported Versions
 
@@ -58,7 +63,9 @@ The maintainer aims to:
 - **GitHub Security Advisories** (preferred if this repository is hosted on GitHub): allows private disclosure, coordinated disclosure, and optionally requesting CVE assignment.
 - **Email to the project contact** (Libertocrat - <libertocrat@proton.me>): acceptable for private reports when Security Advisories are not available.
 
-Please do **NOT** open a public GitHub issue for security-sensitive reports.
+> [!IMPORTANT]
+> Use a private disclosure channel for vulnerabilities. Public issues are not
+> an appropriate reporting path for security-sensitive findings.
 
 ## Reporter Checklist
 
@@ -73,7 +80,7 @@ When reporting, please include as much of the following as possible to help tria
 
 ## Secure Attachments (Optional)
 
-If you need to send sensitive files, screenshots, or Proofs-of-Concept (PoCs), you may encrypt them using the maintainer’s public PGP key.
+If you need to send sensitive files, screenshots, or Proofs-of-Concept (PoCs), you may encrypt them using the maintainer's public PGP key.
 
 The public PGP key is available in the file [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc) at the root of this repository.
 

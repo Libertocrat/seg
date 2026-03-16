@@ -3,7 +3,7 @@ Unit tests for the file_verify action.
 
 These tests verify:
 - policy-report behavior (no exception on policy failure)
-- MIME ↔ extension coherence
+- MIME and extension coherence
 - allowed extension / MIME policies
 - optional checksum validation
 - new policy error codes:

@@ -1,6 +1,6 @@
 # SEG Threat Model
 
-## Index
+## Table of Contents
 
 - [1. Security Overview](#1-security-overview)
 - [2. Security Goals](#2-security-goals)
@@ -200,6 +200,11 @@ Authentication coverage is as follows:
 ## 8. Residual Risks
 
 Some risks remain by design or by deployment assumption.
+
+> [!WARNING]
+> `/health`, `/metrics`, and optional docs endpoints can be reached without
+> authentication. Keep SEG on a trusted internal network and leave docs
+> disabled when exposing them is not acceptable.
 
 - SEG relies on container isolation. If the container runtime is misconfigured or compromised, container level protections may not hold.
 - SEG relies on correct sandbox volume configuration. An incorrect mount target or incorrect allowed subdirectory configuration weakens the filesystem boundary.
