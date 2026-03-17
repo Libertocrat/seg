@@ -1,4 +1,5 @@
-# src/seg/routes/execute.py
+"""HTTP route that exposes SEG's action execution endpoint."""
+
 from __future__ import annotations
 
 from typing import Any

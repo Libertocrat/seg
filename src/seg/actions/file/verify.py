@@ -1,3 +1,5 @@
+"""Composite file verification action built from hardened file primitives."""
+
 from __future__ import annotations
 
 import logging

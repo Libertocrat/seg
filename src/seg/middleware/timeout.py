@@ -1,3 +1,5 @@
+"""Request timeout middleware for SEG HTTP traffic."""
+
 from __future__ import annotations
 
 import asyncio
@@ -43,6 +45,8 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
     _MIN_TIMEOUT_MS = 100
 
     def __init__(self, app: ASGIApp, timeout_ms: int | None = None) -> None:
+        """Initialize timeout configuration and precomputed seconds value."""
+
         super().__init__(app)
         self._timeout_ms = self._resolve_timeout_ms(app, timeout_ms)
         self._timeout_seconds = max(0.1, self._timeout_ms / 1000.0)

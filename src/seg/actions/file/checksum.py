@@ -134,7 +134,11 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
             ) from exc
 
         async def _compute() -> str:
+            """Run checksum computation in a worker thread."""
+
             def _blocking_hash(fd_inner: int) -> str:
+                """Read the file descriptor and return the digest hex string."""
+
                 try:
                     h = hashlib.new(algo)
                 except ValueError as exc:

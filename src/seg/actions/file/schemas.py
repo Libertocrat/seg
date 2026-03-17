@@ -158,6 +158,8 @@ class MimeDetectResult(BaseModel):
 
 
 class VerifyChecksumParams(BaseModel):
+    """Optional checksum validation parameters for `file_verify`."""
+
     expected: str = Field(..., description="Expected checksum (hex string).")
     algorithm: Algorithm = Field(
         "sha256",
@@ -166,6 +168,8 @@ class VerifyChecksumParams(BaseModel):
 
 
 class FileVerifyParams(BaseModel):
+    """Input payload for the composite `file_verify` action."""
+
     path: str = Field(..., description="Path relative to SEG sandbox directory.")
     expected_mime: str | None = Field(
         None,
@@ -186,6 +190,8 @@ class FileVerifyParams(BaseModel):
 
 
 class FileVerifyResult(BaseModel):
+    """Structured verification outcome returned by `file_verify`."""
+
     file_verified: bool
     size_bytes: int
     detected_mime: str

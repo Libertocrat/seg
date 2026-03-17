@@ -1,6 +1,3 @@
-# src/seg/core/security/mime_map.py
-from __future__ import annotations
-
 """Centralized extension-to-MIME mapping used by :mod:`file_verify`.
 
 Keys are lowercase extensions including the leading dot (for example
@@ -14,6 +11,9 @@ Design goals:
 - One-to-many mapping (an extension may map to multiple valid MIME types)
 - Hardcoded for v0.1.0 (future override may be added)
 """
+
+from __future__ import annotations
+
 EXTENSION_MIME_MAP: dict[str, frozenset[str]] = {
     ".txt": frozenset({"text/plain"}),
     ".md": frozenset({"text/markdown", "text/plain"}),

@@ -17,7 +17,7 @@
 
 - [1. CI Overview](#1-ci-overview)
 - [2. CI Architecture](#2-ci-architecture)
-- [3. Makefile Driven CI Pipeline](#3-makefile-driven-ci-pipeline)
+- [3. Makefile-Driven CI Pipeline](#3-makefile-driven-ci-pipeline)
 - [4. Dependency Management](#4-dependency-management)
 - [5. Quality Gate Pipeline (ci.yml)](#5-quality-gate-pipeline-ciyml)
 - [6. Security Analysis Pipeline (security.yml)](#6-security-analysis-pipeline-securityyml)
@@ -27,7 +27,7 @@
 
 ## 1. CI Overview
 
-SEG uses GitHub Actions workflows stored in `.github/workflows/` together with a Makefile driven execution model.
+SEG uses GitHub Actions workflows stored in `.github/workflows/` together with a Makefile-driven execution model.
 
 The CI system enforces:
 
@@ -93,7 +93,7 @@ At a high level:
 
 This separation keeps fast feedback, deep security analysis, release automation, and documentation publishing in distinct pipelines.
 
-## 3. Makefile Driven CI Pipeline
+## 3. Makefile-Driven CI Pipeline
 
 The `Makefile` defines the executable CI tasks and their composition.
 
@@ -278,8 +278,7 @@ SecurityWorkflow --> TrivyImage
 The workflow in `.github/workflows/release.yml` automates container releases and GitHub release assets.
 
 > [!IMPORTANT]
-> Publishing is reserved for version tags matching `v*`. Regular pushes and
-> pull requests do not publish container images or GitHub release artifacts.
+> Publishing is reserved for version tags matching `v*`. Regular pushes and pull requests do not publish container images or GitHub release artifacts.
 
 It is triggered by:
 
@@ -336,8 +335,7 @@ ExportOpenAPI --> GitHubRelease
 The workflow in `.github/workflows/release-docs.yml` publishes versioned API documentation to the `gh-pages` branch.
 
 > [!NOTE]
-> The docs publishing workflow adds new versioned content without removing
-> previously published API documentation versions.
+> The docs publishing workflow adds new versioned content without removing previously published API documentation versions.
 
 It is triggered by pushes of tags matching `v*`.
 

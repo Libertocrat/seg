@@ -1,4 +1,5 @@
-# src/seg/core/security/paths.py
+"""Path sanitization and sandbox validation primitives for SEG."""
+
 from __future__ import annotations
 
 import logging

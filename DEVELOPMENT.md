@@ -47,7 +47,7 @@ It explains how to:
 - run SEG locally
 - execute quality checks
 - reproduce CI pipelines
-- use developer helper utilities in `scripts/` and the `Makefile`
+- use helper utilities in `scripts/` and the `Makefile`
 
 SEG development assumes a Linux environment.
 
@@ -60,9 +60,7 @@ The current development workflow is built around:
 - pre-commit
 - quality, testing, and security tooling
 
-The `Makefile` provides a consistent interface between local development and
-the CI pipelines. It also includes local DX commands such as `deps`,
-`deps-local`, and `fmt`.
+The `Makefile` provides a consistent interface between local development and the CI pipelines. It also includes local DX commands such as `deps`, `deps-local`, and `fmt`.
 
 ```mermaid
 flowchart TD
@@ -86,8 +84,7 @@ The current local workflow depends on the following tools.
 | Make | developer task execution |
 | curl | local API checks and helper downloads |
 
-Python 3.12 is the supported development version. It can be installed and
-managed with `pyenv` before creating the project virtual environment.
+Python 3.12 is the supported development version. It can be installed and managed with `pyenv` before creating the project virtual environment.
 
 Additional CLI tools are required for some workflows:
 
@@ -201,7 +198,7 @@ semgrep --version
 
 ## 3. Repository Layout
 
-The repository is organized into a small number of top level directories.
+The repository is organized into a small number of top-level directories.
 
 | Directory | Purpose |
 | --- | --- |
@@ -262,17 +259,14 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements/dev.txt
 ```
 
-`requirements/dev.txt` aggregates runtime, testing, linting, and security
-dependencies into one local setup.
+`requirements/dev.txt` aggregates runtime, testing, linting, and security dependencies into one local setup.
 
 ### Local container stack
 
-The local container workflow uses `.env.example`, `docker-compose.yml`, and the
-helper scripts in `scripts/`.
+The local container workflow uses `.env.example`, `docker-compose.yml`, and the helper scripts in `scripts/`.
 
 > [!IMPORTANT]
-> Create the `secrets/` directory, generate the API token file, and ensure the
-> external Docker network exists before running `docker compose up`.
+> Create the `secrets/` directory, generate the API token file, and ensure the external Docker network exists before running `docker compose up`.
 
 Typical local startup flow:
 
@@ -313,8 +307,7 @@ Python dependencies are split across the `requirements/` directory.
 | `security.txt` | security scanning tools |
 | `dev.txt` | aggregate development environment |
 
-This separation allows local workflows and CI jobs to install only the
-dependency sets they need.
+This separation allows local workflows and CI jobs to install only the dependency sets they need.
 
 `dev.txt` currently aggregates:
 
@@ -343,18 +336,15 @@ Important targets are:
 Current target behavior:
 
 - `make deps` upgrades `pip` and installs `requirements/dev.txt`
-- `make deps-local` installs `pipx`, installs `semgrep` with `pipx`, and
-  reminds the developer to install Trivy system-wide
-- `make fmt` runs `black`, `ruff check --fix`, `trailing-whitespace`, and
-  `end-of-file-fixer`
+- `make deps-local` installs `pipx`, installs `semgrep` with `pipx`, and reminds the developer to install Trivy system-wide
+- `make fmt` runs `black`, `ruff check --fix`, `trailing-whitespace`, and `end-of-file-fixer`
 - `make quality` runs `lint`, `typecheck`, and `test`
 - `make ci` runs `quality` and `ci-security`
 - `make build` runs `docker build -t seg:local .`
 - `make deep-security` runs `semgrep`, `trivy-fs`, and `trivy-image`
 - `make full` runs `ci`, `build`, and `deep-security`
 
-These commands mirror the CI pipelines documented in [docs/CI.md](docs/CI.md),
-except for local DX oriented commands such as `fmt`, `deps`, and `deps-local`.
+These commands mirror the CI pipelines documented in [docs/CI.md](docs/CI.md), except for local DX oriented commands such as `fmt`, `deps`, and `deps-local`.
 
 ```mermaid
 flowchart TD
@@ -367,8 +357,7 @@ deep-security --> full
 
 ## 7. Pre-commit Hooks
 
-SEG uses `pre-commit` to enforce local quality checks before changes move into
-CI.
+SEG uses `pre-commit` to enforce local quality checks before changes move into CI.
 
 The current hook set includes:
 
@@ -464,10 +453,7 @@ Example usage:
 scripts/init-shared-volume.sh --env-file .env
 ```
 
-The initializer prepares the mounted volume at `/data` inside its temporary
-helper container. In the SEG container, the same volume is mounted at
-`SEG_SANDBOX_DIR`, which defaults to `/data` in `.env.example` and can be
-changed in `.env`.
+The initializer prepares the mounted volume at `/data` inside its temporary helper container. In the SEG container, the same volume is mounted at `SEG_SANDBOX_DIR`, which defaults to `/data` in `.env.example` and can be changed in `.env`.
 
 ### 9.2 SEG Local Port Forwarding
 
@@ -486,8 +472,7 @@ Common uses:
 - run host-side integration checks against the containerized service
 - inspect API behavior without publishing ports in Compose
 
-The script uses a temporary `alpine/socat` container on the shared Docker
-network.
+The script uses a temporary `alpine/socat` container on the shared Docker network.
 
 Required variables:
 
@@ -513,13 +498,11 @@ http://localhost:<PORT>/health
 
 `PORT` is auto-assigned by default or can be set with `--local-port`.
 
-More details for both scripts are available in [scripts/README.md](scripts/README.md)
-and through each script's `--help` output.
+More details for both scripts are available in [scripts/README.md](scripts/README.md) and through each script's `--help` output.
 
 ## 10. Developer Tools Architecture
 
-The local developer utilities are designed to improve DX without changing the
-production container configuration.
+The local developer utilities are designed to improve DX without changing the production container configuration.
 
 ```mermaid
 flowchart TD
@@ -534,8 +517,7 @@ InitVolume --> DockerVolume
 SegForward --> SEGContainer
 ```
 
-The local tools operate around the main container stack rather than changing
-the application runtime model.
+The local tools operate around the main container stack rather than changing the application runtime model.
 
 ## 11. Reproducing CI Locally
 
@@ -565,9 +547,7 @@ This adds:
 - Trivy filesystem scan
 - Trivy image scan
 
-Note that `make ci` and `make full` require the relevant local tools to be
-installed. In particular, `hadolint`, `jq`, `semgrep`, and `trivy` are not all
-installed by `requirements/dev.txt`.
+Note that `make ci` and `make full` require the relevant local tools to be installed. In particular, `hadolint`, `jq`, `semgrep`, and `trivy` are not all installed by `requirements/dev.txt`.
 
 ## 12. Troubleshooting
 

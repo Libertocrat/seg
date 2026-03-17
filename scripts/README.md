@@ -11,15 +11,14 @@ This directory contains helper scripts used for local development, release artif
 | --- | --- |
 | `scripts/init-shared-volume.sh` | Create and validate the Docker volume used as the SEG filesystem sandbox |
 | `scripts/seg-forward.sh` | Forward a localhost port to a running SEG container without publishing ports in Compose |
-| `scripts/export_openapi.py` | Build the FastAPI app and write the generated OpenAPI schema to disk |
+| `scripts/export_openapi.py` | Build the FastAPI app and write the OpenAPI schema to disk |
 | `scripts/build_docs_site.py` | Build a versioned Swagger UI site for GitHub Pages from the exported schema |
 
 ## init-shared-volume.sh
 
 Initializes the shared Docker volume used by SEG and compatible services.
 
-The script runs on the host, uses the Docker CLI, and applies filesystem
-changes inside a temporary `alpine:3.18` container mounted at `/data`.
+The script runs on the host, uses the Docker CLI, and applies filesystem changes inside a temporary `alpine:3.18` container mounted at `/data`.
 
 ### Responsibilities
 
@@ -30,32 +29,26 @@ changes inside a temporary `alpine:3.18` container mounted at `/data`.
 
 ### Required configuration
 
-The script accepts `--env-file <path>` or reads variables already exported in
-the environment.
+The script accepts `--env-file <path>` or reads variables already exported in the environment.
 
 Required variables:
 
 - `SHARED_VOLUME_NAME`: Docker named volume to initialize
 - `NON_ROOT_GID`: numeric group ID that must own the sandbox path
-- `SEG_ALLOWED_SUBDIRS`: `*` for volume root access, or a comma separated list
-  such as `uploads,tmp`
+- `SEG_ALLOWED_SUBDIRS`: `*` for volume root access, or a comma-separated list such as `uploads,tmp`
 
-If `--env-file` is provided, the required variables are loaded from that file.
-If `--env-file` is not provided, the required variables must already exist in
-the shell environment.
+If `--env-file` is provided, the required variables are loaded from that file. If `--env-file` is not provided, the required variables must already exist in the shell environment.
 
 ### Sandbox modes
 
 - `SEG_ALLOWED_SUBDIRS="*"`: use `/data` as the sandbox root
 - `SEG_ALLOWED_SUBDIRS="a,b,c"`: use `/data/a`, `/data/b`, `/data/c`
 
-Subdirectory names must be simple names. Names containing `/`, `.` or `..` are
-rejected.
+Subdirectory names must be simple names. Names containing `/`, `.` or `..` are rejected.
 
 ### Behavior
 
-- New volumes are initialized with `root:<NON_ROOT_GID>` ownership and mode
-  `2775`
+- New volumes are initialized with `root:<NON_ROOT_GID>` ownership and mode `2775`
 - Existing volumes are validated for group ownership and `setgid`
 - In subdirectory mode, missing allowed subdirectories are created
 - Permission conflicts stop execution unless `--force` is provided
@@ -84,8 +77,7 @@ docker compose up -d
 
 Creates a temporary localhost port forward to a running SEG container.
 
-The script starts an ephemeral `alpine/socat` container on the same Docker
-network as SEG. The forward binds to `127.0.0.1`, not to all host interfaces.
+The script starts an ephemeral `alpine/socat` container on the same Docker network as SEG. The forward binds to `127.0.0.1`, not to all host interfaces.
 
 ### Responsibilities
 
@@ -101,23 +93,19 @@ Required variables:
 - `SEG_PORT`: TCP port exposed by the SEG container
 - `COMPOSE_PROJECT_NAME`: required only when `--container` is not provided
 
-If `--env-file` is provided, the required variables are loaded from that file.
-If `--env-file` is not provided, the required variables must already exist in
-the shell environment.
+If `--env-file` is provided, the required variables are loaded from that file. If `--env-file` is not provided, the required variables must already exist in the shell environment.
 
 ### Container resolution
 
 - If `--container <name>` is provided, that running container is used
-- Otherwise the script searches for a running container whose name starts with
-  `$COMPOSE_PROJECT_NAME-seg`
+- Otherwise the script searches for a running container whose name starts with `$COMPOSE_PROJECT_NAME-seg`
 - Zero matches or multiple matches cause an error
 
 ### Local port selection
 
 - `--local-port <port>` forces a specific port
 - Without `--local-port`, the script scans ports `8081` through `8099`
-- A port is considered unavailable if it is already listening on the host or
-  already published by Docker
+- A port is considered unavailable if it is already listening on the host or already published by Docker
 
 ### Flags
 
@@ -146,13 +134,12 @@ After the forward starts, the local URLs printed by the script include:
 
 ## export_openapi.py
 
-Builds the SEG application and writes the generated OpenAPI schema to
-`docs/api-docs/output/openapi.json`.
+Builds the SEG application and writes the generated OpenAPI schema to `docs/api-docs/output/openapi.json`.
 
 ### Responsibilities
 
 - Normalize and validate the release version
-- Build a documentation specific `Settings` object
+- Build a documentation-specific `Settings` object
 - Create the FastAPI application
 - Generate and write the OpenAPI schema as JSON
 
@@ -187,8 +174,7 @@ Output:
 
 ## build_docs_site.py
 
-Builds a versioned Swagger UI site under `site/api-docs/` for publication to
-GitHub Pages.
+Builds a versioned Swagger UI site under `site/api-docs/` for publication to GitHub Pages.
 
 ### Responsibilities
 
@@ -201,16 +187,13 @@ GitHub Pages.
 ### Inputs
 
 - `RELEASE_VERSION`: required environment variable used as the version folder
-- `docs/api-docs/template/swagger.html`: HTML template copied to the versioned
-  site as `index.html`
-- `docs/api-docs/output/openapi.json`: schema file produced by
-  `scripts/export_openapi.py`
+- `docs/api-docs/template/swagger.html`: HTML template copied to the versioned site as `index.html`
+- `docs/api-docs/output/openapi.json`: schema file produced by `scripts/export_openapi.py`
 - `node_modules/swagger-ui-dist`: Swagger UI distribution copied into the site
 
 ### Behavior
 
-- The script preserves existing content in `site/api-docs/` by copying new
-  files into the selected version directory
+- The script preserves existing content in `site/api-docs/` by copying new files into the selected version directory
 - `site/api-docs/index.html` redirects to the latest version directory
 - `site/index.html` redirects to `./api-docs/`
 

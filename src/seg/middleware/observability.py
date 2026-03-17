@@ -55,6 +55,8 @@ class ObservabilityMiddleware:
         app: ASGIApp,
         excluded_path_prefixes: tuple[str, ...] = ("/metrics",),
     ) -> None:
+        """Store the wrapped application and excluded metric paths."""
+
         self.app = app
         self._excluded_path_prefixes = excluded_path_prefixes
 
@@ -83,6 +85,8 @@ class ObservabilityMiddleware:
         status_code: int | None = None
 
         async def send_wrapper(message: Message) -> None:
+            """Capture the first response status code before forwarding."""
+
             nonlocal status_code
             if message.get("type") == "http.response.start" and status_code is None:
                 raw_status = message.get("status")

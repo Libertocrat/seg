@@ -115,7 +115,11 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
             ) from exc
 
         async def _detect() -> str:
+            """Run MIME detection in a worker thread."""
+
             def _blocking_detect(fd_inner: int) -> str:
+                """Inspect the file contents and return the detected MIME type."""
+
                 # Wrap duplicated fd; closes automatically
                 with os.fdopen(fd_inner, "rb") as f:
                     try:

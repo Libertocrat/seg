@@ -1,3 +1,5 @@
+"""Bearer-token authentication middleware for protected SEG endpoints."""
+
 from __future__ import annotations
 
 import hmac
@@ -13,6 +15,8 @@ from seg.core.schemas.envelope import ResponseEnvelope
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
+    """Authenticate protected HTTP requests using a shared bearer token."""
+
     def __init__(self, app: ASGIApp, api_token: str) -> None:
         """Create a new AuthMiddleware instance.
 

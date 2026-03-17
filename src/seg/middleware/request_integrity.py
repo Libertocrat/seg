@@ -70,6 +70,8 @@ class RequestIntegrityMiddleware:
         max_body_bytes: int | None = None,
         content_type_policies: list[ContentTypePolicy] | None = None,
     ) -> None:
+        """Configure the middleware body limit and content-type policies."""
+
         self.app = app
         self._max_body_bytes = self._resolve_max_body_bytes(app, max_body_bytes)
         self._content_type_policies = self._index_policies(content_type_policies or [])
@@ -339,6 +341,8 @@ class RequestIntegrityMiddleware:
         total = 0
 
         async def limited_receive() -> Message:
+            """Track streamed request bytes and fail once the limit is exceeded."""
+
             nonlocal total
             message = await receive()
 

@@ -52,23 +52,13 @@ A security-focused execution gateway for automation platforms that replaces arbi
 
 ## 1. Overview
 
-Secure Execution Gateway (SEG) is a security-focused FastAPI microservice that
-exposes a strictly allowlisted set of file operations inside a sandboxed
-container filesystem.
+Secure Execution Gateway (SEG) is a security-focused FastAPI microservice that exposes a strictly allowlisted set of file operations inside a sandboxed container filesystem.
 
-SEG acts as an internal execution gateway for automation and platform
-workflows that need controlled file handling without exposing arbitrary shell
-execution.
+SEG acts as an internal execution gateway for automation and platform workflows that need controlled file handling without exposing arbitrary shell execution.
 
-The service accepts HTTP requests, validates them through a defense-in-depth
-middleware stack, resolves a registered action from an explicit in-memory
-allowlist, and executes that action only inside a configured filesystem
-sandbox.
+The service accepts HTTP requests, validates them through a defense-in-depth middleware stack, resolves a registered action from an explicit in-memory allowlist, and executes that action only inside a configured filesystem sandbox.
 
-This design keeps the exposed capability set small and predictable. The API is
-centered on one execution endpoint, typed request and response models, stable
-error codes, and container-oriented deployment. SEG is intended for trusted
-internal environments and is not a generic command runner.
+This design keeps the exposed capability set small and predictable. The API is centered on one execution endpoint, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
 
 > [!IMPORTANT]
 > SEG was originally created as a secure alternative to unsafe command execution mechanisms commonly used in workflow automation platforms.
@@ -126,15 +116,9 @@ Possible use cases include:
 
 ## 2. Motivation
 
-The rapid adoption of low-code automation platforms, agentic AI systems,
-and workflow orchestration tools has dramatically increased the number of
-systems capable of executing complex automated tasks with access to
-sensitive data and infrastructure.
+The rapid adoption of low-code automation platforms, agentic AI systems, and workflow orchestration tools has dramatically increased the number of systems capable of executing complex automated tasks with access to sensitive data and infrastructure.
 
-Many of these platforms prioritize **speed to market and ease of use** over
-defensive system design. As a result, execution primitives such as command
-execution, dynamic expressions, or unrestricted scripting frequently become
-high-risk attack surfaces.
+Many of these platforms prioritize **speed to market and ease of use** over defensive system design. As a result, execution primitives such as command execution, dynamic expressions, or unrestricted scripting frequently become high-risk attack surfaces.
 
 When combined with:
 
@@ -143,14 +127,11 @@ When combined with:
 - privileged access to internal systems and data
 - limited security expertise among many users
 
-these characteristics create a **high-risk environment for Remote Code
-Execution (RCE), privilege escalation, and data compromise**.
+these characteristics create a **high-risk environment for Remote Code Execution (RCE), privilege escalation, and data compromise**.
 
-Secure Execution Gateway (SEG) was designed as an **architectural response**
-to this class of problems.
+Secure Execution Gateway (SEG) was designed as an **architectural response** to this class of problems.
 
-Instead of exposing arbitrary command execution, SEG introduces a hardened
-execution boundary where:
+Instead of exposing arbitrary command execution, SEG introduces a hardened execution boundary where:
 
 - operations are **explicitly allowlisted**
 - filesystem access is **sandboxed and constrained**
@@ -162,9 +143,7 @@ This model replaces unsafe execution patterns with **controlled, deterministic o
 
 ### Example vulnerabilities illustrating the risk
 
-Several critical vulnerabilities discovered in workflow automation platforms
-between late 2025 and early 2026 illustrate the inherent risk of exposing
-arbitrary execution capabilities.
+Several critical vulnerabilities discovered in workflow automation platforms between late 2025 and early 2026 illustrate the inherent risk of exposing arbitrary execution capabilities.
 
 | CVE | Type | Description |
 | ---- | ---- | ---- |
@@ -174,8 +153,7 @@ arbitrary execution capabilities.
 
 > [!WARNING]
 > SEG is not a patch for these vulnerabilities.
-> It is an architectural approach designed to remove entire classes of unsafe
-> execution patterns from automation workflows.
+> It is an architectural approach designed to remove entire classes of unsafe execution patterns from automation workflows.
 
 ## 3. Key Features
 
@@ -204,20 +182,15 @@ Dispatcher --> FileActions
 FileActions --> SandboxFilesystem
 ```
 
-Middleware validates authentication, request integrity, rate limits, timeouts,
-request IDs, observability, and optional security headers before the request
-reaches the dispatcher.
+Middleware validates authentication, request integrity, rate limits, timeouts, request IDs, observability, and optional security headers before the request reaches the dispatcher.
 
-The dispatcher validates the action name, validates parameters against the
-registered Pydantic model, executes the action handler, and normalizes success
-or failure into the standard response envelope.
+The dispatcher validates the action name, validates parameters against the registered Pydantic model, executes the action handler, and normalizes success or failure into the standard response envelope.
 
 For a full architecture walkthrough, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 5. Security Model
 
-SEG is designed around explicit controls rather than broad execution
-capabilities.
+SEG is designed around explicit controls rather than broad execution capabilities.
 
 - Bearer token authentication on protected endpoints
 - Request integrity validation at the ASGI boundary
@@ -235,13 +208,10 @@ For a complete threat analysis see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## 6. Quick Start
 
-SEG is designed to run inside Docker and to remain an internal service on a
-shared Docker network.
+SEG is designed to run inside Docker and to remain an internal service on a shared Docker network.
 
 > [!IMPORTANT]
-> Before starting the stack, ensure the external Docker network defined by
-> `SHARED_DOCKER_NETWORK` exists, initialize the shared volume, and create the
-> secret file at `secrets/seg_api_token.txt`.
+> Before starting the stack, ensure the external Docker network defined by `SHARED_DOCKER_NETWORK` exists, initialize the shared volume, and create the secret file at `secrets/seg_api_token.txt`.
 
 Minimal local startup:
 
@@ -270,8 +240,7 @@ Notes:
 - the container joins the external network defined by `SHARED_DOCKER_NETWORK`
 - the external Docker network must exist before `docker compose up`
 - the shared volume must be initialized before the stack starts
-- the runtime API token is loaded from `secrets/seg_api_token.txt` through the
-  Docker secret mount
+- the runtime API token is loaded from `secrets/seg_api_token.txt` through the Docker secret mount
 
 Useful follow-up checks:
 
@@ -280,8 +249,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-To reach the containerized service from the host during development without
-publishing ports in Compose:
+To reach the containerized service from the host during development without publishing ports in Compose:
 
 ```bash
 ./scripts/seg-forward.sh --env-file .env
@@ -302,9 +270,7 @@ RuntimeEnv --> Settings[SEG Settings Validation]
 Settings --> Runtime[SEG Runtime Configuration]
 ```
 
-Values shown in `.env.example` are placeholder deployment values and do not
-necessarily represent application defaults or the configuration needed for
-your particular deployment environment.
+Values shown in `.env.example` are placeholder deployment values and do not necessarily represent application defaults or the configuration needed for your particular deployment environment.
 
 ### Key variables
 
@@ -337,8 +303,7 @@ For container identity, shared volume naming, timezone, and other deployment set
 
 ## 8. API Overview
 
-The primary API model is `POST /v1/execute`, which accepts an action name and a
-validated parameter object.
+The primary API model is `POST /v1/execute`, which accepts an action name and a validated parameter object.
 
 ### Endpoints
 
@@ -350,8 +315,7 @@ The public HTTP surface is intentionally small.
 | `/health` | service readiness |
 | `/metrics` | Prometheus metrics |
 
-Interactive documentation endpoints are available only when
-`SEG_ENABLE_DOCS=true`:
+Interactive documentation endpoints are available only when `SEG_ENABLE_DOCS=true`:
 
 - `/docs`
 - `/redoc`
@@ -407,8 +371,7 @@ Current file actions implemented in `src/seg/actions/file/` are:
 
 SEG exports structured request observability and Prometheus-compatible metrics.
 
-The `/metrics` endpoint exposes metrics generated from the middleware and route
-stack, including:
+The `/metrics` endpoint exposes metrics generated from the middleware and route stack, including:
 
 - request counters
 - latency histograms
@@ -418,15 +381,13 @@ stack, including:
 - rate limit counters
 - timeout counters
 
-The observability layer also propagates or generates `X-Request-Id` so callers
-can correlate requests across systems.
+The observability layer also propagates or generates `X-Request-Id` so callers can correlate requests across systems.
 
 For implementation details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 10. Project Structure
 
-The repository layout is intentionally compact and organized around the app
-package, tests, operational tooling, and project documentation.
+The repository layout is intentionally compact and organized around the app package, tests, operational tooling, and project documentation.
 
 ```text
 seg/
@@ -500,8 +461,7 @@ For full testing documentation, see [docs/TESTING.md](docs/TESTING.md).
 
 ## 12. CI / DevSecOps
 
-SEG uses GitHub Actions plus a Makefile-driven local workflow for repeatable
-quality and security checks.
+SEG uses GitHub Actions plus a Makefile-driven local workflow for repeatable quality and security checks.
 
 The repository currently includes these pipeline categories:
 
@@ -559,8 +519,7 @@ For pipeline details, see [docs/CI.md](docs/CI.md).
 
 ## 13. Documentation
 
-The README is the high-level entry point. Detailed design, workflow, and
-operational material lives in the documents below.
+The README is the high-level entry point. Detailed design, workflow, and operational material lives in the documents below.
 
 | Document | Description |
 | --- | --- |
@@ -602,7 +561,7 @@ Useful developer entry points:
 External pull requests are not yet accepted while the project stabilizes its:
 
 - API design
-- security architecture
+- security model
 - testing coverage
 - CI workflows
 - release process
@@ -615,13 +574,10 @@ For the current contribution policy, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Please do not report vulnerabilities in public issues.
 
-Use the responsible disclosure process documented in [SECURITY.md](SECURITY.md).
-For encrypted reporting, the repository also includes
-[SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc).
+Use the responsible disclosure process documented in [SECURITY.md](SECURITY.md). For encrypted reporting, the repository also includes [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc).
 
 ## 17. License
 
-SEG is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the
-full text.
+SEG is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the full text.
 
 ---
