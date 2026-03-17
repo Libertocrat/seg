@@ -1,4 +1,6 @@
 # src/seg/actions/__init__.py
+"""Action package discovery helpers for SEG startup registration."""
+
 from __future__ import annotations
 
 import importlib
@@ -10,6 +12,8 @@ logger = logging.getLogger("seg.actions")
 
 
 def _import_module(name: str) -> ModuleType | None:
+    """Import an action module and log failures without aborting discovery."""
+
     try:
         mod = importlib.import_module(name)
         return mod

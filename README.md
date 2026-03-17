@@ -28,352 +28,306 @@
 </p>
 <br>
 
-Secure Execution Gateway (SEG) is a hardened internal microservice designed to replace unsafe operating system command execution patterns in automation workflows (e.g., n8n) or microservice-based apps.
+A security-focused execution gateway for automation platforms that replaces arbitrary command execution with strictly allowlisted operations.
 
-SEG provides a strictly allowlisted, authenticated, and auditable HTTP API for controlled file-related operations, enabling production-grade automation without exposing the host or the n8n container to arbitrary command execution risks.
+## Table of Contents
 
-## Contents
+- [1. Overview](#1-overview)
+- [2. Motivation](#2-motivation)
+- [3. Key Features](#3-key-features)
+- [4. Architecture Overview](#4-architecture-overview)
+- [5. Security Model](#5-security-model)
+- [6. Quick Start](#6-quick-start)
+- [7. Configuration](#7-configuration)
+- [8. API Overview](#8-api-overview)
+- [9. Observability](#9-observability)
+- [10. Project Structure](#10-project-structure)
+- [11. Testing Strategy](#11-testing-strategy)
+- [12. CI / DevSecOps](#12-ci--devsecops)
+- [13. Documentation](#13-documentation)
+- [14. Development](#14-development)
+- [15. Contributing](#15-contributing)
+- [16. Security Reporting](#16-security-reporting)
+- [17. License](#17-license)
 
-- [Quickstart](#quickstart)
-- [Motivation](#motivation)
-- [Design Principles](#design-principles)
-- [High-Level Architecture](#high-level-architecture)
-- [Features (v1)](#features-v1)
-- [Security Model](#security-model)
-- [Development & CI](#development--ci)
-- [Troubleshooting](#troubleshooting)
+## 1. Overview
 
----
+Secure Execution Gateway (SEG) is a security-focused FastAPI microservice that exposes a strictly allowlisted set of file operations inside a sandboxed container filesystem.
 
-## Quickstart
+SEG acts as an internal execution gateway for automation and platform workflows that need controlled file handling without exposing arbitrary shell execution.
 
-Prerequisites:
+The service accepts HTTP requests, validates them through a defense-in-depth middleware stack, resolves a registered action from an explicit in-memory allowlist, and executes that action only inside a configured filesystem sandbox.
 
-- Docker (engine) and Docker Compose v2 (or the `docker compose` command) installed
-- A user with Docker privileges (or use `sudo` when invoking Docker commands)
+This design keeps the exposed capability set small and predictable. The API is centered on one execution endpoint, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
 
-Steps to run locally:
+> [!IMPORTANT]
+> SEG was originally created as a secure alternative to unsafe command execution mechanisms commonly used in workflow automation platforms.
+>
+> Several critical Remote Code Execution vulnerabilities discovered in n8n between late 2025 and early 2026 (for example [CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613), [CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858), and [CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877)) highlighted the risks of exposing arbitrary command execution inside automation systems.
+>
+> SEG addresses this class of problems by replacing free-form command execution with strictly allowlisted operations executed inside a sandboxed environment.
 
-1. Copy the environment example and edit values:
+### Execution Boundary Model
+
+```mermaid
+flowchart TD
+
+subgraph Risky Automation Patterns
+A[Arbitrary Command Execution]
+B[Dynamic Expressions]
+C[Unrestricted Scripts]
+D[Privileged Workflow Automation]
+end
+
+subgraph SEG Execution Gateway
+E[Allowlisted Actions]
+F[Filesystem Sandbox]
+G[Typed API Contracts]
+H[Observability & Auditability]
+end
+
+subgraph Controlled Operations
+I[Deterministic Execution Operations]
+J[Safe Automation Workflows]
+end
+
+A --> E
+B --> E
+C --> E
+D --> E
+
+E --> F
+F --> G
+G --> H
+
+H --> I
+I --> J
+```
+
+### Use Cases
+
+Possible use cases include:
+
+- Secure execution layer for automation platforms such as n8n
+- Controlled filesystem operations in microservice architectures
+- Secure file-processing gateway inside internal platforms
+- Replacement for unsafe command execution patterns in backend services
+- Hardened execution boundary for workflow engines and task runners
+
+## 2. Motivation
+
+The rapid adoption of low-code automation platforms, agentic AI systems, and workflow orchestration tools has dramatically increased the number of systems capable of executing complex automated tasks with access to sensitive data and infrastructure.
+
+Many of these platforms prioritize **speed to market and ease of use** over defensive system design. As a result, execution primitives such as command execution, dynamic expressions, or unrestricted scripting frequently become high-risk attack surfaces.
+
+When combined with:
+
+- viral adoption of automation platforms
+- widespread self-hosted deployments
+- privileged access to internal systems and data
+- limited security expertise among many users
+
+these characteristics create a **high-risk environment for Remote Code Execution (RCE), privilege escalation, and data compromise**.
+
+Secure Execution Gateway (SEG) was designed as an **architectural response** to this class of problems.
+
+Instead of exposing arbitrary command execution, SEG introduces a hardened execution boundary where:
+
+- operations are **explicitly allowlisted**
+- filesystem access is **sandboxed and constrained**
+- execution occurs inside a **rootless container environment**
+- APIs enforce **typed request contracts**
+- observability enables **traceable and auditable operations**
+
+This model replaces unsafe execution patterns with **controlled, deterministic operations** suitable for automation systems that must balance flexibility with security.
+
+### Example vulnerabilities illustrating the risk
+
+Several critical vulnerabilities discovered in workflow automation platforms between late 2025 and early 2026 illustrate the inherent risk of exposing arbitrary execution capabilities.
+
+| CVE | Type | Description |
+| ---- | ---- | ---- |
+| [CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613) | Authenticated RCE | Expression evaluation flaw allowing code execution inside n8n workflows |
+| [CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858) | Unauthenticated RCE | "Ni8mare" vulnerability enabling remote takeover via webhook processing |
+| [CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877) | Authenticated RCE | Unsafe file handling allowing code execution through uploaded content |
+
+> [!WARNING]
+> SEG is not a patch for these vulnerabilities.
+> It is an architectural approach designed to remove entire classes of unsafe execution patterns from automation workflows.
+
+## 3. Key Features
+
+- Strict allowlisted execution model for registered actions only
+- Sandboxed filesystem operations limited by `SEG_SANDBOX_DIR` and
+  `SEG_ALLOWED_SUBDIRS`
+- Runtime configuration via environment variables and `.env` files
+- Defense-in-depth middleware for auth, request integrity, rate limiting,
+  timeouts, request IDs, and observability
+- Typed request and response models built with FastAPI and Pydantic
+- Stable JSON response envelope for API consumers
+- Prometheus-compatible metrics and request correlation support
+- Rootless, container-oriented deployment model
+- Automated CI, security scanning, release, and documentation pipelines
+
+## 4. Architecture Overview
+
+At runtime, requests move through a short and explicit execution pipeline. The current high-level architecture is:
+
+```mermaid
+flowchart TD
+Client --> SEG
+SEG --> MiddlewareStack
+MiddlewareStack --> Dispatcher
+Dispatcher --> FileActions
+FileActions --> SandboxFilesystem
+```
+
+Middleware validates authentication, request integrity, rate limits, timeouts, request IDs, observability, and optional security headers before the request reaches the dispatcher.
+
+The dispatcher validates the action name, validates parameters against the registered Pydantic model, executes the action handler, and normalizes success or failure into the standard response envelope.
+
+For a full architecture walkthrough, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## 5. Security Model
+
+SEG is designed around explicit controls rather than broad execution capabilities.
+
+- Bearer token authentication on protected endpoints
+- Request integrity validation at the ASGI boundary
+- Strict in-memory action allowlist
+- Filesystem access limited to `SEG_SANDBOX_DIR`
+- Top-level allowlist enforcement through `SEG_ALLOWED_SUBDIRS`
+- Path traversal, backslash, NUL byte, and control character rejection
+- Symlink rejection during path resolution and secure file open paths
+- Process-local rate limiting
+- Per-request timeout enforcement
+- Rootless container runtime model
+- Prometheus metrics and request correlation headers for auditability
+
+For a complete threat analysis see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+
+## 6. Quick Start
+
+SEG is designed to run inside Docker and to remain an internal service on a shared Docker network.
+
+> [!IMPORTANT]
+> Before starting the stack, ensure the external Docker network defined by `SHARED_DOCKER_NETWORK` exists, initialize the shared volume, and create the secret file at `secrets/seg_api_token.txt`.
+
+Minimal local startup:
 
 ```bash
+git clone https://github.com/Libertocrat/seg.git
+cd seg
+
+# Create the runtime configuration file from the template
+# The ".env" file defines sandbox limits, runtime safeguards,
+# and Docker infrastructure parameters used by the SEG container
 cp .env.example .env
-# Edit .env: set SEG_API_TOKEN, NON_ROOT_GID, COMPOSE_PROJECT_NAME, etc.
-```
+mkdir -p secrets
+openssl rand -hex 32 > secrets/seg_api_token.txt
 
-2. Make the shared volume initializer script executable and verify it:
-
-```bash
-chmod +x scripts/init-shared-volume.sh
-./scripts/init-shared-volume.sh --env-file .env --dry-run
-# Review the printed actions (no changes made).
-```
-
-3. Prepare the named Docker shared volume (apply changes):
-
-```bash
+# Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env
+docker network create docker-network || true
 ./scripts/init-shared-volume.sh --env-file .env
-# This creates the volume (if missing) and sets group/setgid permissions.
-```
-
-4. Start the stack:
-
-```bash
 docker compose up -d --build
-# Check services: docker compose ps
-```
-
-5. Verify the service is healthy:
-
-```bash
-# Real-time logs
-docker compose logs -f
-
-# Health endpoint from shared network temporal container
-docker run --rm --network $SHARED_DOCKER_NETWORK curlimages/curl -sS -f http://$COMPOSE_PROJECT_NAME-seg:$SEG_PORT/health && echo OK
 ```
 
 Notes:
 
-- The initializer requires `SHARED_VOLUME_NAME`, `NON_ROOT_GID`, and `SEG_ALLOWED_SUBDIRS` to be set in `.env` (see [scripts/specs/init-shared-volume.spec.md](scripts/specs/init-shared-volume.spec.md)).
-- Run the init script as a user with Docker access; it performs operations inside a temporary container and does not mutate host paths directly.
-- If you want to inspect what will change without applying it, use `--dry-run`.
-
----
-
-## Motivation
-
-Recent versions of n8n (v2.0 or later) disable high-risk execution nodes by default due to security concerns around remote code execution (RCE) found in late 2025 and January 2026, which are listed below.
-
-While this improves safety, it also removes a common mechanism used for file hashing, cleanup, and validation inside workflows.
-
-SEG addresses this gap by offering:
-
-- Explicitly defined operations instead of free-form commands
-- Strong filesystem sandboxing
-- Rootless container execution
-- Consistent API contracts aligned with backend services
-- Observability through structured logs and metrics
-
-SEG is designed for **self-hosted, Docker-based n8n deployments** where security, auditability, and operational clarity are required.
-
-### Critical n8n Vulnerabilities (Dec 2025 - Jan 2026)
-
-#### **CVE-2025-68613 - Remote Code Execution (Authenticated)**
-
-- **Severity:** Critical (CVSS ~9.9)
-- **Description:** A flaw in the workflow expression evaluation system allows an *authenticated attacker* to inject expressions that execute arbitrary code in the n8n process context
-- **Affected Versions:** ~0.211.0 -> prior to 1.120.4, 1.121.1, 1.122.0 (fixed in those releases)
-- **Impact:** Arbitrary code execution; complete instance compromise under certain authenticated scenarios
-- **More Info:**
-
-  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613)
-
-#### **CVE-2026-21858 - "Ni8mare", Unauthenticated RCE**
-
-- **Severity:** Critical / Maximum Severity (CVSS 10.0)
-- **Nickname:** *Ni8mare*
-- **Description:** Improper handling of webhook/form requests and content-type parsing enables *unauthenticated attackers* to access files, forge sessions, and **execute code remotely** on vulnerable self-hosted n8n instances
-- **Affected Versions:** ~1.65.0 -> prior to 1.121.0 (fixed in 1.121.0)
-- **Impact:** Full instance takeover without authentication if exposed workflows/webhook entry points exist
-- **More Info:**
-
-  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858)
-
-#### **CVE-2026-21877 - Authenticated Remote Code Execution**
-
-- **Severity:** Critical (CVSS ~9.9)
-- **Description:** An issue where authenticated users can upload dangerous file types or abuse processing logic to execute arbitrary code via n8n.
-- **Affected Versions:** ~<= 1.121.2 (fixed in 1.121.3)
-- **Impact:** Authenticated RCE-enables full compromise of the n8n instance.
-- **More Info:**
-
-  - 🔗 [https://nvd.nist.gov/vuln/detail/CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877) *(via Wiz/NVD summary)*
-
-> SEG is not a patch for these vulnerabilities, but an architectural response to remove entire classes of unsafe execution patterns from automation workflows.
-
----
-
-## Security & Responsible Disclosure
-
-SEG is designed and developed with a security-first mindset.
-
-If you discover a security vulnerability or have concerns related to authentication, sandboxing, or potential misuse scenarios, please **do not open a public issue**.
-
-Instead, follow the responsible disclosure process described in [`SECURITY.md`](SECURITY.md).
-
-For sensitive reports, encrypted communication is supported via the maintainer’s public PGP key, which is available in the file [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc) at the root of this repository.
-
----
-
-## Design Principles
-
-- **No arbitrary command execution**
-  SEG never accepts shell commands or command strings.
-
-- **Allowlisted actions only**
-  Each operation is explicitly defined and validated.
-
-- **Defense in depth**
-  Filesystem sandboxing, authentication, rate limiting, and resource limits are enforced at multiple layers.
-
-- **Consistency by contract**
-  API responses follow the same typed envelope used across shared microservices for consistency.
-
-- **Operational simplicity**
-  Sync API, minimal dependencies, Docker-first deployment.
-
----
-
-## High-Level Architecture
-
-- n8n runs in its own Docker container
-- SEG runs in a separate, rootless Docker container
-- Both containers:
-
-  - Share a mounted sandbox directory (`SEG_SANDBOX_DIR`)
-  - Communicate over an internal Docker network
-- n8n interacts with SEG using the **HTTP Request** node
-
-SEG is never exposed publicly and should only be reachable from trusted internal services.
-
----
-
-## Features (v1)
-
-- File hashing (`file_checksum`)
-- Safe file deletion (`file_delete`)
-- MIME type detection using libmagic (`file_mime_detect`)
-- Composite verification (`file_verify`)
-
-  - Hash computation
-  - MIME policy validation
-- Strict filesystem sandbox
-- Bearer token authentication
-- Rate limiting and timeouts
-- Structured JSON logs
-- Prometheus-compatible metrics
-- Automatic OpenAPI / Swagger documentation
-
----
-
-## Security Model
-
-The security model of SEG is intentionally simple, explicit, and restrictive to minimize blast radius and audit complexity.
-
-### Authentication
-
-All API endpoints require a bearer token:
-
-```http
-Authorization: Bearer <SEG_API_TOKEN>
-```
-
-The token is provided via environment variables and injected at runtime. In future versions, multi-client/multi-user JWT authentication will be implemented.
-
----
-
-### Filesystem Sandbox
-
-SEG enforces strict path rules:
-
-- Only **relative paths** are accepted
-- All paths are resolved under `SEG_SANDBOX_DIR`
-- Operations are restricted to allowlisted subdirectories defined by `SEG_ALLOWED_SUBDIRS`
-- Path traversal (`..`) is rejected
-- Symbolic links are always rejected
-- Windows-style paths and null bytes are rejected
-
----
-
-### Shared Volume Permission Model (setgid-based)
-
-SEG is designed to safely share a filesystem volume with other internal services (such as n8n) **without requiring those services to be modified or hardened**.
-
-This is achieved using a **POSIX group-based permission model** combined with the `setgid` directory bit.
-
-#### Design Overview
-
-- SEG runs as a **non-root user** (`UID=1001`, `GID=1001`)
-- Other services (e.g. n8n) may run as `root` (default behavior)
-- A shared filesystem volume is mounted into both containers
-- The shared directory on the host is configured with:
-  - Group ownership set to `GID=1001`
-  - `setgid` enabled on the directory
-
-#### Why setgid is critical
-
-When the `setgid` bit is set on a directory:
-
-- All files and subdirectories created inside it **inherit the directory’s group ID**
-- The inherited group is used **regardless of the UID of the creating process**
-
-This ensures that:
-
-- Files created by `root`-based services (e.g. n8n) are automatically assigned to the shared group
-- SEG (running as a non-root user) can safely read and write those files via group permissions
-- No UID sharing, ACLs, or insecure permission workarounds are required
-
-#### Required host-side setup
-
-The shared volume **must be prepared on the host before starting the containers**.
-
-Example:
+- `docker-compose.yml` does not publish SEG publicly
+- runtime configuration is defined by the environment variables set in `.env`
+  - check the `.env.example` file for detailed information about env variables
+- the container joins the external network defined by `SHARED_DOCKER_NETWORK`
+- the external Docker network must exist before `docker compose up`
+- the shared volume must be initialized before the stack starts
+- the runtime API token is loaded from `secrets/seg_api_token.txt` through the Docker secret mount
+
+Useful follow-up checks:
 
 ```bash
-mkdir -p /data/seg-shared
-chown -R root:1001 /data/seg-shared
-chmod -R 2775 /data/seg-shared
+docker compose ps
+docker compose logs -f
 ```
 
-The leading `2` in `2775` enables `setgid`.
+To reach the containerized service from the host during development without publishing ports in Compose:
 
-Expected permissions:
-
-```text
-drwxrwsr-x  root  seg  /data/seg-shared
+```bash
+./scripts/seg-forward.sh --env-file .env
 ```
 
-#### Security properties
+The local development workflow is documented in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-- SEG remains **rootless** at all times
-- No container modifies users, groups, or permissions of other containers
-- No reliance on `chmod 777`, ACLs, or privileged containers
-- Volume access is governed strictly by:
+## 7. Configuration
 
-  - POSIX group permissions
-  - `setgid` inheritance
-- This model scales cleanly to additional internal services that need filesystem access
+SEG runtime behavior is configured through environment variables defined in the local `.env` file. Docker Compose reads these variables and injects them into the container environment, where SEG validates and loads its runtime configuration at startup. Review [.env.example](.env.example) for the full documented list and detailed notes for every configurable variable.
 
-This permission model is intentionally simple, auditable, and aligned with production-grade Docker and Kubernetes best practices.
-
----
-
-### Resource Limits
-
-Settings are configurable via `.env` file, these are the default values:
-
-- Maximum file size: **100 MB**
-- Request timeout: **5000 ms**
-- Configurable rate limiting per client (default: 10 RPS)
-
----
-
-## API Response Contract
-
-All endpoints return responses wrapped in a consistent envelope in the JSON body:
-
-```json
-{
-  "success": true,
-  "data": { },
-  "error": null
-}
+```mermaid
+flowchart LR
+EnvFile[.env] --> Compose[Docker Compose]
+EnvFile --> RuntimeEnv[Container Environment]
+Compose --> SEG[SEG Container]
+RuntimeEnv --> Settings[SEG Settings Validation]
+Settings --> Runtime[SEG Runtime Configuration]
 ```
 
-On error:
+Values shown in `.env.example` are placeholder deployment values and do not necessarily represent application defaults or the configuration needed for your particular deployment environment.
 
-```json
-{
-  "success": false,
-  "data": null,
-  "error": {
-    "message": "Resolved path is outside allowed sandbox",
-    "code": "PATH_NOT_ALLOWED",
-    "details": { }
-  }
-}
-```
+### Key variables
 
-Responses also include a correlation header `X-Request-Id` (UUID). The header is propagated if the client supplies a valid UUID in the incoming `X-Request-Id` header; otherwise the server generates a new UUID. Clients should read `X-Request-Id` from headers for request correlation. Example JSON envelopes (note `request_id` is carried in the header, not the body)
+| Variable | Description | Default |
+| --- | --- | --- |
+| `SEG_SANDBOX_DIR` | Absolute sandbox root used for file operations inside the container. | `None` -> **Required** |
+| `SEG_ALLOWED_SUBDIRS` | CSV allowlist of top-level sandbox subdirectories, or `*`. | `None` -> **Required** |
+| `SEG_MAX_BYTES` | Maximum allowed file size for file-based operations. | `104857600` |
+| `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
+| `SEG_RATE_LIMIT_RPS` | Process-local request rate limit per client. | `10` |
+| `SEG_LOG_LEVEL` | Application log verbosity. | `INFO` |
+| `SEG_APP_VERSION` | Semantic version exposed by the runtime and OpenAPI metadata. | `0.1.0` |
+| `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. | `false` |
+| `SEG_ENABLE_SECURITY_HEADERS` | Enables baseline response security headers. | `true` |
+| `SHARED_DOCKER_NETWORK` | External Docker network used to connect SEG with internal services. | `docker-network` |
+| `SEG_PORT` | Internal application listen port inside the container. | `8080` |
 
-This contract is shared with other backends developed by [Libertocrat](https://github.com/Libertocrat/) to ensure uniform client behavior across services. Always read the `X-Request-Id` response header for the UUID associated with the request.
+> [!IMPORTANT]
+> When deploying SEG inside an existing container environment or microservice stack, the following variables should normally be reviewed and adapted before startup:
+>
+> - `SEG_SANDBOX_DIR`
+> - `SEG_ALLOWED_SUBDIRS`
+> - `SHARED_DOCKER_NETWORK`
+> - `COMPOSE_PROJECT_NAME`
+> - `SHARED_VOLUME_SUFFIX`
+>
+> These variables control how SEG integrates with the shared Docker network, filesystem sandbox, and shared data volumes used by other services.
 
----
+For container identity, shared volume naming, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
 
-## API Endpoints
+## 8. API Overview
 
-### Health Check
+The primary API model is `POST /v1/execute`, which accepts an action name and a validated parameter object.
 
-**GET `/health`**
+### Endpoints
 
-Returns service readiness status.
+The public HTTP surface is intentionally small.
 
----
+| Endpoint | Purpose |
+| --- | --- |
+| `/v1/execute` | execute allowlisted actions |
+| `/health` | service readiness |
+| `/metrics` | Prometheus metrics |
 
-### Metrics
+Interactive documentation endpoints are available only when `SEG_ENABLE_DOCS=true`:
 
-**GET `/metrics`**
+- `/docs`
+- `/redoc`
+- `/openapi.json`
 
-Prometheus exposition endpoint for monitoring latency, error rates, and throughput.
+Hosted API documentation is published at:
 
----
+- [https://libertocrat.github.io/seg/api-docs/](https://libertocrat.github.io/seg/api-docs/)
 
-### Execute Action
+### Example request
 
-**POST `/v1/execute`**
-
-Example request:
+Example request for `file_checksum`:
 
 ```json
 {
@@ -385,7 +339,13 @@ Example request:
 }
 ```
 
-Example response:
+In this example:
+
+- `action` selects a registered action handler
+- `params` is validated against the action-specific schema
+- `path` must remain inside the configured sandbox and allowed subdirectories
+
+Example success response:
 
 ```json
 {
@@ -399,141 +359,225 @@ Example response:
 }
 ```
 
----
-
-## Supported Actions (v1)
+Current file actions implemented in `src/seg/actions/file/` are:
 
 - `file_checksum`
-- `file_stat`
 - `file_delete`
-- `file_move` (used for rename as well)
 - `file_mime_detect`
+- `file_move`
 - `file_verify`
 
-Each action has a strict request schema validated using Pydantic models.
+## 9. Observability
 
----
+SEG exports structured request observability and Prometheus-compatible metrics.
 
-## Configuration
+The `/metrics` endpoint exposes metrics generated from the middleware and route stack, including:
 
-SEG is configured entirely via environment variables:
+- request counters
+- latency histograms
+- inflight request tracking
+- error class counters
+- request integrity rejection counters
+- rate limit counters
+- timeout counters
 
-- `SEG_API_TOKEN` (required)
-- `SEG_SANDBOX_DIR` (required)
-- `SEG_ALLOWED_SUBDIRS` (CSV, required)
-- `SEG_MAX_BYTES` (default: 104857600)
-- `SEG_TIMEOUT_MS` (default: 5000)
-- `SEG_RATE_LIMIT_RPS`
-- `SEG_LOG_LEVEL` (default: INFO)
-- `SEG_ENABLE_DOCS` (default: false)
+The observability layer also propagates or generates `X-Request-Id` so callers can correlate requests across systems.
 
-An `.env.example` file is recommended and is included in the repository to document required/runtime defaults.
+For implementation details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
----
+## 10. Project Structure
 
-## Deployment
+The repository layout is intentionally compact and organized around the app package, tests, operational tooling, and project documentation.
 
-SEG is designed to run as a rootless Docker container.
-
-A standalone `docker-compose.yml` is included for local testing and integration with n8n or other microservices.
-No public ports should be exposed in production environments.
-
----
-
-## Development & CI
-
-If you are a developer working on SEG, the repository provides a small set of guides to get started and to reproduce CI checks locally. Start here:
-
-- Development quickstart and contribution guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
-- CI pipeline, pre-commit policy and tooling requirements: [docs/CI.md](docs/CI.md)
-- Testing philosophy and fixtures: [docs/TESTING.md](docs/TESTING.md)
-
-These documents describe how to reproduce CI locally, the required system dependencies (Linux-based), and the `pre-commit` hooks used by the project.
-
-Integration tests (FastAPI end-to-end) live under `tests/integration/`. These are run as part of the default `pytest` invocation and in CI.
-
----
-
-## Observability
-
-- **Logs**: Structured JSON logs to stdout
-- **Metrics**: Prometheus-compatible metrics at `/metrics`
-  - Note: `/metrics` is an exception to the JSON envelope contract. It exposes Prometheus exposition format and is intentionally not wrapped in the service's JSON response envelope so Prometheus scrapers can ingest it directly.
-- **Tracing**: Request-level correlation via `request_id`
-
----
-
-## Non-Goals (v1)
-
-- Arbitrary shell execution
-- Asynchronous job orchestration
-- Antivirus or malware scanning
-- Media conversion
-- Multi-tenant authorization
-
-These capabilities are intentionally excluded to keep the service focused, secure, and easy to reason about.
-
----
-
-## Future Extensions
-
-- Async job API for long-running tasks
-- Integration with external sandbox scanners (e.g. Strelka)
-- Media processing pipelines
-- Multi-tenant support
-- JWT authentication
-
----
-
-## Troubleshooting
-
-### Actions not registered at startup
-
-If you add new actions under `src/seg/actions/` and they do not appear in the service registry at startup, ensure the action subdirectory is a Python package by adding an `__init__.py` file. Also export or import the action modules from that package's `__init__.py` (for example `from . import checksum`) so that importing the package triggers the registration side-effects.
-
-Quick checks and fixes:
-
-- Start the service with the project source on `PYTHONPATH` (example):
-
-  ```bash
-  # using the application factory
-  PYTHONPATH=./src uvicorn --factory seg.app:create_app --host 0.0.0.0 --port 8080 --reload --reload-dir src --log-level info
-  ```
-
-  - Or install the package in editable mode and run normally:
-
-  ```bash
-  python -m pip install -e .
-  uvicorn --factory seg.app:create_app
-  ```
-
-- Verify registered actions quickly:
-
-  ```bash
-  PYTHONPATH=./src python -c "from seg.actions import discover_and_register; from seg.actions.registry import list_actions; discover_and_register(); print(list_actions())"
-  ```
-
-- Note: the runtime discovery imports `seg.actions` subpackages to execute registration side-effects. If a new action module is not imported (for example because the package `__init__.py` does not import it), that action will not be registered.
-
-### Mypy execution throws an exception
-
-- **Symptom**: After refactoring imports, `__init__.py` files, or the package layout, `mypy` (or the pre-commit `mypy` hook) may fail with an internal exception (for example `KeyError: 'is_bound'`) or report duplicate-module mapping errors.
-- **Cause**: A stale `.mypy_cache` directory can contain serialized type information that is no longer compatible with the updated module graph.
-- **Fix**: Remove the cache and re-run the checks:
-
-```bash
-rm -rf .mypy_cache
-make ci   # or: pre-commit run --all-files
+```text
+seg/
+|-- src/
+|   `-- seg/
+|       |-- actions/        # registered execution actions
+|       |-- core/           # config, schemas, security, and OpenAPI helpers
+|       |-- middleware/     # security and observability middleware stack
+|       |-- routes/         # HTTP endpoints
+|       `-- app.py          # FastAPI application factory
+|-- tests/                  # smoke, unit, and integration tests
+|-- docs/                   # architecture, testing, CI, and threat model docs
+|-- scripts/                # developer and release helper utilities
+|-- requirements/           # runtime, testing, linting, security, and dev sets
+|-- .github/workflows/      # CI, security, release, and docs publishing
+|-- docker-compose.yml      # local container stack
+|-- Dockerfile              # container image build
+|-- .env.example            # runtime configuration template
+`-- Makefile                # local quality and security workflow entry point
 ```
 
-- **Note**: Clearing the mypy cache is a safe, local operation and does not affect runtime behavior. This is a known issue when making large structural changes; developers are encouraged to clear the cache after major refactors. Consider disabling incremental mode in CI if this occurs frequently.
+Summary:
 
-## License
+- `src/seg/` contains the app factory, middleware, routes, action system, and
+  core helpers
+- `tests/` covers smoke, unit, integration, and security-relevant behavior
+- `docs/` contains architecture, testing, CI, and threat model documents
+- `scripts/` contains helper utilities for local development and docs export
+- `requirements/` separates runtime, testing, linting, security, and aggregate
+  development dependencies
+- `.github/workflows/` contains the CI, security, release, and docs publishing
+  workflows
 
-This project is licensed under the Apache License 2.0. See the [LICENSE](./LICENSE) file for details.
+## 11. Testing Strategy
 
-## Author / Maintainer
+The test suite combines smoke tests, unit tests, and integration tests.
 
-[Libertocrat](https://github.com/Libertocrat)
+Current coverage includes:
+
+- dispatcher and registry behavior
+- file action implementations
+- request and response schemas
+- middleware enforcement
+- route behavior
+- filesystem sandbox protections
+- OpenAPI generation behavior
+
+The current test execution model is:
+
+```mermaid
+flowchart TD
+Developer --> Pytest
+Pytest --> UnitTests
+Pytest --> IntegrationTests
+Pytest --> SmokeTests
+IntegrationTests --> AppFactory
+AppFactory --> Middleware
+AppFactory --> Routes
+Routes --> Dispatcher
+Dispatcher --> ActionHandlers
+ActionHandlers --> SandboxHelpers
+```
+
+Run the test suite locally with:
+
+```bash
+make test
+```
+
+For full testing documentation, see [docs/TESTING.md](docs/TESTING.md).
+
+## 12. CI / DevSecOps
+
+SEG uses GitHub Actions plus a Makefile-driven local workflow for repeatable quality and security checks.
+
+The repository currently includes these pipeline categories:
+
+- CI quality gate
+- deep security analysis
+- container release pipeline
+- documentation publishing pipeline
+
+Tooling used across these workflows includes:
+
+- Ruff
+- Black
+- MyPy
+- pytest
+- Bandit
+- pip-audit
+- Semgrep
+- Trivy
+
+The current CI and release topology is:
+
+```mermaid
+flowchart TD
+
+Developer --> Push
+Developer --> PullRequest
+Developer --> TagPush
+
+Push --> CIWorkflow
+PullRequest --> CIWorkflow
+PullRequest --> SecurityWorkflow
+
+TagPush --> ReleaseWorkflow
+TagPush --> DocsWorkflow
+
+CIWorkflow --> QualityGate
+QualityGate --> DockerBuildValidation
+
+SecurityWorkflow --> Semgrep
+SecurityWorkflow --> TrivyFS
+SecurityWorkflow --> TrivyImage
+
+ReleaseWorkflow --> BuildImage
+BuildImage --> TrivyScan
+TrivyScan --> PushGHCR
+PushGHCR --> GitHubRelease
+GitHubRelease --> OpenAPIAssets
+
+DocsWorkflow --> ExportOpenAPI
+ExportOpenAPI --> BuildDocsSite
+BuildDocsSite --> PublishGHpages
+```
+
+For pipeline details, see [docs/CI.md](docs/CI.md).
+
+## 13. Documentation
+
+The README is the high-level entry point. Detailed design, workflow, and operational material lives in the documents below.
+
+| Document | Description |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, execution flow, and runtime design |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Threat model, trust boundaries, and mitigations |
+| [docs/TESTING.md](docs/TESTING.md) | Testing strategy, suite structure, and local execution |
+| [docs/CI.md](docs/CI.md) | CI, security scanning, release, and docs publishing workflows |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment and Makefile workflow |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Current contribution policy and project participation status |
+| [SECURITY.md](SECURITY.md) | Vulnerability disclosure and security reporting policy |
+| [scripts/README.md](scripts/README.md) | Developer and release helper scripts |
+
+## 14. Development
+
+Local development is documented separately in [DEVELOPMENT.md](DEVELOPMENT.md).
+
+The development workflow is centered on:
+
+- Python 3.12
+- Docker
+- Makefile targets
+- pre-commit hooks
+- helper scripts under `scripts/`
+
+Typical local quality gate:
+
+```bash
+make ci
+```
+
+Useful developer entry points:
+
+- [DEVELOPMENT.md](DEVELOPMENT.md)
+- [scripts/README.md](scripts/README.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 15. Contributing
+
+External pull requests are not yet accepted while the project stabilizes its:
+
+- API design
+- security model
+- testing coverage
+- CI workflows
+- release process
+
+Feedback and non-security issue reports are still welcome.
+
+For the current contribution policy, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## 16. Security Reporting
+
+Please do not report vulnerabilities in public issues.
+
+Use the responsible disclosure process documented in [SECURITY.md](SECURITY.md). For encrypted reporting, the repository also includes [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc).
+
+## 17. License
+
+SEG is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for the full text.
 
 ---

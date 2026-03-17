@@ -20,6 +20,15 @@ OPENAPI_OUTPUT_PATH = Path("docs/api-docs/output/openapi.json")
 
 
 def get_release_version() -> str:
+    """Return the normalized release version for documentation assets.
+
+    Returns:
+        Semantic version string without a leading `v` prefix.
+
+    Raises:
+        ValueError: If `RELEASE_VERSION` is not a valid semantic version.
+    """
+
     raw = os.getenv("RELEASE_VERSION", "0.1.0").strip()
     normalized = raw[1:] if raw.startswith("v") else raw
     if not re.fullmatch(r"\d+\.\d+\.\d+", normalized):
@@ -33,6 +42,12 @@ def get_release_version() -> str:
 # satisfy validation. We set `seg_enable_docs=True` to ensure the schema includes
 # the docs endpoints.
 def build_docs_settings() -> Settings:
+    """Create a minimal settings object for documentation generation.
+
+    Returns:
+        Valid application settings suitable for OpenAPI export.
+    """
+
     return Settings(
         seg_log_level="INFO",
         seg_app_version=get_release_version(),
@@ -48,6 +63,8 @@ def build_docs_settings() -> Settings:
 
 
 def main() -> None:
+    """Export the generated OpenAPI schema to the docs output path."""
+
     app = create_app(settings=build_docs_settings())
     schema = app.openapi()
 

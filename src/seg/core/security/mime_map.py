@@ -1,7 +1,4 @@
-# src/seg/core/security/mime_map.py
-from __future__ import annotations
-
-"""Centralized extension → MIME mapping used by :mod:`file_verify`.
+"""Centralized extension-to-MIME mapping used by :mod:`file_verify`.
 
 Keys are lowercase extensions including the leading dot (for example
 `.pdf`). Values are sets of canonical MIME type strings. Values are
@@ -11,9 +8,12 @@ safe sharing without accidental mutation.
 Design goals:
 - Deterministic
 - Docker-independent
-- 1 → many mapping (extension may map to multiple valid MIME types)
+- One-to-many mapping (an extension may map to multiple valid MIME types)
 - Hardcoded for v0.1.0 (future override may be added)
 """
+
+from __future__ import annotations
+
 EXTENSION_MIME_MAP: dict[str, frozenset[str]] = {
     ".txt": frozenset({"text/plain"}),
     ".md": frozenset({"text/markdown", "text/plain"}),

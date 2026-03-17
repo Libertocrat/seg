@@ -34,6 +34,8 @@ class SecurityHeadersMiddleware:
     """
 
     def __init__(self, app: ASGIApp) -> None:
+        """Store the wrapped ASGI application."""
+
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -50,6 +52,8 @@ class SecurityHeadersMiddleware:
             return
 
         async def send_wrapper(message: Message) -> None:
+            """Rewrite response-start headers to enforce the baseline set."""
+
             if message.get("type") == "http.response.start":
                 raw_headers = message.get("headers")
                 headers: list[tuple[bytes, bytes]]

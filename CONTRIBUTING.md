@@ -1,113 +1,86 @@
 # Contributing
 
+## 1. Introduction
+
 Thank you for your interest in contributing to the Secure Execution Gateway (SEG).
 
-Current status: this repository is NOT accepting external contributions at the moment.
+SEG is an open source project focused on secure execution, strict action allowlisting, and filesystem sandboxing for containerized automation environments.
 
-Reason: the project is in its initial architecture and implementation phase. We want to stabilize the API, tests, and security posture before opening the project for external contributions.
+## 2. Contribution Status
 
-Future: once the project reaches a stable release and we have CI, tests, and review processes in place, we will publish contribution guidelines (branching model, style guide, and pull request process).
+The repository is not currently accepting external code contributions.
 
-In the meantime, if you have feedback, improvement ideas, or security reports, please contact the project maintainer (see [SECURITY.md](SECURITY.md)).
+> [!IMPORTANT]
+> External pull requests are currently paused while the project stabilizes its public API, security model, and release workflow.
 
-Note: do NOT open public issue tracker entries for security vulnerabilities; follow the guidance in [SECURITY.md](SECURITY.md) for private disclosure.
+The project is still stabilizing several core areas before opening the pull request process to external contributors:
 
-Thank you for your understanding.
+- API design
+- security model
+- testing coverage
+- CI workflows
+- release process
 
-## Developer Quickstart
+This restriction is intended to keep the public interface and review process stable before formal contribution rules are introduced.
 
-This repository assumes a Linux development environment. The sections below provide the minimal steps to prepare a developer workstation to run linters, tests and reproduce the CI checks locally.
+## 3. Future Contribution Model
 
-0. Set local Python development version to 3.12:
+Once external contributions are enabled, the repository will publish explicit guidelines for:
 
-```bash
-pyenv versions | grep 3.12 # Verify pyenv and py 3.12 are installed
-pyenv install 3.12
-pyenv local 3.12
-```
+- branching strategy
+- pull request workflow
+- code style requirements
+- testing expectations
+- security review requirements
 
-1. Create and activate a Python virtual environment:
+Those rules are not defined yet and should not be assumed before they are
+documented.
 
-```bash
-python --version # Verify its 3.12 before proceeding
-python -m venv .venv
-source .venv/bin/activate
-```
+## 4. Providing Feedback
 
-2. Install Python dependencies:
+Feedback is still welcome while the project is stabilizing.
 
-```bash
-python -m pip install --upgrade pip
-python -m pip install -r requirements/dev.txt
-```
+Useful feedback includes:
 
-3. (Optional) Install tooling used by CI and pre-commit hooks:
+- architecture suggestions
+- documentation improvements
+- usability observations
+- bug reports
 
-```bash
-# Debian/Ubuntu example (requires sudo)
-sudo apt-get update
-sudo apt-get install -y make curl libmagic1 build-essential
+For non-security topics, use the GitHub issue tracker.
 
-# Install hadolint (example):
-curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
-	-o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint
-```
+## 5. Security Reporting
 
-4. Install and enable `pre-commit` (recommended):
+Security vulnerabilities must be reported privately.
 
-```bash
-python -m pip install pre-commit
-pre-commit install
-```
+Do not disclose security issues through public GitHub issues.
 
-5. Run CI locally:
+Follow the responsible disclosure process defined in [SECURITY.md](SECURITY.md).
 
-```bash
-make ci
-```
+## 6. Development Documentation
 
-6. Run the full pipeline locally (ci + build):
+Developers who want to work with the codebase locally should use [DEVELOPMENT.md](DEVELOPMENT.md).
 
-```bash
-make pipeline
-```
+The development guide covers:
 
-7. Run the pre-commit locally:
+- local environment setup
+- Makefile workflow
+- CI reproduction
+- pre-commit hooks
+- helper scripts in `scripts/`
+- troubleshooting
 
-```bash
-pre-commit run --all-files
-```
+## 7. Related Documentation
 
-Notes:
+The main technical and project documents are:
 
-- The project CI uses Python 3.12. The repository assumes a Linux host for developer instructions (Windows is not documented at this time).
-- If you encounter mypy cache issues after refactors, remove `.mypy_cache` and re-run the checks: `rm -rf .mypy_cache && make ci`.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+- [docs/TESTING.md](docs/TESTING.md)
+- [docs/CI.md](docs/CI.md)
+- [SECURITY.md](SECURITY.md)
+- [DEVELOPMENT.md](DEVELOPMENT.md)
 
-### Quick commands (individual checks)
+These documents describe the internal design, security model, testing strategy, release workflows, and local development process for SEG.
 
-Run a single check locally when iterating quickly:
-
-```bash
-# Format
-black src tests
-
-# Lint and auto-fix formatting/import-order issues with ruff
-ruff check --fix src tests
-
-# Static typing
-mypy --config-file mypy.ini src tests
-
-# Run tests
-pytest -q tests
-
-# Run integration tests only
-pytest -q tests/integration
-```
-
-Quick environment verification:
-
-```bash
-python --version
-pip --version
-pip freeze | grep -E "pydantic|fastapi|uvicorn|mypy|ruff|black"
-```
+---

@@ -1,4 +1,5 @@
-# src/seg/core/schemas/envelope.py
+"""Shared request/response envelope schemas used by SEG."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Generic, Optional, TypeVar
@@ -10,6 +11,8 @@ T = TypeVar("T")
 
 
 class ErrorInfo(BaseModel):
+    """Standard error payload returned on failed requests."""
+
     code: str = Field(..., description="Machine-readable error code.")
     message: str = Field(..., description="Human-readable error message.")
     details: Optional[dict[str, Any]] = Field(
@@ -33,6 +36,15 @@ class ResponseEnvelope(GenericModel, Generic[T]):
 
     @classmethod
     def success_response(cls, data: T) -> "ResponseEnvelope[T]":
+        """Build a success envelope.
+
+        Args:
+            data: Result payload to return to the caller.
+
+        Returns:
+            A success response envelope containing the provided payload.
+        """
+
         return cls(success=True, data=data, error=None)
 
     @classmethod
@@ -42,6 +54,17 @@ class ResponseEnvelope(GenericModel, Generic[T]):
         message: str,
         details: Optional[Dict[str, Any]] = None,
     ) -> "ResponseEnvelope[Any]":
+        """Build a failure envelope.
+
+        Args:
+            code: Stable machine-readable error code.
+            message: Human-readable error message.
+            details: Optional structured error details.
+
+        Returns:
+            A failure response envelope with populated error information.
+        """
+
         return cls(
             success=False,
             data=None,

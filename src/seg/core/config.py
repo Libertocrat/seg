@@ -1,3 +1,5 @@
+"""Runtime configuration loading and validation for SEG."""
+
 from __future__ import annotations
 
 import logging
@@ -155,6 +157,8 @@ class Settings(BaseSettings):
 
     @field_validator("seg_sandbox_dir", "seg_allowed_subdirs", mode="before")
     def _validate_required_non_empty(cls, v, info):
+        """Reject missing or blank values for required string settings."""
+
         # Ensure required env values exists and are not empty/whitespace.
         if v is None:
             raise ValueError(f"{info.field_name} must be set and non-empty")
@@ -164,6 +168,8 @@ class Settings(BaseSettings):
 
     @field_validator("seg_allowed_subdirs", mode="before")
     def _validate_seg_allowed_subdirs(cls, v):
+        """Validate the raw allowlist format for sandbox subdirectories."""
+
         s = str(v).strip()
         # Only allow '*' or CSV of simple names (no slashes)
         if s != "*":
@@ -175,6 +181,8 @@ class Settings(BaseSettings):
 
     @field_validator("seg_app_version", mode="before")
     def _validate_seg_app_version(cls, v):
+        """Validate application version format as semantic version `x.y.z`."""
+
         s = str(v).strip()
         if not re.fullmatch(r"\d+\.\d+\.\d+", s):
             raise ValueError("seg_app_version must use semantic version format x.y.z")
@@ -182,6 +190,8 @@ class Settings(BaseSettings):
 
 
 def abort_config(message: str) -> NoReturn:
+    """Log a fatal configuration error and terminate the process."""
+
     logger.error("Configuration error: %s", message)
     sys.exit(1)
 

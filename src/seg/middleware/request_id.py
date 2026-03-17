@@ -1,3 +1,5 @@
+"""Request identifier middleware that propagates `X-Request-Id`."""
+
 import uuid
 from typing import Awaitable, Callable
 

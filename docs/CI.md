@@ -1,321 +1,406 @@
-# Continuous Integration (CI)
+# SEG CI and Release Pipelines
 
-This document describes the Continuous Integration (CI) setup for the Secure Execution Gateway (SEG) project.
+<p align="center">
+  <img src="https://img.shields.io/badge/CI-GitHub_Actions-blue" alt="GitHub Actions">
+  <img src="https://img.shields.io/badge/lint-ruff-orange" alt="Ruff">
+  <img src="https://img.shields.io/badge/format-black-black" alt="Black">
+  <img src="https://img.shields.io/badge/typecheck-mypy-blue" alt="MyPy">
+  <img src="https://img.shields.io/badge/tests-pytest-green" alt="pytest">
+  <img src="https://img.shields.io/badge/security-bandit-red" alt="Bandit">
+  <img src="https://img.shields.io/badge/dependencies-pip--audit-red" alt="pip-audit">
+  <img src="https://img.shields.io/badge/SAST-semgrep-purple" alt="Semgrep">
+  <img src="https://img.shields.io/badge/container_scan-trivy-blue" alt="Trivy">
+</p>
+<br>
 
-The CI pipeline enforces correctness, security invariants, and deterministic behavior across all supported environments (local development, Docker, and GitHub Actions).
+## Table of Contents
 
----
+- [1. CI Overview](#1-ci-overview)
+- [2. CI Architecture](#2-ci-architecture)
+- [3. Makefile-Driven CI Pipeline](#3-makefile-driven-ci-pipeline)
+- [4. Dependency Management](#4-dependency-management)
+- [5. Quality Gate Pipeline (ci.yml)](#5-quality-gate-pipeline-ciyml)
+- [6. Security Analysis Pipeline (security.yml)](#6-security-analysis-pipeline-securityyml)
+- [7. Release Pipeline (release.yml)](#7-release-pipeline-releaseyml)
+- [8. Documentation Publishing Pipeline (release-docs.yml)](#8-documentation-publishing-pipeline-release-docsyml)
+- [9. Pre-commit Integration](#9-pre-commit-integration)
 
-## Goals
+## 1. CI Overview
 
-The CI system is designed to:
+SEG uses GitHub Actions workflows stored in `.github/workflows/` together with a Makefile-driven execution model.
 
-- Prevent regressions in security-critical code paths
-- Enforce formatting, linting, and static typing
-- Guarantee deterministic, isolated test execution
-- Ensure no dependency on local `.env` files or developer machines
-- Validate that the application can be built and executed safely
-- Provide fast, actionable feedback on every pull request
+The CI system enforces:
 
----
+- code quality
+- type safety
+- automated testing
+- security scanning
+- container build validation
+- automated releases and image publishing to GHCR.io
+- documentation publication
 
-## CI Entry Point
+The Makefile is the main orchestration layer for repeatable local and CI execution. GitHub Actions jobs install the required tooling and then call Makefile targets for the quality gate, baseline security checks, and the deeper Trivy scans.
 
-CI is driven by a **single source of truth**: the `Makefile`.
+```mermaid
+flowchart TD
 
-All checks executed in GitHub Actions can be reproduced locally with:
+Developer --> Push
+Developer --> PullRequest
+Developer --> TagPush
 
-```bash
-# Code quality + tests
-make ci
-# Full pipeline (ci + build)
-make pipeline
+Push --> CIWorkflow
+PullRequest --> CIWorkflow
+PullRequest --> SecurityWorkflow
+
+TagPush --> ReleaseWorkflow
+TagPush --> DocsWorkflow
+
+CIWorkflow --> QualityGate
+QualityGate --> DockerBuildValidation
+
+SecurityWorkflow --> Semgrep
+SecurityWorkflow --> TrivyFS
+SecurityWorkflow --> TrivyImage
+
+ReleaseWorkflow --> BuildImage
+BuildImage --> TrivyScan
+TrivyScan --> PushGHCR
+PushGHCR --> GitHubRelease
+GitHubRelease --> OpenAPIAssets
+
+DocsWorkflow --> ExportOpenAPI
+ExportOpenAPI --> BuildDocsSite
+BuildDocsSite --> PublishGHpages
 ```
 
-This guarantees parity between local development and CI.
+## 2. CI Architecture
 
----
+GitHub Actions orchestrates the repository pipeline through four workflow files in `.github/workflows/`.
 
-## CI Pipeline Overview
+| Workflow | Purpose |
+| --- | --- |
+| `ci.yml` | Fast quality gate and Docker build validation |
+| `security.yml` | Deep security analysis with Semgrep and Trivy |
+| `release.yml` | Container release to GHCR, OpenAPI export, and GitHub release assets |
+| `release-docs.yml` | OpenAPI export, versioned docs site build, and publication to `gh-pages` |
 
-The CI pipeline runs the following steps **in order**:
+At a high level:
 
-1. **Formatting check**
+- `ci.yml` runs on pushes to `main`, `feat/**`, and `feature/**`, on pull requests to `main`, and on manual dispatch
+- `security.yml` runs on pull requests to `main`, on a weekly schedule, and on manual dispatch
+- `release.yml` runs on version tag pushes matching `v*` and on manual dispatch
+- `release-docs.yml` runs on version tag pushes matching `v*`
 
-   - Tool: `black`
-   - Command:
+This separation keeps fast feedback, deep security analysis, release automation, and documentation publishing in distinct pipelines.
 
-     ```bash
-     black --check src tests
-     ```
+## 3. Makefile-Driven CI Pipeline
 
-2. **Linting**
+The `Makefile` defines the executable CI tasks and their composition.
 
-   - Tool: `ruff`
-   - Command:
+Important aggregate targets are:
 
-     ```bash
-     ruff check src tests
-     ```
+- `quality` - runs `lint`, `typecheck`, and `test`
+- `ci-security` - runs `bandit`, `pip-audit`, and `hadolint`
+- `ci` - combines `quality` and `ci-security`
+- `build` - builds the Docker image locally with `docker build`
+- `deep-security` - runs `semgrep`, `trivy-fs`, and `trivy-image`
+- `full` - runs `ci`, `build`, and `deep-security`
 
-3. **Static type checking**
+Supporting targets provide the actual commands:
 
-   - Tool: `mypy`
-   - Command:
+- `lint` runs `black --check` and `ruff check`
+- `typecheck` runs `mypy --config-file mypy.ini`
+- `test` runs `pytest -q tests`
+- `bandit` scans `src/`
+- `pip-audit` audits `requirements/runtime.txt`
+- `hadolint` checks `Dockerfile`
+- `semgrep` runs `semgrep scan`
+- `trivy-fs` scans the repository filesystem for secrets and misconfigurations
+- `trivy-image` builds and scans the local image for vulnerabilities
 
-     ```bash
-     mypy --config-file mypy.ini src tests
-     ```
-
-4. **Dockerfile linting**
-
-   - Tool: `hadolint`
-   - Command:
-
-     ```bash
-     hadolint ./Dockerfile
-     ```
-
-5. **Test suite execution**
-
-   - Tool: `pytest`
-   - Command:
-
-     ```bash
-     pytest -q tests
-     ```
-
-All steps must pass for the CI job to succeed.
-
----
-
-## Build / Artifact Separation
-
-SEG enforces a strict separation between source-level checks and artifact construction. In practice this means:
-
-- Pre-commit and the `ci` Make target focus on fast, deterministic source validation (formatting, linting, typing, tests, and Dockerfile linting).
-- Docker image construction is performed separately as a distinct `build` step and is intentionally excluded from pre-commit hooks.
-- The `make pipeline` target reproduces the full local pipeline by running `make ci` followed by `make build`, allowing developers to validate both source integrity and artifact buildability before pushing.
-
-This separation reduces developer friction and keeps pre-commit hooks fast and deterministic while ensuring CI validates artifact buildability in an isolated runner environment.
-
-## GitHub Actions Workflow
-
-The GitHub Actions workflow (`.github/workflows/ci.yml`) performs:
-
-- Repository checkout
-- Python setup (Python 3.12)
-- System dependency installation
-- Virtual environment creation
-- Dependency installation
-- Execution of `make ci`
-
-The workflow intentionally mirrors the local workflow as closely as possible.
-
-## Developer Quickstart (local CI parity)
-
-Follow these steps to reproduce CI behavior locally on Linux:
-
-```bash
-# create and activate a virtual environment (Python 3.12)
-python -m venv .venv
-source .venv/bin/activate
-
-# install dev dependencies (includes all others)
-python -m pip install --upgrade pip
-python -m pip install -r requirements/dev.txt
-
-# install pre-commit hooks
-python -m pip install pre-commit
-pre-commit install
-
-# install hadolint (example)
-curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
-  -o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint
-
-# run the CI pipeline locally (same order as CI)
-make ci
+```mermaid
+flowchart TD
+quality --> ci
+ci-security --> ci
+ci --> build
+build --> deep-security
+deep-security --> full
 ```
 
-> OpenAPI documentation endpoints are disabled by default (`SEG_ENABLE_DOCS=false`).
-> To expose the interactive docs locally for exploration, set `SEG_ENABLE_DOCS=true` in your environment before starting the application.
+## 4. Dependency Management
 
-This quickstart assumes a Linux environment and that system packages such as `libmagic` are available (see Tooling & system requirements below).
+Python dependencies are split across the `requirements/` directory.
 
-## Pre-commit policy
+| File | Purpose |
+| --- | --- |
+| `runtime.txt` | Runtime packages required to run the SEG API service |
+| `testing.txt` | Test and quality execution packages such as `pytest`, `pytest-asyncio`, and `openapi-spec-validator` |
+| `linting.txt` | Formatting, linting, typing, and pre-commit tools such as Black, Ruff, MyPy, and pre-commit |
+| `security.txt` | Security scanning tools such as Bandit and pip-audit |
+| `dev.txt` | Aggregates `runtime.txt`, `testing.txt`, `linting.txt`, and `security.txt` |
 
-The project uses `pre-commit` to run fast, local checks before pushing changes. The configured hooks are:
+`dev.txt` is the full local development set:
 
-- `black`: code formatter
-- `ruff`: linter and local formatter
-- `mypy`: static type checks
-- `hadolint`: Dockerfile lint (local hook running system binary)
-- `pytest`: test suite (configured as a local hook)
+- `-r runtime.txt`
+- `-r testing.txt`
+- `-r linting.txt`
+- `-r security.txt`
 
-Notes & recommendations:
+Workflows install different dependency sets depending on their job:
 
-- `pre-commit` runs `black` and `ruff` on both `src/` and `tests/` (so tests are verified for formatting and lint rules locally). The `mypy` pre-commit hook is configured to type-check `src` and `tests` and includes test runtime dependencies to avoid missing-imports in isolated hook environments.
+- `ci.yml` installs `requirements/dev.txt`
+- `security.yml` installs `requirements/runtime.txt` and `requirements/security.txt`
+- `release.yml` installs `requirements/runtime.txt`, `requirements/testing.txt`, and the editable project for OpenAPI export
+- `release-docs.yml` installs `requirements/runtime.txt`, `requirements/testing.txt`, and the editable project for docs generation
 
-## Tooling & system requirements
+## 5. Quality Gate Pipeline (ci.yml)
 
-Minimum tools required to reproduce CI locally (Linux):
+The workflow in `.github/workflows/ci.yml` is the main fast feedback pipeline.
 
-- Python 3.12
-- `make`
-- `pip` and a virtualenv (`python -m venv`)
-- `curl` (for optional hadolint installation)
-- `hadolint` (Dockerfile linting): can be installed via the release binary or used via Docker image
-- `libmagic` system library (provided by `libmagic1` / `libmagic-dev` on Debian/Ubuntu): required by `python-magic` runtime
-- Build tools (`build-essential`) may be required to install some Python packages.
+It has two jobs.
 
-All developer instructions assume Linux hosts. Documented installation commands in this repo are examples; package names may vary across distributions.
+### `ci` job
 
----
+The `ci` job performs these steps:
 
-## CI configuration files (where policies live)
+- checks out the repository
+- sets up Python 3.12
+- caches pip downloads using `hashFiles('requirements/**/*.txt')`
+- installs the Hadolint binary
+- creates a `.venv` virtual environment
+- installs `requirements/dev.txt`
+- runs `make ci`
 
-The CI and local checks draw configuration from a small set of repository files. Reference these when you need to change formatting, linting, test settings, or pre-commit hooks:
+`make ci` expands to:
 
-- Formatting, linting and pytest configuration: [pyproject.toml](pyproject.toml)
-  - `black` and `ruff` configuration blocks are defined here.
-  - `pytest` settings used by local runs and some CI flows are under
-    `[tool.pytest.ini_options]`.
-- Pre-commit hooks: [.pre-commit-config.yaml](.pre-commit-config.yaml)
-  - Lists the `black`, `ruff`, `mypy`, `hadolint` and `pytest` hooks and their settings.
-- Canonical CI driver: [Makefile](Makefile)
-  - The `ci` target orchestrates `lint`, `typecheck`, `hadolint`, and `test`.
+- `quality`
+- `ci-security`
 
-Important: The `Makefile` is the canonical CI driver. If you change the sequence of checks or add/remove a step in CI, update the `ci` target in the `Makefile` first: GitHub Actions expects the same pipeline behavior.
+That includes:
 
-When updating checks, prefer editing `pyproject.toml` and `.pre-commit-config.yaml` so local developer tooling and CI remain in sync.
+- Black formatting checks through `black --check`
+- Ruff linting through `ruff check`
+- MyPy type checking through `mypy`
+- pytest execution through `pytest -q tests`
+- Bandit SAST through `bandit`
+- pip-audit dependency scanning against `requirements/runtime.txt`
+- Hadolint checks for `Dockerfile`
 
-### Tool versions & quick verification
+### `build` job
 
-The CI environment uses Python 3.12. To verify your local environment matches CI, run:
+The `build` job runs after the `ci` job completes successfully.
 
-```bash
-python --version
-pip --version
+It performs:
+
+- repository checkout
+- Docker Buildx setup
+- Docker image build validation with `docker/build-push-action@v5`
+- GitHub Actions cache reuse through `cache-from` and `cache-to`
+
+The image is built for `linux/amd64` with `push: false`. This job validates that the container image can be built reproducibly after the source-level quality gate passes.
+
+```mermaid
+flowchart TD
+Push --> CIJob
+CIJob --> Lint
+CIJob --> TypeCheck
+CIJob --> Tests
+CIJob --> Bandit
+CIJob --> PipAudit
+CIJob --> Hadolint
+CIJob --> BuildJob
+BuildJob --> DockerBuild
 ```
 
-To inspect installed package versions (useful when debugging mypy or pre-commit discrepancies):
+## 6. Security Analysis Pipeline (security.yml)
 
-```bash
-pip freeze | grep -E "pydantic|fastapi|uvicorn|mypy|ruff|black"
+The workflow in `.github/workflows/security.yml` is the deeper security pipeline.
+
+Triggers are:
+
+- pull requests to `main`
+- a weekly cron schedule at `0 3 * * 1`
+- manual workflow execution
+
+The workflow installs Python 3.12, caches pip downloads, creates a virtual environment, and installs:
+
+- `requirements/runtime.txt`
+- `requirements/security.txt`
+
+It then runs three security stages.
+
+### Semgrep SAST
+
+Semgrep is executed with `returntocorp/semgrep-action@v1` using these rule sets:
+
+- `p/ci`
+- `p/python`
+- `p/security-audit`
+
+### Trivy filesystem scan
+
+The workflow installs Trivy and `jq`, then runs:
+
+- `make trivy-fs`
+
+The Makefile target runs Trivy in filesystem mode with:
+
+- `--scanners secret,misconfig`
+- `--severity HIGH,CRITICAL`
+- JSON output parsed by `jq`
+
+The target fails unless HIGH misconfigurations, CRITICAL misconfigurations, and detected secrets are all zero.
+
+### Trivy image scan
+
+The workflow runs:
+
+- `make trivy-image IMAGE_NAME=seg IMAGE_TAG=${GITHUB_SHA}`
+
+The Makefile target first builds the image through the `build` dependency, then runs Trivy in image mode with:
+
+- `--scanners vuln`
+- `--severity HIGH,CRITICAL`
+- `--ignore-unfixed`
+
+The target fails unless both HIGH and CRITICAL vulnerability counts are zero.
+
+```mermaid
+flowchart TD
+PullRequest --> SecurityWorkflow
+SecurityWorkflow --> Semgrep
+SecurityWorkflow --> TrivyFS
+SecurityWorkflow --> TrivyImage
 ```
 
-Note: The `mypy` pre-commit hook defines `additional_dependencies` to ensure type-checking runs in an isolated environment. Keep those settings and `requirements/dev.txt` reasonably aligned to avoid surprising differences between local pre-commit runs and CI.
+## 7. Release Pipeline (release.yml)
 
----
+The workflow in `.github/workflows/release.yml` automates container releases and GitHub release assets.
 
-## Test Isolation Guarantees
+> [!IMPORTANT]
+> Publishing is reserved for version tags matching `v*`. Regular pushes and pull requests do not publish container images or GitHub release artifacts.
 
-SEG enforces **strict configuration isolation** during tests.
+It is triggered by:
 
-### Environment isolation
+- pushes of tags matching `v*`
+- manual workflow dispatch
 
-- All environment variables starting with `SEG_` are removed before each test
-- Tests must explicitly provide required configuration via fixtures
-- Tests never rely on a developer’s local shell or CI environment
+The release job performs these stages:
 
-### `.env` handling
+1. Checkout with full history
+2. Normalize image owner and image name to lowercase
+3. Enable Docker Buildx
+4. Validate strict semantic version format `vX.Y.Z`
+5. Derive `APP_VERSION` from the tag
+6. Log in to GHCR
+7. Generate Docker metadata tags
+8. Build the image locally with Buildx and GitHub cache reuse
+9. Install Trivy and scan the release image before publishing
+10. Push the generated tags to GHCR
+11. Install Python dependencies for OpenAPI export
+12. Export the OpenAPI schema by running `scripts/export_openapi.py`
+13. Create versioned OpenAPI copies
+14. Create a GitHub release and upload release assets
 
-- Loading of `.env` files is explicitly disabled during tests
-- This prevents accidental coupling between tests and local configuration
-- CI failures caused by missing `.env` files are intentional and correct
+Docker metadata is generated by `docker/metadata-action@v5` and includes:
 
-### Result
+- raw semantic version
+- normalized semantic version
+- major.minor version
+- major version
+- short commit SHA
+- `latest`
 
-If a test passes in CI, it is guaranteed to be:
+The workflow publishes images to `ghcr.io/<owner>/<image>`.
 
-- Deterministic
-- Reproducible
-- Independent of local machine state
+Release assets include:
 
----
+- `docs/api-docs/output/openapi.json`
+- `openapi-vX.Y.Z.json`
 
-## Application Factory Pattern
+This means the release pipeline publishes both container artifacts and API contract artifacts.
 
-SEG uses an **application factory pattern** via:
-
-```python
-def create_app(settings: Settings | None = None) -> FastAPI:
-    ...
+```mermaid
+flowchart TD
+TagPush --> ValidateSemver
+ValidateSemver --> BuildImage
+BuildImage --> TrivyScan
+TrivyScan --> PushImage
+PushImage --> ExportOpenAPI
+ExportOpenAPI --> GitHubRelease
 ```
 
-### Why this matters
+## 8. Documentation Publishing Pipeline (release-docs.yml)
 
-- Prevents configuration side effects at import time
-- Allows tests to control configuration explicitly
-- Enables proper isolation between runtime, CI, and tests
-- Avoids implicit global state
+The workflow in `.github/workflows/release-docs.yml` publishes versioned API documentation to the `gh-pages` branch.
 
-### Important rule
+> [!NOTE]
+> The docs publishing workflow adds new versioned content without removing previously published API documentation versions.
 
-> **The FastAPI application is never instantiated at import time.**
+It is triggered by pushes of tags matching `v*`.
 
-There is intentionally **no** global `app = create_app()` in the codebase.
+The workflow performs these stages:
 
----
+1. Checkout the repository
+2. Validate strict semantic version format `vX.Y.Z`
+3. Set up Python 3.12 and cache pip downloads
+4. Install runtime and testing dependencies and the editable project
+5. Export the OpenAPI schema with `scripts/export_openapi.py`
+6. Validate the exported schema with `openapi_spec_validator`
+7. Set up Node.js 20
+8. Install `swagger-ui-dist@5.17.14`
+9. Build the versioned docs site with `scripts/build_docs_site.py`
+10. Check out the `gh-pages` branch
+11. Copy the generated `site/` content into the publishing branch
+12. Commit and push the update
 
-## Runtime Invocation (Uvicorn)
+The Python helper scripts do the actual documentation build work:
 
-Because SEG uses an application factory, the service must be started using
-Uvicorn’s `--factory` mode.
+- `scripts/export_openapi.py` builds the FastAPI app with documentation settings and writes `docs/api-docs/output/openapi.json`
+- `scripts/build_docs_site.py` creates `site/api-docs/<version>/`, copies Swagger UI assets, writes `index.html`, copies `openapi.json`, and creates redirect pages
 
-### Local development
+The published site contains:
 
-```bash
-PYTHONPATH=./src \
-uvicorn --factory seg.app:create_app \
-  --host 0.0.0.0 \
-  --port 8080 \
-  --reload \
-  --reload-dir src
+- versioned API documentation under `api-docs/<version>/`
+- the exported OpenAPI schema
+- a Swagger UI based interface
+
+The workflow publishes without deleting previous versions. It copies the generated site into `gh-pages` and commits only when there are changes.
+
+```mermaid
+flowchart TD
+TagPush --> ExportOpenAPI
+ExportOpenAPI --> ValidateSchema
+ValidateSchema --> BuildDocs
+BuildDocs --> PublishPages
 ```
 
-### Docker runtime
+## 9. Pre-commit Integration
 
-The Docker image uses the same factory-based invocation:
+Local quality enforcement is configured in `.pre-commit-config.yaml`.
 
-```bash
-uvicorn --factory seg.app:create_app \
-  --host 0.0.0.0 \
-  --port ${SEG_PORT}
-  --proxy-headers
-```
+Configured hooks include:
 
-This removes Uvicorn startup warnings and makes the intended startup model
-explicit and unambiguous.
+- `trailing-whitespace`
+- `end-of-file-fixer`
+- `check-yaml`
+- Black
+- Ruff with `--fix`
+- MyPy for `src` and `tests`
+- Bandit for `src`
+- Hadolint for `Dockerfile`
+- pytest for `tests`
 
----
+The MyPy hook includes additional dependencies so type checking can run inside the isolated pre-commit environment. Local hooks are also used for Hadolint and pytest.
 
-## CI Philosophy
+These hooks mirror the main quality checks used by the repository:
 
-CI in SEG is intentionally strict.
+- formatting and linting
+- static typing
+- security scanning with Bandit
+- Dockerfile validation
+- test execution
 
-If CI fails, it usually indicates one of the following:
-
-- A missing or implicit configuration dependency
-- A security invariant violation
-- A regression in contract or behavior
-- An environment-specific assumption leaking into tests
-
-This is by design.
-
-CI is treated as a **first-class security and correctness gate**, not a
-best-effort check.
-
----
-
-## Summary
-
-- CI is deterministic, isolated, and reproducible
-- Tests never depend on `.env` or local configuration
-- The Makefile is the canonical CI interface
-- SEG uses an explicit FastAPI application factory
-- Runtime, Docker, and CI all use the same startup model
-
-If CI passes, the system is considered safe to run and extend.
+They provide local enforcement before changes reach GitHub Actions.
 
 ---

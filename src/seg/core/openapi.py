@@ -1,3 +1,5 @@
+"""OpenAPI schema construction helpers for runtime-generated SEG contracts."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -154,6 +156,8 @@ def _register_model(
         return
 
     def _register_defs(defs: dict[str, Any]) -> None:
+        """Recursively register nested `$defs` under components schemas."""
+
         for nested_name, nested_schema in defs.items():
             if nested_name in schemas:
                 continue

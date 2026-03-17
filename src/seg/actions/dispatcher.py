@@ -1,4 +1,5 @@
-# src/seg/actions/dispatcher.py
+"""Dispatcher for SEG action execution requests."""
+
 from __future__ import annotations
 
 import logging
@@ -20,6 +21,15 @@ from seg.core.schemas.execute import ExecuteRequest
 
 
 async def dispatch_execute(req: ExecuteRequest) -> tuple[ResponseEnvelope[Any], int]:
+    """Validate and execute a requested action.
+
+    Args:
+        req: Parsed execution request containing the action name and params.
+
+    Returns:
+        A tuple containing the normalized response envelope and HTTP status code.
+    """
+
     logger = logging.getLogger("seg.actions.dispatcher")
     spec = get_action(req.action)
     if spec is None:

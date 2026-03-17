@@ -1,3 +1,5 @@
+"""Secure file-access helpers built on top of sandbox path validation."""
+
 import os
 
 from seg.core.security.paths import (

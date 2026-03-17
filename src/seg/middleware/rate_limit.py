@@ -1,3 +1,5 @@
+"""Process-local rate-limiting middleware for SEG HTTP traffic."""
+
 from __future__ import annotations
 
 import asyncio
@@ -38,6 +40,8 @@ class _TokenBucket:
     """
 
     def __init__(self, capacity: int, refill_rate: float) -> None:
+        """Initialize the token bucket state and async lock."""
+
         self._capacity = float(capacity)
         self._refill_rate = refill_rate
         self._tokens = float(capacity)
@@ -96,6 +100,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     """
 
     def __init__(self, app: ASGIApp, rate_limit_rps: int | None = None) -> None:
+        """Create the middleware and provision its token bucket."""
+
         super().__init__(app)
         self._rate_limit_rps = self._resolve_rate_limit_rps(app, rate_limit_rps)
         self._bucket = _TokenBucket(

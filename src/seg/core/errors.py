@@ -7,6 +7,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class ErrorDef:
+    """Definition of a stable SEG error contract."""
+
     code: str
     http_status: int
     default_message: str
@@ -163,7 +165,7 @@ PUBLIC_HTTP_ERRORS = [
 ]
 
 # Errors flagged as public are included in the OpenAPI schema and used by
-# FastAPI/Starlette handlers when mapping raw HTTP codes to SEG’s stable
+# FastAPI/Starlette handlers when mapping raw HTTP codes to SEG's stable
 # machine-readable responses.
 
 __all__ = [

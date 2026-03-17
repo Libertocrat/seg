@@ -1,3 +1,5 @@
+"""Small schema types shared by SEG middleware components."""
+
 from dataclasses import dataclass
 
 
