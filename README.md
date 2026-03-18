@@ -1,4 +1,18 @@
-# Secure Execution Gateway (SEG)
+<h1 align="center">Secure Execution Gateway</h1>
+
+<p align="center">
+  <img src="docs/assets/seg-logo-600x400.png" width="400" alt="SEG Logo">
+</p>
+
+<p align="center">
+  <em>
+    A security-focused execution gateway for automation platforms that replaces arbitrary command execution with strictly allowlisted operations.
+  </em>
+  <br>
+  <em>
+    Designed for secure automation, workflow engines, and internal platforms.
+  </em>
+</p>
 
 <p align="center">
   <a href="https://github.com/libertocrat/seg/releases">
@@ -26,9 +40,8 @@
     <img src="https://img.shields.io/badge/OpenAPI-3.1-green" alt="OpenAPI">
   </a>
 </p>
-<br>
 
-A security-focused execution gateway for automation platforms that replaces arbitrary command execution with strictly allowlisted operations.
+---
 
 ## Table of Contents
 
@@ -527,6 +540,7 @@ The README is the high-level entry point. Detailed design, workflow, and operati
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Threat model, trust boundaries, and mitigations |
 | [docs/TESTING.md](docs/TESTING.md) | Testing strategy, suite structure, and local execution |
 | [docs/CI.md](docs/CI.md) | CI, security scanning, release, and docs publishing workflows |
+| [CHANGELOG.md](CHANGELOG.md) | Project release history and notable changes |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment and Makefile workflow |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Current contribution policy and project participation status |
 | [SECURITY.md](SECURITY.md) | Vulnerability disclosure and security reporting policy |
