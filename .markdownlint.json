@@ -3,7 +3,7 @@
     "MD003": { "style": "atx" },
     "MD024": { "siblings_only": true },
     "MD029": false,
-    "MD033": { "allowed_elements": ["img", "p", "div", "a", "br"]},
+    "MD033": { "allowed_elements": ["h1", "img", "p", "div", "a", "br", "em"]},
     "MD025": false,
     "no-hard-tabs": false
 }
