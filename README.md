@@ -15,22 +15,22 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/libertocrat/seg/releases">
-    <img src="https://img.shields.io/github/v/release/libertocrat/seg" alt="Release">
+  <a href="https://github.com/Libertocrat/seg/releases">
+    <img src="https://img.shields.io/github/v/release/Libertocrat/seg" alt="Release">
   </a>
-  <a href="https://github.com/libertocrat/seg/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/libertocrat/seg" alt="License">
+  <a href="https://github.com/Libertocrat/seg/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/Libertocrat/seg" alt="License">
   </a>
-  <a href="https://github.com/libertocrat/seg/actions/workflows/ci.yml">
-    <img src="https://github.com/libertocrat/seg/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <a href="https://github.com/Libertocrat/seg/actions/workflows/ci.yml">
+    <img src="https://github.com/Libertocrat/seg/actions/workflows/ci.yml/badge.svg" alt="CI">
   </a>
-  <a href="https://github.com/libertocrat/seg/actions/workflows/security.yml">
-    <img src="https://github.com/libertocrat/seg/actions/workflows/security.yml/badge.svg" alt="Security">
+  <a href="https://github.com/Libertocrat/seg/actions/workflows/security.yml">
+    <img src="https://github.com/Libertocrat/seg/actions/workflows/security.yml/badge.svg" alt="Security">
   </a>
-  <a href="https://github.com/libertocrat/seg/actions/workflows/release.yml">
-    <img src="https://github.com/libertocrat/seg/actions/workflows/release.yml/badge.svg" alt="Release Pipeline">
+  <a href="https://github.com/Libertocrat/seg/actions/workflows/release.yml">
+    <img src="https://github.com/Libertocrat/seg/actions/workflows/release.yml/badge.svg" alt="Release Pipeline">
   </a>
-  <a href="https://github.com/libertocrat/seg/pkgs/container/seg">
+  <a href="https://github.com/Libertocrat/seg/pkgs/container/seg">
     <img src="https://img.shields.io/badge/container-ghcr.io-blue?logo=docker" alt="Docker">
   </a>
   <a href="https://www.python.org/">
