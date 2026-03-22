@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 
+import seg.core.errors as errors
 from seg.actions.registry import get_registry_snapshot
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
@@ -59,6 +60,24 @@ RESPONSE_CONTRACT_OVERRIDES = {
     },
 }
 
+# Defines the set of SEG error conditions that may be returned by
+# global middleware layers (e.g. authentication, rate limiting, timeout).
+#
+# These errors are not tied to specific route handlers and must be
+# injected into all protected operations in the OpenAPI schema.
+#
+# IMPORTANT:
+# - Do not include handler-specific errors here.
+# - Errors listed here should originate exclusively from middleware.
+# - Public endpoints (e.g. `/health`, `/metrics`) are excluded at runtime.
+MIDDLEWARE_ERROR_MAP = [
+    errors.UNAUTHORIZED,
+    errors.RATE_LIMITED,
+    errors.TIMEOUT,
+    errors.FILE_TOO_LARGE,
+    errors.INVALID_REQUEST,
+]
+
 
 def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     """Build the SEG OpenAPI document with runtime-aware patches.
@@ -99,6 +118,10 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
             "description": "Execute sandboxed actions via dispatcher.",
         },
         {
+            "name": "Files",
+            "description": "Upload and manage persisted files.",
+        },
+        {
             "name": "Observability",
             "description": "System health checks and Prometheus metrics endpoints.",
             "externalDocs": {
@@ -120,6 +143,9 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     _inject_security(schema)
     _patch_public_endpoints(schema)
     _patch_execute_contract(schema, app)
+    _patch_files_contract(schema)
+    _inject_middleware_errors(schema, MIDDLEWARE_ERROR_MAP)
+    _replace_default_422(schema)
     _inject_response_headers(schema)
     _prune_internal_schemas(schema)
     _apply_response_contract_overrides(schema, RESPONSE_CONTRACT_OVERRIDES)
@@ -253,6 +279,81 @@ def _inject_response_headers(schema: dict[str, Any]) -> None:
                         "description": "Seconds to wait before retrying.",
                         "schema": {"type": "string", "pattern": "^[0-9]+$"},
                     }
+
+
+# ---------------------------------------------------------------------
+# /v1/files contracts
+# ---------------------------------------------------------------------
+
+
+def _patch_files_contract(schema: dict[str, Any]) -> None:
+    """Apply SEG OpenAPI contract overrides for `/v1/files` endpoints.
+
+    This function defines and injects the OpenAPI response contract for
+    file-related operations under the `/v1/files` path. It encapsulates
+    all domain-specific knowledge for this endpoint, including:
+
+    - The set of SEG error conditions that may be raised by the handler
+      (`ingest_uploaded_file`)
+    - A canonical success response example aligned with the
+      `ResponseEnvelope[FileMetadata]` structure
+
+    The function delegates the actual schema mutation to
+    `_patch_operation_contract`, ensuring consistent behavior across
+    all endpoints while keeping domain configuration localized.
+
+    Notes:
+        - Only handler-level errors are included here. Middleware-derived
+          errors (e.g. authentication, rate limiting) are injected separately
+          via `_inject_middleware_errors(...)`.
+        - The success example overrides FastAPI-generated examples to provide
+          deterministic and meaningful documentation.
+        - This function is designed to scale as additional methods
+          (GET, DELETE, etc.) are added to `/v1/files`.
+
+    Args:
+        schema: Mutable OpenAPI schema document to be patched in-place.
+
+    Returns:
+        None.
+    """
+
+    FILES_POST_ERRORS = [
+        errors.INVALID_REQUEST,
+        errors.INVALID_ALGORITHM,
+        errors.FILE_EXTENSION_MISSING,
+        errors.MIME_MAPPING_NOT_DEFINED,
+        errors.FILE_TOO_LARGE,
+        errors.UNSUPPORTED_MEDIA_TYPE,
+        errors.INTERNAL_ERROR,
+    ]
+
+    FILES_POST_SUCCESS_EXAMPLE = {
+        "success": True,
+        "error": None,
+        "data": {
+            "file": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "original_filename": "document.pdf",
+                "stored_filename": "file_<uuid>.bin",
+                "mime_type": "application/pdf",
+                "extension": ".pdf",
+                "size_bytes": 1024,
+                "sha256": "abc123...",
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "status": "ready",
+            }
+        },
+    }
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/files",
+        method="post",
+        errors=FILES_POST_ERRORS,
+        success_example=FILES_POST_SUCCESS_EXAMPLE,
+    )
 
 
 # ---------------------------------------------------------------------
@@ -396,11 +497,6 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     errors_by_status: dict[int, list[ErrorDef]] = defaultdict(list)
 
-    # Remove generic FastAPI 422 response if present to be replaced by
-    # our more specific validation error definitions.
-    if "422" in responses:
-        responses.pop("422")
-
     # Dynamically build error responses from centralized error definitions.
     for err in PUBLIC_HTTP_ERRORS:
         errors_by_status[err.http_status].append(err)
@@ -457,6 +553,231 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
         "body_limit_bytes": getattr(app.state.settings, "seg_max_bytes", None),
         "enforced_by": "RequestIntegrityMiddleware",
     }
+
+
+def _patch_operation_contract(
+    schema: dict[str, Any],
+    *,
+    path: str,
+    method: str,
+    errors: list[ErrorDef] | None = None,
+    success_example: dict[str, Any] | None = None,
+) -> None:
+    """Apply SEG OpenAPI contract overrides to a single operation.
+
+    An operation is defined as a combination of path + HTTP method.
+
+    This function:
+    - Injects SEG error examples grouped by HTTP status
+    - Removes FastAPI-generated schemas when necessary
+    - Optionally overrides the success response example
+
+    Args:
+        schema: Mutable OpenAPI schema document.
+        path: API path (e.g. `/v1/files`).
+        method: HTTP method (e.g. `post`, `get`).
+        errors: Optional list of ErrorDef objects to expose.
+        success_example: Optional success response example payload.
+    """
+
+    paths = schema.get("paths", {})
+    path_item = paths.get(path)
+    if not path_item:
+        return
+
+    operation = path_item.get(method)
+    if not operation:
+        return
+
+    responses = operation.setdefault("responses", {})
+
+    # ------------------------------------------------------------------
+    # 1. Patch error responses
+    # ------------------------------------------------------------------
+
+    if errors:
+        grouped: dict[int, list[ErrorDef]] = {}
+        for err in errors:
+            grouped.setdefault(err.http_status, []).append(err)
+
+        for status, errs in grouped.items():
+            response = responses.setdefault(
+                str(status),
+                {"description": f"{status} error"},
+            )
+
+            content = response.setdefault("content", {})
+            json_content = content.setdefault("application/json", {})
+
+            json_content["examples"] = {
+                err.code: {
+                    "summary": err.code,
+                    "value": {
+                        "success": False,
+                        "error": {
+                            "code": err.code,
+                            "message": err.default_message,
+                        },
+                        "data": None,
+                    },
+                }
+                for err in errs
+            }
+
+            json_content.pop("schema", None)
+
+    # ------------------------------------------------------------------
+    # 2. Patch success example
+    # ------------------------------------------------------------------
+
+    if success_example:
+        for code in ("200", "201"):
+            if code in responses:
+                content = responses[code].setdefault("content", {})
+                json_content = content.setdefault("application/json", {})
+                json_content["example"] = success_example
+                break
+
+
+def _build_422_examples() -> dict[str, Any]:
+    """Build standardized 422 error examples from public SEG error definitions.
+
+    This helper constructs OpenAPI-compatible example payloads for all
+    public errors with HTTP status 422 (Unprocessable Entity). Each example
+    follows the canonical SEG response envelope format, ensuring consistency
+    across all endpoints.
+
+    The generated examples are used to replace FastAPI's default validation
+    error schema, which does not align with SEG's error contract.
+
+    Returns:
+        Dictionary mapping error codes to OpenAPI example objects, where each
+        example includes a summary and a fully structured response payload.
+    """
+
+    return {
+        err.code: {
+            "summary": err.code,
+            "value": {
+                "success": False,
+                "error": {
+                    "code": err.code,
+                    "message": err.default_message,
+                },
+                "data": None,
+            },
+        }
+        for err in PUBLIC_HTTP_ERRORS
+        if err.http_status == 422
+    }
+
+
+def _replace_default_422(schema: dict[str, Any]) -> None:
+    """Replace all default FastAPI 422 responses with SEG error contract.
+
+    This function iterates over all registered API operations and replaces
+    any existing HTTP 422 response definitions with a standardized SEG
+    error contract. The replacement removes references to FastAPI's internal
+    validation schemas (e.g. HTTPValidationError) and injects consistent
+    example-based responses derived from centralized error definitions.
+
+    This ensures:
+    - Full alignment with SEG's ResponseEnvelope structure
+    - Elimination of framework-specific validation artifacts
+    - A deterministic and stable OpenAPI contract across all endpoints
+
+    Args:
+        schema: Mutable OpenAPI schema document to be patched in-place.
+    """
+    paths = schema.get("paths", {})
+
+    for _path, path_item in paths.items():
+        for method, operation in path_item.items():
+            if method not in {"get", "post", "put", "patch", "delete"}:
+                continue
+
+            responses = operation.get("responses", {})
+            if "422" not in responses:
+                continue
+
+            responses["422"] = {
+                "description": "422 error",
+                "content": {"application/json": {"examples": _build_422_examples()}},
+            }
+
+
+def _inject_middleware_errors(
+    schema: dict[str, Any],
+    middleware_error_map: list[ErrorDef],
+) -> None:
+    """Inject middleware-level error responses into protected endpoints.
+
+    This function adds standardized SEG error responses that originate from
+    global middleware layers, such as authentication, rate limiting, and
+    timeout enforcement. The injected responses are applied to all protected
+    operations and skipped for explicitly public endpoints.
+
+    The function expects a list of `ErrorDef` values representing middleware
+    failures that may be returned before a request reaches the route handler.
+
+    Notes:
+        - Public operations are identified by `security=[]`.
+        - Any existing framework-generated JSON schema for the injected
+          status code is removed to avoid leaking FastAPI-specific contracts.
+        - Response headers such as `Retry-After` for HTTP 429 are expected
+          to be added later by `_inject_response_headers(...)`.
+
+    Args:
+        schema: Mutable OpenAPI schema document to patch in-place.
+        middleware_error_map: List of SEG public error definitions that may
+            be returned by middleware.
+
+    Returns:
+        None.
+    """
+
+    paths = schema.get("paths", {})
+
+    errors_by_status: dict[int, list[ErrorDef]] = {}
+    for err in middleware_error_map:
+        errors_by_status.setdefault(err.http_status, []).append(err)
+
+    for path_item in paths.values():
+        for method, operation in path_item.items():
+            if method not in {"get", "post", "put", "patch", "delete"}:
+                continue
+
+            # Public endpoints are explicitly marked with empty security.
+            if operation.get("security") == []:
+                continue
+
+            responses = operation.setdefault("responses", {})
+
+            for status, error_defs in errors_by_status.items():
+                response = responses.setdefault(
+                    str(status),
+                    {"description": f"{status} error"},
+                )
+
+                content = response.setdefault("content", {})
+                json_content = content.setdefault("application/json", {})
+
+                json_content["examples"] = {
+                    err.code: {
+                        "summary": err.code,
+                        "value": {
+                            "success": False,
+                            "error": {
+                                "code": err.code,
+                                "message": err.default_message,
+                            },
+                            "data": None,
+                        },
+                    }
+                    for err in error_defs
+                }
+
+                json_content.pop("schema", None)
 
 
 def _patch_custom_schemas(schema: dict[str, Any]) -> None:
