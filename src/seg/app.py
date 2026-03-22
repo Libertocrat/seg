@@ -20,6 +20,7 @@ from seg.core import (
     http_exception_handler,
 )
 from seg.core.openapi import build_openapi_schema
+from seg.core.utils.file_storage import ensure_storage_dirs
 from seg.middleware.auth import AuthMiddleware
 from seg.middleware.observability import ObservabilityMiddleware
 from seg.middleware.rate_limit import RateLimitMiddleware
@@ -29,6 +30,7 @@ from seg.middleware.schemas import ContentTypePolicy
 from seg.middleware.security_headers import SecurityHeadersMiddleware
 from seg.middleware.timeout import TimeoutMiddleware
 from seg.routes.execute import router as execute_router
+from seg.routes.files import router as files_router
 from seg.routes.health import router as health_router
 from seg.routes.metrics import router as metrics_router
 
@@ -80,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """
 
     settings = settings or get_settings()
+    ensure_storage_dirs(settings)
 
     # Choose whether to expose the interactive documentation endpoints at
     # runtime based on the `seg_enable_docs` setting. When disabled these
@@ -158,7 +161,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 method="POST",
                 path="/v1/execute",
                 allowed=frozenset({"application/json"}),
-            )
+            ),
+            ContentTypePolicy(
+                method="POST",
+                path="/v1/files",
+                allowed=frozenset({"multipart/form-data"}),
+            ),
         ],
     )
     app.add_middleware(TimeoutMiddleware, timeout_ms=settings.seg_timeout_ms)
@@ -176,5 +184,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(metrics_router)
     app.include_router(execute_router)
+    app.include_router(files_router)
 
     return app
