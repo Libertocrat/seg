@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.checksum import file_checksum
 from seg.actions.file.mime_detect import file_mime_detect
 from seg.actions.file.schemas import (
@@ -21,6 +20,7 @@ from seg.core.errors import (
     FILE_NOT_FOUND,
     MIME_MAPPING_NOT_DEFINED,
     PATH_NOT_ALLOWED,
+    SegError,
 )
 from seg.core.security.file_access import secure_file_validate_only
 from seg.core.security.mime_map import EXTENSION_MIME_MAP
@@ -44,7 +44,7 @@ async def file_verify(params: FileVerifyParams) -> FileVerifyResult:
         FileVerifyResult: Aggregated verification results.
 
     Raises:
-        SegActionError: On policy or technical errors with stable error codes
+        SegError: On policy or technical errors with stable error codes
             including `FILE_EXTENSION_MISSING` and `MIME_MAPPING_NOT_DEFINED`.
     """
 
@@ -55,9 +55,9 @@ async def file_verify(params: FileVerifyParams) -> FileVerifyResult:
         # Use wrapper for validation-only checks; returns ValidatedPath (fd=None)
         secure_file_validate_only(params.path)
     except PathSecurityError as exc:
-        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
+        raise SegError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
-        raise SegActionError(FILE_NOT_FOUND) from exc
+        raise SegError(FILE_NOT_FOUND) from exc
 
     # ------------------------------------------------------------------
     # Step 1: Detect MIME (reuses hardened handler)
@@ -82,7 +82,7 @@ async def file_verify(params: FileVerifyParams) -> FileVerifyResult:
                 "file_verify: missing file extension and no expected_mime provided: %s",
                 params.path,
             )
-            raise SegActionError(
+            raise SegError(
                 FILE_EXTENSION_MISSING,
                 "Cannot infer MIME type because file has no extension.",
             )
@@ -95,7 +95,7 @@ async def file_verify(params: FileVerifyParams) -> FileVerifyResult:
                 extension,
                 params.path,
             )
-            raise SegActionError(
+            raise SegError(
                 MIME_MAPPING_NOT_DEFINED,
                 "No MIME mapping defined for file extension.",
                 details={"extension": extension},

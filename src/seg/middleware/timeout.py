@@ -13,8 +13,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
-from seg.actions.exceptions import SegActionError
-from seg.core.errors import TIMEOUT
+from seg.core.errors import TIMEOUT, SegError
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.utils.http import normalize_metric_path
 
@@ -67,7 +66,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
             structured timeout response.
 
         Raises:
-            SegActionError: Propagated unchanged to avoid masking domain errors.
+            SegError: Propagated unchanged to avoid masking domain errors.
         """
 
         if self._is_exempt_path(request):
@@ -80,7 +79,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
                 call_next(request),
                 timeout=self._timeout_seconds,
             )
-        except SegActionError:
+        except SegError:
             raise
         except asyncio.TimeoutError:
             elapsed_ms = self._elapsed_ms_since(start)

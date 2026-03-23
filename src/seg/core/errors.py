@@ -2,16 +2,86 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
+class SegError(Exception):
+    """
+    Canonical structured SEG application exception.
+
+    This exception represents a normalized, transport-ready error raised
+    by SEG handlers and consumed by route layers to produce HTTP responses.
+
+    Design principles:
+    - Built from a centralized ErrorDef (single source of truth)
+    - Allows optional overrides (message, details)
+    - Normalizes all fields to stable, non-optional types
+    - Safe to serialize into API responses via ResponseEnvelope
+
+    Attributes:
+        error:
+            The ErrorDef defining the canonical error code, HTTP status,
+            and default message.
+
+        code:
+            Stable SEG error code derived from ErrorDef.
+
+        http_status:
+            HTTP status code associated with this error.
+
+        message:
+            Final, normalized message exposed to the client.
+            Guaranteed to be a non-empty string.
+
+        details:
+            Optional structured metadata for the error.
+            Must be safe for client exposure.
+
+    Usage:
+        Raised in handler layer to represent expected failures.
+
+        Example:
+            raise SegError(
+                errors.FILE_NOT_FOUND,
+                details={"file_id": file_id}
+            )
+
+    Notes:
+        - Helpers must NOT raise SegError (only standard exceptions).
+        - Routes are responsible for mapping this exception to HTTP responses.
+        - `details` must never contain sensitive or internal-only information.
+    """
+
+    error: ErrorDef
+    message: str = field(init=False)
+    details: dict[str, Any] = field(init=False)
+
+    def __init__(
+        self,
+        error: ErrorDef,
+        message: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        self.error = error
+        self.code = error.code
+        self.http_status = error.http_status
+
+        self.message = message or error.default_message
+        self.details = dict(details or {})
+
+        Exception.__init__(self, self.message)
+
+
+@dataclass(frozen=True, slots=True)
 class ErrorDef:
     """Definition of a stable SEG error contract."""
 
     code: str
     http_status: int
     default_message: str
+    category: str = "domain"
 
 
 BAD_REQUEST = ErrorDef(
@@ -170,6 +240,7 @@ PUBLIC_HTTP_ERRORS = [
 
 __all__ = [
     "ErrorDef",
+    "SegError",
     "PUBLIC_HTTP_ERRORS",
     "BAD_REQUEST",
     "INVALID_PARAMS",

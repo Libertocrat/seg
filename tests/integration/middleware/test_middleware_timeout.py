@@ -9,7 +9,7 @@ They ensure that:
 - X-Request-Id propagates correctly.
 - Metrics are incremented correctly.
 - Exempt endpoints bypass timeout.
-- SegActionError is NOT converted into timeout.
+- SegError is NOT converted into timeout.
 - Timeout takes priority over domain errors.
 
 They do NOT validate internal asyncio mechanics.
@@ -252,7 +252,7 @@ def test_seg_action_error_is_not_converted_to_timeout(
     auth_headers,
 ):
     """
-    GIVEN a handler that raises SegActionError immediately
+    GIVEN a handler that raises SegError immediately
     WHEN it executes
     THEN it is NOT converted into a timeout response
     """
@@ -321,7 +321,7 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     sandbox_file_factory,
 ):
     """
-    GIVEN a slow action that eventually raises SegActionError
+    GIVEN a slow action that eventually raises SegError
     WHEN it exceeds timeout
     THEN TIMEOUT is returned instead of domain error
     """

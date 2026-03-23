@@ -7,7 +7,7 @@ Key guarantees:
 - Syntactic validation and resolution under SEG_SANDBOX_DIR and SEG_ALLOWED_SUBDIRS.
 - Mitigates TOCTOU for the final component using `safe_open_no_follow`.
 - Rejects symbolic links and non-regular files.
-- Maps failures to `SegActionError` with stable error codes
+- Maps failures to `SegError` with stable error codes
   (e.g. PATH_NOT_ALLOWED, FILE_NOT_FOUND, PERMISSION_DENIED, INTERNAL_ERROR).
 """
 
@@ -17,7 +17,6 @@ import logging
 import os
 from pathlib import Path
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import DeleteParams, DeleteResult
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.errors import (
@@ -25,6 +24,7 @@ from seg.core.errors import (
     INTERNAL_ERROR,
     PATH_NOT_ALLOWED,
     PERMISSION_DENIED,
+    SegError,
 )
 from seg.core.security.file_access import secure_file_open_readonly
 from seg.core.security.paths import (
@@ -60,7 +60,7 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
         actually occurred.
 
     Raises:
-        SegActionError: Raised with one of the stable error codes:
+        SegError: Raised with one of the stable error codes:
             - PATH_NOT_ALLOWED: path is invalid, outside root, or contains symlinks.
             - FILE_NOT_FOUND: target missing and `require_exists` is True.
             - PERMISSION_DENIED: insufficient permissions to delete the target.
@@ -73,10 +73,10 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
             # preserve semantics when caller allows missing targets
             validated = secure_file_open_readonly(params.path, require_exists=False)
     except PathSecurityError as exc:
-        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
+        raise SegError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
         if params.require_exists:
-            raise SegActionError(FILE_NOT_FOUND) from exc
+            raise SegError(FILE_NOT_FOUND) from exc
         return DeleteResult(deleted=False)
 
     # Ensure target is a Path object
@@ -101,17 +101,17 @@ async def file_delete(params: DeleteParams) -> DeleteResult:
     except FileNotFoundError as exc:
         # Race: file disappeared after validation
         if params.require_exists:
-            raise SegActionError(FILE_NOT_FOUND) from exc
+            raise SegError(FILE_NOT_FOUND) from exc
         return DeleteResult(deleted=False)
     except PermissionError as exc:
         logger.exception("Permission denied when deleting %s", target_path)
-        raise SegActionError(
+        raise SegError(
             PERMISSION_DENIED,
             "Permission denied while deleting target",
         ) from exc
     except OSError as exc:
         logger.exception("Failed to delete %s", target_path)
-        raise SegActionError(INTERNAL_ERROR, "Failed to delete target") from exc
+        raise SegError(INTERNAL_ERROR, "Failed to delete target") from exc
 
     return DeleteResult(deleted=True)
 

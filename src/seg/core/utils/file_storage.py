@@ -15,13 +15,7 @@ from uuid import UUID
 
 import magic
 
-from seg.actions.exceptions import SegActionError
 from seg.core.config import Settings, get_settings
-from seg.core.errors import (
-    FILE_EXTENSION_MISSING,
-    MIME_MAPPING_NOT_DEFINED,
-    UNSUPPORTED_MEDIA_TYPE,
-)
 from seg.core.schemas.files import FileMetadata
 from seg.core.security.mime_map import EXTENSION_MIME_MAP
 
@@ -51,6 +45,27 @@ _DISALLOWED_EXECUTABLE_MIME_EXACT = frozenset(
         "text/x-shellscript",
     }
 )
+
+
+class FileExtensionMissingError(ValueError):
+    """Raised when an uploaded filename has no extension."""
+
+
+class MimeMappingNotDefinedError(ValueError):
+    """Raised when SEG has no MIME mapping for the file extension."""
+
+    def __init__(self, extension: str):
+        self.extension = extension
+        super().__init__(f"No MIME mapping defined for extension: {extension}")
+
+
+class UnsupportedMediaTypeValidationError(ValueError):
+    """Raised when uploaded extension and detected MIME are incompatible."""
+
+    def __init__(self, extension: str, detected_mime: str, message: str):
+        self.extension = extension
+        self.detected_mime = detected_mime
+        super().__init__(message)
 
 
 def get_data_root(settings: Settings | None = None) -> Path:
@@ -268,38 +283,33 @@ def _validate_extension_and_mime(original_filename: str, mime_type: str) -> str:
         Normalized extension when validation succeeds.
 
     Raises:
-        SegActionError: If extension is missing, unknown, mismatched, or blocked.
+        FileExtensionMissingError: If extension is missing.
+        MimeMappingNotDefinedError: If extension is unknown by policy mapping.
+        UnsupportedMediaTypeValidationError: If extension and detected MIME mismatch.
     """
 
     extension = _normalize_extension(original_filename)
     if not extension:
-        raise SegActionError(FILE_EXTENSION_MISSING)
+        raise FileExtensionMissingError()
 
     allowed_mimes = EXTENSION_MIME_MAP.get(extension)
     if not allowed_mimes:
-        raise SegActionError(
-            MIME_MAPPING_NOT_DEFINED,
-            details={"extension": extension},
+        raise MimeMappingNotDefinedError(
+            extension=extension,
         )
 
     if mime_type not in {m.lower() for m in allowed_mimes}:
-        raise SegActionError(
-            UNSUPPORTED_MEDIA_TYPE,
-            "Uploaded file extension does not match detected MIME type.",
-            details={
-                "extension": extension,
-                "detected_mime": mime_type,
-            },
+        raise UnsupportedMediaTypeValidationError(
+            extension=extension,
+            detected_mime=mime_type,
+            message="Uploaded file extension does not match detected MIME type.",
         )
 
     if _is_disallowed_executable(extension, mime_type):
-        raise SegActionError(
-            UNSUPPORTED_MEDIA_TYPE,
-            "Executable file types are not allowed.",
-            details={
-                "extension": extension,
-                "detected_mime": mime_type,
-            },
+        raise UnsupportedMediaTypeValidationError(
+            extension=extension,
+            detected_mime=mime_type,
+            message="Executable file types are not allowed.",
         )
 
     return extension

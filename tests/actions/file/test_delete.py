@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import pytest
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.delete import file_delete
 from seg.actions.file.schemas import DeleteParams
-from seg.core.errors import FILE_NOT_FOUND, PATH_NOT_ALLOWED
+from seg.core.errors import FILE_NOT_FOUND, PATH_NOT_ALLOWED, SegError
 
 # ============================================================================
 # Successful Deletion
@@ -77,14 +76,14 @@ async def test_file_delete_missing_file_requires_exists(
     GIVEN a missing file inside an allowed sandbox subdirectory
     AND require_exists=True
     WHEN file_delete is called
-    THEN a FILE_NOT_FOUND SegActionError is raised
+    THEN a FILE_NOT_FOUND SegError is raised
     """
     params = DeleteParams(
         path="tmp/missing.bin",
         require_exists=True,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_delete(params)
 
     assert exc.value.code == FILE_NOT_FOUND.code
@@ -102,14 +101,14 @@ async def test_file_delete_rejects_path_traversal(
     """
     GIVEN a path attempting directory traversal
     WHEN file_delete is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     params = DeleteParams(
         path="../outside.bin",
         require_exists=True,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_delete(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -120,7 +119,7 @@ async def test_file_delete_rejects_symlink(sandbox_file_factory, minimal_safe_en
     """
     GIVEN a symlink inside an allowed sandbox subdirectory
     WHEN file_delete is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     target = sandbox_file_factory(
         name="target.bin",
@@ -136,7 +135,7 @@ async def test_file_delete_rejects_symlink(sandbox_file_factory, minimal_safe_en
         require_exists=True,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_delete(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -154,7 +153,7 @@ async def test_file_delete_rejects_directory(
     """
     GIVEN a directory inside an allowed sandbox subdirectory
     WHEN file_delete is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     from pathlib import Path
 
@@ -172,7 +171,7 @@ async def test_file_delete_rejects_directory(
         require_exists=True,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_delete(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code

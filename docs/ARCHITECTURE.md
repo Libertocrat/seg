@@ -180,7 +180,7 @@ The action system lives in `src/seg/actions` and separates action discovery, reg
 4. Validate the returned payload with `result_model` when one is defined.
 5. Normalize expected and unexpected failures into a `ResponseEnvelope` plus HTTP status.
 
-Known domain failures are transported through `SegActionError`, which carries a stable SEG error code, HTTP status, message, and optional details.
+Known domain failures are transported through `SegError` (defined in `src/seg/core/errors.py`), which carries a stable SEG error code, HTTP status, message, and optional details.
 
 ```mermaid
 flowchart TD
