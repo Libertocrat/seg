@@ -13,11 +13,11 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
-from seg.app import create_app
 from seg.core.errors import (
     FILE_TOO_LARGE,
     INVALID_REQUEST,
     MIME_MAPPING_NOT_DEFINED,
+    UNAUTHORIZED,
     UNSUPPORTED_MEDIA_TYPE,
 )
 from seg.core.schemas.files import FileMetadata
@@ -31,48 +31,12 @@ from seg.core.utils.file_storage import (
 )
 
 # ============================================================================
-# Helpers
-# ============================================================================
-
-
-def _create_upload_app(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
-    *,
-    max_bytes: int | None = None,
-):
-    """Build an app instance with isolated SEG_DATA_ROOT for upload tests.
-
-    Args:
-        minimal_safe_env: Fixture that provides required SEG environment vars.
-        monkeypatch: Pytest helper used to set test-only environment values.
-        tmp_path: Per-test temporary directory.
-        max_bytes: Optional SEG_MAX_BYTES override.
-
-    Returns:
-        Configured FastAPI app instance.
-    """
-
-    del minimal_safe_env  # fixture is required for baseline env initialization
-
-    data_root = tmp_path / "seg-data"
-    monkeypatch.setenv("SEG_DATA_ROOT", str(data_root))
-    if max_bytes is not None:
-        monkeypatch.setenv("SEG_MAX_BYTES", str(max_bytes))
-
-    return create_app()
-
-
-# ============================================================================
-# Section: Startup / initialization
+# Startup / initialization
 # ============================================================================
 
 
 def test_files_startup_creates_storage_directories(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
 ):
     """Validate startup initialization of SEG-managed storage directories.
 
@@ -81,7 +45,7 @@ def test_files_startup_creates_storage_directories(
     THEN files/blobs, files/meta, and files/tmp directories exist.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     settings = app.state.settings
 
     assert get_blob_dir(settings).exists()
@@ -95,14 +59,12 @@ def test_files_startup_creates_storage_directories(
 
 
 # ============================================================================
-# Section: Happy path
+# Happy path
 # ============================================================================
 
 
 def test_files_upload_persists_blob_and_metadata_and_returns_envelope(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate successful upload persistence and response envelope.
@@ -112,7 +74,7 @@ def test_files_upload_persists_blob_and_metadata_and_returns_envelope(
     THEN it returns HTTP 201 and persists blob + typed metadata JSON.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     payload = b"Hello SEG upload\n"
     expected_sha = hashlib.sha256(payload).hexdigest()
 
@@ -124,6 +86,9 @@ def test_files_upload_persists_blob_and_metadata_and_returns_envelope(
         )
 
     assert response.status_code == 201
+    assert "x-request-id" in response.headers
+    assert response.headers["content-type"].startswith("application/json")
+
     body = response.json()
 
     assert body["success"] is True
@@ -142,8 +107,10 @@ def test_files_upload_persists_blob_and_metadata_and_returns_envelope(
     assert file_data["sha256"] == expected_sha
     assert file_data["status"] == "ready"
 
-    datetime.fromisoformat(file_data["created_at"].replace("Z", "+00:00"))
-    datetime.fromisoformat(file_data["updated_at"].replace("Z", "+00:00"))
+    created = datetime.fromisoformat(file_data["created_at"].replace("Z", "+00:00"))
+    updated = datetime.fromisoformat(file_data["updated_at"].replace("Z", "+00:00"))
+    assert created == updated
+    assert created.tzinfo is not None
 
     blob_path = get_blob_path(file_id, settings)
     meta_path = get_meta_path(file_id, settings)
@@ -161,9 +128,7 @@ def test_files_upload_persists_blob_and_metadata_and_returns_envelope(
 
 
 def test_files_upload_accepts_matching_checksum(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate checksum verification when checksum matches uploaded payload.
@@ -173,7 +138,7 @@ def test_files_upload_accepts_matching_checksum(
     THEN it returns HTTP 201 and persists the uploaded file.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     payload = b"checksum-ok\n"
     checksum = hashlib.sha256(payload).hexdigest()
 
@@ -193,14 +158,67 @@ def test_files_upload_accepts_matching_checksum(
 
 
 # ============================================================================
-# Section: Validation / rejection paths
+# Authorization paths
+# ============================================================================
+
+
+def test_files_upload_requires_auth(
+    create_upload_app,
+):
+    """
+    GIVEN no Authorization header
+    WHEN POST /v1/files is called
+    THEN it returns 401 UNAUTHORIZED
+    """
+
+    app = create_upload_app()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/files",
+            files={"file": ("sample.txt", b"missing auth\n", "text/plain")},
+        )
+
+    assert response.status_code == UNAUTHORIZED.http_status
+
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == UNAUTHORIZED.code
+
+
+def test_files_upload_rejects_invalid_token(
+    create_upload_app,
+):
+    """
+    GIVEN an invalid Authorization token
+    WHEN POST /v1/files is called
+    THEN it returns 401 UNAUTHORIZED
+    """
+
+    app = create_upload_app()
+    headers = {"Authorization": "Bearer invalid-token"}
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/files",
+            headers=headers,
+            files={"file": ("sample.txt", b"invalid token\n", "text/plain")},
+        )
+
+    assert response.status_code == UNAUTHORIZED.http_status
+
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == UNAUTHORIZED.code
+
+
+# ============================================================================
+# Validation / rejection paths
 # ============================================================================
 
 
 def test_files_upload_rejects_checksum_mismatch_without_persisting_artifacts(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate mismatch checksum rejection and storage cleanup behavior.
@@ -210,7 +228,7 @@ def test_files_upload_rejects_checksum_mismatch_without_persisting_artifacts(
     THEN it returns INVALID_REQUEST and no blob/meta/tmp artifact remains.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     wrong_checksum = "0" * 64
 
     with TestClient(app) as client:
@@ -234,9 +252,7 @@ def test_files_upload_rejects_checksum_mismatch_without_persisting_artifacts(
 
 
 def test_files_upload_rejects_empty_file_without_persisting_artifacts(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate empty upload rejection and strict cleanup behavior.
@@ -246,7 +262,7 @@ def test_files_upload_rejects_empty_file_without_persisting_artifacts(
     THEN it returns INVALID_REQUEST and no blob/meta/tmp artifact remains.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
 
     with TestClient(app) as client:
         response = client.post(
@@ -268,9 +284,7 @@ def test_files_upload_rejects_empty_file_without_persisting_artifacts(
 
 
 def test_files_upload_rejects_invalid_checksum_format_without_persisting_artifacts(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate malformed checksum input rejection and cleanup behavior.
@@ -280,7 +294,7 @@ def test_files_upload_rejects_invalid_checksum_format_without_persisting_artifac
     THEN it returns INVALID_REQUEST and no blob/meta/tmp artifact remains.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
 
     with TestClient(app) as client:
         response = client.post(
@@ -303,9 +317,7 @@ def test_files_upload_rejects_invalid_checksum_format_without_persisting_artifac
 
 
 def test_files_upload_rejects_unknown_extension_without_persisting_artifacts(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate unknown extension rejection and strict cleanup behavior.
@@ -315,7 +327,7 @@ def test_files_upload_rejects_unknown_extension_without_persisting_artifacts(
     THEN it returns MIME_MAPPING_NOT_DEFINED and no artifact is persisted.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
 
     with TestClient(app) as client:
         response = client.post(
@@ -337,9 +349,7 @@ def test_files_upload_rejects_unknown_extension_without_persisting_artifacts(
 
 
 def test_files_upload_rejects_mime_extension_mismatch_and_cleans_temp(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
     file_factory,
 ):
@@ -350,7 +360,7 @@ def test_files_upload_rejects_mime_extension_mismatch_and_cleans_temp(
     THEN it returns UNSUPPORTED_MEDIA_TYPE and persists nothing.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     png_file = file_factory("png", "image.png")
 
     with TestClient(app) as client:
@@ -378,9 +388,7 @@ def test_files_upload_rejects_mime_extension_mismatch_and_cleans_temp(
 
 
 def test_files_upload_rejects_executable_content_by_default(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
     file_factory,
 ):
@@ -391,7 +399,7 @@ def test_files_upload_rejects_executable_content_by_default(
     THEN it returns UNSUPPORTED_MEDIA_TYPE and no artifact is persisted.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path)
+    app = create_upload_app()
     exe_file = file_factory("exe", "malware.exe")
 
     with TestClient(app) as client:
@@ -419,9 +427,7 @@ def test_files_upload_rejects_executable_content_by_default(
 
 
 def test_files_upload_enforces_max_size_limit(
-    minimal_safe_env,
-    monkeypatch,
-    tmp_path,
+    create_upload_app,
     auth_headers,
 ):
     """Validate max upload size enforcement for oversized payloads.
@@ -431,7 +437,7 @@ def test_files_upload_enforces_max_size_limit(
     THEN the request is rejected with FILE_TOO_LARGE behavior.
     """
 
-    app = _create_upload_app(minimal_safe_env, monkeypatch, tmp_path, max_bytes=32)
+    app = create_upload_app(max_bytes=32)
 
     with TestClient(app) as client:
         response = client.post(

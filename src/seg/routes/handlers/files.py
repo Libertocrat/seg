@@ -7,6 +7,7 @@ including request parsing wrappers and upload ingestion handlers.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import uuid
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.config import Settings, get_settings
 from seg.core.errors import (
+    FILE_NOT_FOUND,
     FILE_TOO_LARGE,
     INTERNAL_ERROR,
     INVALID_ALGORITHM,
@@ -29,6 +31,7 @@ from seg.core.utils.file_storage import (
     _detect_mime,
     _validate_extension_and_mime,
     get_blob_path,
+    get_meta_path,
     get_tmp_dir,
     logger,
     save_file_metadata,
@@ -43,7 +46,85 @@ def parse_post_file_request(
     return UploadFileRequest(checksum=checksum)
 
 
-async def ingest_uploaded_file(
+async def get_file_metadata_handler(
+    file_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> FileMetadata:
+    """Load metadata for a previously uploaded file.
+
+    This handler orchestrates storage access and maps low-level errors into
+    SEG's standardized error model.
+
+    Error mapping:
+    - FILE_NOT_FOUND → metadata file does not exist
+    - INVALID_REQUEST → metadata exists but is invalid/corrupted
+    - INTERNAL_ERROR → unexpected system or IO failure
+    """
+
+    cfg = settings or get_settings()
+
+    meta_path = get_meta_path(file_id, cfg)
+
+    # 1. File does not exist -> 404
+    if not meta_path.exists():
+        logger.warning(
+            "file.metadata.not_found",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegActionError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        )
+
+    # 2. Try to load + parse metadata
+    try:
+        raw = meta_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.exception(
+            "file.metadata.read_failed",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegActionError(
+            INTERNAL_ERROR,
+            "Failed to read file metadata.",
+        ) from exc
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "file.metadata.invalid_json",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegActionError(
+            INVALID_REQUEST,
+            "Invalid file metadata (corrupted JSON).",
+            details={"file_id": str(file_id)},
+        ) from exc
+
+    try:
+        metadata = FileMetadata.model_validate(payload)
+    except Exception as exc:
+        logger.warning(
+            "file.metadata.invalid_schema",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegActionError(
+            INVALID_REQUEST,
+            "Invalid file metadata schema.",
+            details={"file_id": str(file_id)},
+        ) from exc
+
+    # 3. Success
+    logger.info(
+        "file.metadata.retrieved",
+        extra={"file_id": str(file_id)},
+    )
+
+    return metadata
+
+
+async def upload_file_handler(
     upload: UploadFile,
     verify_checksum: VerifyChecksumParams | None = None,
     settings: Settings | None = None,

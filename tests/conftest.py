@@ -17,6 +17,7 @@ import tarfile
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import pytest
 from fastapi.testclient import TestClient
@@ -256,6 +257,56 @@ def client(app):
         TestClient: HTTP client for integration tests.
     """
     return TestClient(app)
+
+
+# ============================================================================
+# Integration app factories
+# ============================================================================
+
+
+@pytest.fixture
+def create_upload_app(
+    minimal_safe_env,
+    monkeypatch,
+    tmp_path,
+) -> Callable[..., object]:
+    """Return a factory for app instances with isolated SEG data storage.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+        tmp_path: Per-test temporary directory.
+
+    Returns:
+        Callable that builds a configured FastAPI app. Supports an optional
+        keyword argument `max_bytes` to override `SEG_MAX_BYTES`.
+    """
+
+    del minimal_safe_env  # fixture ensures baseline SEG env values
+
+    data_root = tmp_path / "seg-data"
+    monkeypatch.setenv("SEG_DATA_ROOT", str(data_root))
+
+    def _create(*, max_bytes: int | None = None):
+        """Create an application instance configured for upload-route testing.
+
+        Args:
+            max_bytes: Optional SEG_MAX_BYTES override.
+
+        Returns:
+            Configured FastAPI app instance.
+        """
+
+        if max_bytes is not None:
+            monkeypatch.setenv("SEG_MAX_BYTES", str(max_bytes))
+        else:
+            monkeypatch.delenv("SEG_MAX_BYTES", raising=False)
+
+        from seg.app import create_app
+
+        return create_app()
+
+    return _create
 
 
 # ============================================================================

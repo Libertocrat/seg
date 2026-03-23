@@ -19,7 +19,6 @@ from seg.actions.exceptions import SegActionError
 from seg.core.config import Settings, get_settings
 from seg.core.errors import (
     FILE_EXTENSION_MISSING,
-    INVALID_REQUEST,
     MIME_MAPPING_NOT_DEFINED,
     UNSUPPORTED_MEDIA_TYPE,
 )
@@ -182,7 +181,10 @@ def save_file_metadata(
     os.replace(tmp_meta_path, meta_path)
 
 
-def load_file_metadata(file_id: UUID, settings: Settings | None = None) -> FileMetadata:
+def load_file_metadata(
+    file_id: UUID,
+    settings: Settings | None = None,
+) -> FileMetadata | None:
     """Load typed file metadata JSON for the given file id.
 
     Args:
@@ -190,21 +192,21 @@ def load_file_metadata(file_id: UUID, settings: Settings | None = None) -> FileM
         settings: Optional pre-loaded runtime settings.
 
     Returns:
-        Parsed and validated file metadata model.
+        Parsed and validated file metadata model, or None if not found.
 
     Raises:
-        SegActionError: If metadata does not exist or is invalid.
+        OSError: If file cannot be read.
+        json.JSONDecodeError: If metadata is invalid JSON.
+        ValidationError: If schema validation fails.
     """
 
     meta_path = get_meta_path(file_id, settings)
-    if not meta_path.exists():
-        raise SegActionError(INVALID_REQUEST, "File metadata not found.")
 
-    try:
-        payload = json.loads(meta_path.read_text(encoding="utf-8"))
-        return FileMetadata.model_validate(payload)
-    except Exception as exc:
-        raise SegActionError(INVALID_REQUEST, "Invalid file metadata.") from exc
+    if not meta_path.exists():
+        return None
+
+    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    return FileMetadata.model_validate(payload)
 
 
 def _normalize_extension(filename: str | None) -> str:
