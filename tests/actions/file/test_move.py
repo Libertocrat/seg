@@ -14,10 +14,9 @@ from pathlib import Path
 
 import pytest
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.move import file_move
 from seg.actions.file.schemas import FileMoveParams
-from seg.core.errors import CONFLICT, FILE_NOT_FOUND, PATH_NOT_ALLOWED
+from seg.core.errors import CONFLICT, FILE_NOT_FOUND, PATH_NOT_ALLOWED, SegError
 
 # ============================================================================
 # Successful Move Scenarios
@@ -145,7 +144,7 @@ async def test_file_move_conflict_when_destination_exists_and_overwrite_false(
     GIVEN a source file and an existing destination regular file
     AND overwrite=False
     WHEN file_move is called
-    THEN a CONFLICT SegActionError is raised
+    THEN a CONFLICT SegError is raised
     """
     source = sandbox_file_factory(
         name="source.txt",
@@ -163,7 +162,7 @@ async def test_file_move_conflict_when_destination_exists_and_overwrite_false(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == CONFLICT.code
@@ -182,7 +181,7 @@ async def test_file_move_rejects_extension_change(
     """
     GIVEN a source file and destination path with different extension
     WHEN file_move is called
-    THEN a CONFLICT SegActionError is raised
+    THEN a CONFLICT SegError is raised
     """
     source = sandbox_file_factory(
         name="file.txt",
@@ -196,7 +195,7 @@ async def test_file_move_rejects_extension_change(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == CONFLICT.code
@@ -214,7 +213,7 @@ async def test_file_move_rejects_source_path_traversal(
     """
     GIVEN a source path with traversal
     WHEN file_move is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     params = FileMoveParams(
         source_path="../outside.bin",
@@ -222,7 +221,7 @@ async def test_file_move_rejects_source_path_traversal(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -237,7 +236,7 @@ async def test_file_move_rejects_destination_path_traversal(
     GIVEN a valid source file
     AND a destination path with traversal
     WHEN file_move is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     source = sandbox_file_factory(
         name="source.bin",
@@ -250,7 +249,7 @@ async def test_file_move_rejects_destination_path_traversal(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -264,7 +263,7 @@ async def test_file_move_rejects_symlink_source(
     """
     GIVEN a valid file and a symlink pointing to it
     WHEN source_path is the symlink and file_move is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     target = sandbox_file_factory(
         name="target.bin",
@@ -282,7 +281,7 @@ async def test_file_move_rejects_symlink_source(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -297,7 +296,7 @@ async def test_file_move_rejects_symlink_destination(
     GIVEN a valid source file
     AND destination path set to an existing symlink
     WHEN file_move is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     source = sandbox_file_factory(
         name="source.bin",
@@ -319,7 +318,7 @@ async def test_file_move_rejects_symlink_destination(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -337,7 +336,7 @@ async def test_file_move_rejects_missing_source(
     """
     GIVEN a missing source path
     WHEN file_move is called
-    THEN a FILE_NOT_FOUND SegActionError is raised
+    THEN a FILE_NOT_FOUND SegError is raised
     """
     params = FileMoveParams(
         source_path="tmp/missing.bin",
@@ -345,7 +344,7 @@ async def test_file_move_rejects_missing_source(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == FILE_NOT_FOUND.code
@@ -360,7 +359,7 @@ async def test_file_move_rejects_destination_directory(
     GIVEN a valid source file
     AND destination path that points to an existing directory
     WHEN file_move is called
-    THEN a CONFLICT SegActionError is raised
+    THEN a CONFLICT SegError is raised
     """
     source = sandbox_file_factory(
         name="source.bin",
@@ -377,7 +376,7 @@ async def test_file_move_rejects_destination_directory(
         overwrite=False,
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_move(params)
 
     assert exc.value.code == CONFLICT.code

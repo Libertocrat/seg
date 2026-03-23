@@ -13,7 +13,7 @@ Security and behavior notes:
 - Computes the digest in a blocking thread using a duplicated file descriptor
   so the coroutine may close its descriptor (for example on timeout) without
   interfering with the worker.
-- Maps errors to `SegActionError` with stable error codes for dispatcher-level
+- Maps errors to `SegError` with stable error codes for dispatcher-level
   handling.
 """
 
@@ -24,7 +24,6 @@ import hashlib
 import logging
 import os
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import ChecksumParams, ChecksumResult
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.config import get_settings
@@ -35,6 +34,7 @@ from seg.core.errors import (
     INVALID_ALGORITHM,
     PATH_NOT_ALLOWED,
     TIMEOUT,
+    SegError,
 )
 from seg.core.security.file_access import secure_file_open_readonly
 from seg.core.security.paths import PathSecurityError
@@ -69,7 +69,7 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
         ChecksumResult: Object with `algorithm`, `checksum`, and `size_bytes`.
 
     Raises:
-        SegActionError: Raised with one of the stable error codes:
+        SegError: Raised with one of the stable error codes:
             - PATH_NOT_ALLOWED: path resolution or symlink policy violation.
             - FILE_NOT_FOUND: target does not exist.
             - FILE_TOO_LARGE: file exceeds configured SEG_MAX_BYTES.
@@ -85,9 +85,9 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
         fd = validated.fd
         assert fd is not None
     except PathSecurityError as exc:
-        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
+        raise SegError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
-        raise SegActionError(FILE_NOT_FOUND) from exc
+        raise SegError(FILE_NOT_FOUND) from exc
 
     # Duplicate descriptor to hand off to the blocking thread later. We
     # intentionally *do not* close the duplicated fd in this coroutine if
@@ -105,7 +105,7 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                 os.close(fd)
             except OSError:
                 pass
-            raise SegActionError(
+            raise SegError(
                 FILE_TOO_LARGE,
                 "File exceeds maximum allowed size.",
             )
@@ -128,7 +128,7 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                     close_exc,
                 )
             logger.exception("Failed to duplicate file descriptor for %s", path)
-            raise SegActionError(
+            raise SegError(
                 INTERNAL_ERROR,
                 "Failed to duplicate file descriptor",
             ) from exc
@@ -142,7 +142,7 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                 try:
                     h = hashlib.new(algo)
                 except ValueError as exc:
-                    raise SegActionError(
+                    raise SegError(
                         INVALID_ALGORITHM,
                         str(exc),
                     ) from exc
@@ -169,11 +169,11 @@ async def file_checksum(params: ChecksumParams) -> ChecksumResult:
                 timeout_s = 0.1
         try:
             digest = await asyncio.wait_for(_compute(), timeout=timeout_s)
-        except SegActionError:
+        except SegError:
             # Propagate algorithm error raised from blocking thread
             raise
         except asyncio.TimeoutError as exc:
-            raise SegActionError(
+            raise SegError(
                 TIMEOUT,
                 "Operation timed out.",
             ) from exc

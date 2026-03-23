@@ -182,7 +182,7 @@ Authentication coverage is as follows:
 
 - The registry is an explicit in-memory allowlist built from `ActionSpec` registrations.
 - `get_action()` returns `None` for unknown actions, and the dispatcher maps that to `ACTION_NOT_FOUND`.
-- Handlers raise `SegActionError` with stable codes instead of leaking raw HTTP errors.
+- Handlers raise `SegError` (defined in `src/seg/core/errors.py`) with stable codes instead of leaking raw HTTP errors.
 - The route layer is thin and does not add alternate execution paths around the dispatcher.
 
 ### Denial of service mitigations

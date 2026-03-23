@@ -12,7 +12,7 @@ Security and behavior notes:
   `safe_open_no_follow()` (O_NOFOLLOW when available).
 - Enforces SEG_MAX_BYTES before reading content.
 - Performs MIME detection in a blocking thread.
-- Maps errors to `SegActionError` with stable error codes.
+- Maps errors to `SegError` with stable error codes.
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ import os
 
 import magic  # python-magic
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import MimeDetectParams, MimeDetectResult
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.config import get_settings
@@ -33,6 +32,7 @@ from seg.core.errors import (
     INTERNAL_ERROR,
     PATH_NOT_ALLOWED,
     TIMEOUT,
+    SegError,
 )
 from seg.core.security.file_access import secure_file_open_readonly
 from seg.core.security.paths import PathSecurityError
@@ -51,7 +51,7 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
         MimeDetectResult: Result model containing the detected `mime` string.
 
     Raises:
-        SegActionError: On security or runtime errors with one of the
+        SegError: On security or runtime errors with one of the
             standardized error codes:
             - PATH_NOT_ALLOWED
             - FILE_NOT_FOUND
@@ -74,9 +74,9 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
         fd = validated.fd
         assert fd is not None
     except PathSecurityError as exc:
-        raise SegActionError(PATH_NOT_ALLOWED, str(exc)) from exc
+        raise SegError(PATH_NOT_ALLOWED, str(exc)) from exc
     except FileNotFoundError as exc:
-        raise SegActionError(FILE_NOT_FOUND) from exc
+        raise SegError(FILE_NOT_FOUND) from exc
 
     dup_fd: int | None = None
 
@@ -91,7 +91,7 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
                 os.close(fd)
             except OSError:
                 pass
-            raise SegActionError(
+            raise SegError(
                 FILE_TOO_LARGE,
                 "File exceeds maximum allowed size.",
             )
@@ -109,7 +109,7 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
                     close_exc,
                 )
             logger.exception("Failed to duplicate file descriptor for %s", path)
-            raise SegActionError(
+            raise SegError(
                 INTERNAL_ERROR,
                 "Failed to duplicate file descriptor",
             ) from exc
@@ -127,7 +127,7 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
                         m = magic.Magic(mime=True)
                         return m.from_buffer(f.read(8192))
                     except Exception as exc:
-                        raise SegActionError(
+                        raise SegError(
                             INTERNAL_ERROR,
                             "MIME detection failed.",
                         ) from exc
@@ -149,7 +149,7 @@ async def file_mime_detect(params: MimeDetectParams) -> MimeDetectResult:
         try:
             mime_value = await asyncio.wait_for(_detect(), timeout=timeout_s)
         except asyncio.TimeoutError as exc:
-            raise SegActionError(
+            raise SegError(
                 TIMEOUT,
                 "Operation timed out.",
             ) from exc

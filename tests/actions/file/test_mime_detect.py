@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import pytest
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.mime_detect import file_mime_detect
 from seg.actions.file.schemas import MimeDetectParams
-from seg.core.errors import FILE_NOT_FOUND, FILE_TOO_LARGE, PATH_NOT_ALLOWED
+from seg.core.errors import FILE_NOT_FOUND, FILE_TOO_LARGE, PATH_NOT_ALLOWED, SegError
 
 # ============================================================================
 # Successful MIME Detection
@@ -109,7 +108,7 @@ async def test_file_mime_detect_rejects_nonexistent_file(minimal_safe_env):
     """
     params = MimeDetectParams(path="tmp/missing.bin")
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_mime_detect(params)
 
     assert exc.value.code == FILE_NOT_FOUND.code
@@ -124,7 +123,7 @@ async def test_file_mime_detect_rejects_path_traversal(minimal_safe_env):
     """
     params = MimeDetectParams(path="../outside.bin")
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_mime_detect(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -145,7 +144,7 @@ async def test_file_mime_detect_rejects_symlink(file_factory, minimal_safe_env):
 
     params = MimeDetectParams(path=relative)
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_mime_detect(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -176,7 +175,7 @@ async def test_file_mime_detect_rejects_file_too_large(
 
     params = MimeDetectParams(path=str(sf.rel_path))
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_mime_detect(params)
 
     assert exc.value.code == FILE_TOO_LARGE.code

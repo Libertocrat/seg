@@ -12,10 +12,14 @@ from __future__ import annotations
 
 import pytest
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.checksum import file_checksum
 from seg.actions.file.schemas import ChecksumParams
-from seg.core.errors import FILE_NOT_FOUND, INVALID_ALGORITHM, PATH_NOT_ALLOWED
+from seg.core.errors import (
+    FILE_NOT_FOUND,
+    INVALID_ALGORITHM,
+    PATH_NOT_ALLOWED,
+    SegError,
+)
 
 # ============================================================================
 # Test Constants
@@ -84,14 +88,14 @@ async def test_file_checksum_rejects_nonexistent_file(
     """
     GIVEN a valid sandbox path that does not exist
     WHEN file_checksum is called
-    THEN a FILE_NOT_FOUND SegActionError is raised
+    THEN a FILE_NOT_FOUND SegError is raised
     """
     params = ChecksumParams(
         path="tmp/does_not_exist.bin",
         algorithm="sha256",
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_checksum(params)
 
     assert exc.value.code == FILE_NOT_FOUND.code
@@ -104,14 +108,14 @@ async def test_file_checksum_rejects_path_traversal(
     """
     GIVEN a path attempting directory traversal
     WHEN file_checksum is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     params = ChecksumParams(
         path="../outside.bin",
         algorithm="sha256",
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_checksum(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -122,7 +126,7 @@ async def test_file_checksum_rejects_symlink(sandbox_file_factory, minimal_safe_
     """
     GIVEN a symlink inside an allowed sandbox subdirectory
     WHEN file_checksum is called
-    THEN a PATH_NOT_ALLOWED SegActionError is raised
+    THEN a PATH_NOT_ALLOWED SegError is raised
     """
     target = sandbox_file_factory(
         name="target.bin",
@@ -138,7 +142,7 @@ async def test_file_checksum_rejects_symlink(sandbox_file_factory, minimal_safe_
         algorithm="sha256",
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_checksum(params)
 
     assert exc.value.code == PATH_NOT_ALLOWED.code
@@ -156,7 +160,7 @@ async def test_file_checksum_rejects_invalid_algorithm(
     """
     GIVEN a valid file inside the sandbox
     WHEN file_checksum is called with an unsupported algorithm
-    THEN an INVALID_ALGORITHM SegActionError is raised
+    THEN an INVALID_ALGORITHM SegError is raised
     """
     file = sandbox_file_factory(
         name="test_file.bin",
@@ -170,7 +174,7 @@ async def test_file_checksum_rejects_invalid_algorithm(
         algorithm="not-a-real-algo",
     )
 
-    with pytest.raises(SegActionError) as exc:
+    with pytest.raises(SegError) as exc:
         await file_checksum(params)
 
     assert exc.value.code == INVALID_ALGORITHM.code

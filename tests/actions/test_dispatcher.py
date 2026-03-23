@@ -14,7 +14,6 @@ import pytest
 from pydantic import BaseModel
 
 from seg.actions.dispatcher import dispatch_execute
-from seg.actions.exceptions import SegActionError
 from seg.actions.registry import ActionSpec, register_action
 from seg.core.errors import (
     ACTION_NOT_FOUND,
@@ -23,6 +22,7 @@ from seg.core.errors import (
     INVALID_RESULT,
     TIMEOUT,
     ErrorDef,
+    SegError,
 )
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.schemas.execute import ExecuteRequest
@@ -55,13 +55,13 @@ async def invalid_result_handler(params: DummyActionParams):
 
 
 async def seg_error_handler(params: DummyActionParams):
-    """Handler that raises a controlled SegActionError."""
+    """Handler that raises a controlled SegError."""
     custom_error = ErrorDef(
         code="CUSTOM_ERROR",
         http_status=418,
         default_message="Controlled failure",
     )
-    raise SegActionError(
+    raise SegError(
         custom_error,
         "Controlled failure",
         details={"value": params.value},
@@ -232,7 +232,7 @@ async def test_dispatch_invalid_result_returns_failure_envelope(clean_action_reg
 @pytest.mark.asyncio
 async def test_dispatch_seg_action_error_is_propagated_cleanly(clean_action_registry):
     """
-    GIVEN a handler that raises SegActionError
+    GIVEN a handler that raises SegError
     WHEN dispatch_execute is called
     THEN the error is propagated as a structured failure envelope
     """

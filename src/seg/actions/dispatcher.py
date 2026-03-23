@@ -7,7 +7,6 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.registry import get_action
 from seg.core.errors import (
     ACTION_NOT_FOUND,
@@ -15,6 +14,7 @@ from seg.core.errors import (
     INVALID_PARAMS,
     INVALID_RESULT,
     TIMEOUT,
+    SegError,
 )
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.schemas.execute import ExecuteRequest
@@ -77,7 +77,7 @@ async def dispatch_execute(req: ExecuteRequest) -> tuple[ResponseEnvelope[Any], 
             return ResponseEnvelope.success_response(validated), 200
 
         return ResponseEnvelope.success_response(result), 200
-    except SegActionError as exc:
+    except SegError as exc:
         return (
             ResponseEnvelope.failure(
                 code=exc.code,

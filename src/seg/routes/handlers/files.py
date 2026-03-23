@@ -16,18 +16,24 @@ from typing import Annotated
 
 from fastapi import Form, UploadFile
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.config import Settings, get_settings
 from seg.core.errors import (
+    FILE_EXTENSION_MISSING,
     FILE_NOT_FOUND,
     FILE_TOO_LARGE,
     INTERNAL_ERROR,
     INVALID_ALGORITHM,
     INVALID_REQUEST,
+    MIME_MAPPING_NOT_DEFINED,
+    UNSUPPORTED_MEDIA_TYPE,
+    SegError,
 )
 from seg.core.schemas.files import FileMetadata, UploadFileRequest
 from seg.core.utils.file_storage import (
+    FileExtensionMissingError,
+    MimeMappingNotDefinedError,
+    UnsupportedMediaTypeValidationError,
     _detect_mime,
     _validate_extension_and_mime,
     get_blob_path,
@@ -71,7 +77,7 @@ async def get_file_metadata_handler(
             "file.metadata.not_found",
             extra={"file_id": str(file_id)},
         )
-        raise SegActionError(
+        raise SegError(
             FILE_NOT_FOUND,
             details={"file_id": str(file_id)},
         )
@@ -84,7 +90,7 @@ async def get_file_metadata_handler(
             "file.metadata.read_failed",
             extra={"file_id": str(file_id)},
         )
-        raise SegActionError(
+        raise SegError(
             INTERNAL_ERROR,
             "Failed to read file metadata.",
         ) from exc
@@ -96,7 +102,7 @@ async def get_file_metadata_handler(
             "file.metadata.invalid_json",
             extra={"file_id": str(file_id)},
         )
-        raise SegActionError(
+        raise SegError(
             INVALID_REQUEST,
             "Invalid file metadata (corrupted JSON).",
             details={"file_id": str(file_id)},
@@ -109,7 +115,7 @@ async def get_file_metadata_handler(
             "file.metadata.invalid_schema",
             extra={"file_id": str(file_id)},
         )
-        raise SegActionError(
+        raise SegError(
             INVALID_REQUEST,
             "Invalid file metadata schema.",
             details={"file_id": str(file_id)},
@@ -140,7 +146,7 @@ async def upload_file_handler(
         Persisted file metadata.
 
     Raises:
-        SegActionError: If validation or persistence fails.
+        SegError: If validation or persistence fails.
     """
 
     cfg = settings or get_settings()
@@ -163,21 +169,21 @@ async def upload_file_handler(
 
                 size_bytes += len(chunk)
                 if max_bytes is not None and size_bytes > max_bytes:
-                    raise SegActionError(FILE_TOO_LARGE)
+                    raise SegError(FILE_TOO_LARGE)
 
                 hasher.update(chunk)
                 temp_f.write(chunk)
 
             if size_bytes == 0:
-                raise SegActionError(INVALID_REQUEST, "Empty file is not allowed.")
+                raise SegError(INVALID_REQUEST, "Empty file is not allowed.")
 
         sha256 = hasher.hexdigest()
 
         if verify_checksum is not None:
             if verify_checksum.algorithm != "sha256":
-                raise SegActionError(INVALID_ALGORITHM)
+                raise SegError(INVALID_ALGORITHM)
             if sha256.lower() != verify_checksum.expected.strip().lower():
-                raise SegActionError(
+                raise SegError(
                     INVALID_REQUEST,
                     "Checksum mismatch.",
                     details={
@@ -189,7 +195,24 @@ async def upload_file_handler(
 
         detected_mime = _detect_mime(tmp_path)
         original_filename = Path(upload.filename or "uploaded_file").name
-        extension = _validate_extension_and_mime(original_filename, detected_mime)
+        try:
+            extension = _validate_extension_and_mime(original_filename, detected_mime)
+        except FileExtensionMissingError as exc:
+            raise SegError(FILE_EXTENSION_MISSING) from exc
+        except MimeMappingNotDefinedError as exc:
+            raise SegError(
+                MIME_MAPPING_NOT_DEFINED,
+                details={"extension": exc.extension},
+            ) from exc
+        except UnsupportedMediaTypeValidationError as exc:
+            raise SegError(
+                UNSUPPORTED_MEDIA_TYPE,
+                message=str(exc),
+                details={
+                    "extension": exc.extension,
+                    "detected_mime": exc.detected_mime,
+                },
+            ) from exc
 
         os.replace(tmp_path, blob_path)
         moved_to_blob = True
@@ -218,7 +241,7 @@ async def upload_file_handler(
                     logger.exception(
                         "Failed to cleanup blob after metadata write error"
                     )
-            raise SegActionError(
+            raise SegError(
                 INTERNAL_ERROR,
                 "Failed to persist file metadata.",
             ) from exc
@@ -235,10 +258,10 @@ async def upload_file_handler(
 
         return metadata
 
-    except SegActionError:
+    except SegError:
         raise
     except Exception as exc:
-        raise SegActionError(INTERNAL_ERROR) from exc
+        raise SegError(INTERNAL_ERROR) from exc
     finally:
         try:
             await upload.close()

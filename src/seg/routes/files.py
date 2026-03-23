@@ -13,8 +13,8 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from seg.actions.exceptions import SegActionError
 from seg.actions.file.schemas import VerifyChecksumParams
+from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.schemas.files import UploadFileData, UploadFileRequest
 from seg.routes.handlers.files import (
@@ -116,7 +116,7 @@ async def post_file(
     try:
         metadata = await upload_file_handler(file, verify_checksum=verify_checksum)
         return ResponseEnvelope.success_response(UploadFileData(file=metadata))
-    except SegActionError as exc:
+    except SegError as exc:
         payload = ResponseEnvelope.failure(
             code=exc.code,
             message=exc.message,
@@ -144,7 +144,7 @@ async def get_file(id: UUID) -> JSONResponse | ResponseEnvelope[UploadFileData]:
     try:
         metadata = await get_file_metadata_handler(file_id=id)
         return ResponseEnvelope.success_response(UploadFileData(file=metadata))
-    except SegActionError as exc:
+    except SegError as exc:
         payload = ResponseEnvelope.failure(
             code=exc.code,
             message=exc.message,
