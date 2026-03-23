@@ -355,6 +355,41 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
         success_example=FILES_POST_SUCCESS_EXAMPLE,
     )
 
+    FILES_GET_ERRORS = [
+        errors.FILE_NOT_FOUND,
+        errors.INVALID_REQUEST,
+        errors.INTERNAL_ERROR,
+    ]
+
+    FILES_GET_SUCCESS_EXAMPLE = {
+        "success": True,
+        "error": None,
+        "data": {
+            "file": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "original_filename": "example.txt",
+                "stored_filename": "file_<uuid>.bin",
+                "mime_type": "text/plain",
+                "extension": ".txt",
+                "size_bytes": 123,
+                "sha256": (
+                    "8e9aa02fb68dfb526d787f6b66adda7b651dd3f9f3b4a03e266d466161f4c39e"
+                ),
+                "created_at": "2026-01-01T00:00:00Z",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "status": "ready",
+            }
+        },
+    }
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/files/{id}",
+        method="get",
+        errors=FILES_GET_ERRORS,
+        success_example=FILES_GET_SUCCESS_EXAMPLE,
+    )
+
 
 # ---------------------------------------------------------------------
 # /v1/execute dynamic contract
