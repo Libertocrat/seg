@@ -355,6 +355,31 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
         success_example=FILES_POST_SUCCESS_EXAMPLE,
     )
 
+    FILES_LIST_ERRORS = [
+        errors.INVALID_REQUEST,
+        errors.INTERNAL_ERROR,
+    ]
+
+    FILES_LIST_SUCCESS_EXAMPLE = {
+        "success": True,
+        "error": None,
+        "data": {
+            "files": [],
+            "pagination": {
+                "count": 0,
+                "next_cursor": None,
+            },
+        },
+    }
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/files",
+        method="get",
+        errors=FILES_LIST_ERRORS,
+        success_example=FILES_LIST_SUCCESS_EXAMPLE,
+    )
+
     FILES_GET_ERRORS = [
         errors.FILE_NOT_FOUND,
         errors.INVALID_REQUEST,

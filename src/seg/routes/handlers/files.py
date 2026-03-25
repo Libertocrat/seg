@@ -31,7 +31,19 @@ from seg.core.errors import (
     UNSUPPORTED_MEDIA_TYPE,
     SegError,
 )
-from seg.core.schemas.files import DeleteFileResult, FileMetadata, UploadFileRequest
+from seg.core.schemas.files import (
+    DeleteFileResult,
+    FileListData,
+    FileMetadata,
+    Pagination,
+    UploadFileRequest,
+)
+from seg.core.utils.file_listing import (
+    apply_filters,
+    apply_pagination,
+    apply_sort,
+    decode_cursor,
+)
 from seg.core.utils.file_storage import (
     FileExtensionMissingError,
     MimeMappingNotDefinedError,
@@ -322,6 +334,123 @@ def parse_post_file_request(
     """Build the typed request schema for `POST /v1/files` form fields."""
 
     return UploadFileRequest(checksum=checksum)
+
+
+async def list_files_handler(
+    limit: int,
+    cursor: str | None,
+    sort: str,
+    order: str,
+    status: str | None,
+    mime_type: str | None,
+    extension: str | None,
+    settings: Settings | None = None,
+) -> FileListData:
+    """List persisted file metadata with filtering, sorting and cursor pagination."""
+
+    cfg = settings or get_settings()
+
+    if limit <= 0 or limit > 100:
+        logger.warning("file.list.invalid_request", extra={"reason": "invalid_limit"})
+        raise SegError(INVALID_REQUEST, "Invalid limit. Must be between 1 and 100.")
+
+    if sort != "created_at":
+        logger.warning("file.list.invalid_request", extra={"reason": "invalid_sort"})
+        raise SegError(
+            INVALID_REQUEST,
+            "Invalid sort field. Only 'created_at' is supported.",
+        )
+
+    if order not in {"asc", "desc"}:
+        logger.warning("file.list.invalid_request", extra={"reason": "invalid_order"})
+        raise SegError(INVALID_REQUEST, "Invalid order. Allowed values: 'asc', 'desc'.")
+
+    cursor_tuple = None
+    if cursor:
+        try:
+            cursor_tuple = decode_cursor(cursor)
+        except Exception as exc:
+            logger.warning(
+                "file.list.invalid_request",
+                extra={"reason": "invalid_cursor"},
+            )
+            raise SegError(INVALID_REQUEST, "Invalid cursor.") from exc
+
+    try:
+        meta_dir = get_meta_path(uuid.uuid4(), cfg).parent
+
+        items: list[FileMetadata] = []
+        for meta_path in sorted(meta_dir.glob("file_*.json")):
+            stem = meta_path.stem
+            prefix = "file_"
+            if not stem.startswith(prefix):
+                continue
+
+            raw_id = stem[len(prefix) :]
+            try:
+                file_id = uuid.UUID(raw_id)
+            except ValueError:
+                logger.warning(
+                    "file.list.skipped_metadata",
+                    extra={"reason": "invalid_filename", "meta_path": str(meta_path)},
+                )
+                continue
+
+            try:
+                metadata = safe_load_metadata(file_id, cfg)
+            except SegError as exc:
+                if exc.code == FILE_NOT_FOUND.code:
+                    continue
+                if exc.code == INVALID_REQUEST.code:
+                    logger.warning(
+                        "file.list.skipped_metadata",
+                        extra={"reason": "invalid_metadata", "file_id": str(file_id)},
+                    )
+                    continue
+                raise
+
+            items.append(metadata)
+
+        filtered = apply_filters(
+            items,
+            status=status,
+            mime_type=mime_type,
+            extension=extension,
+        )
+        sorted_items = apply_sort(filtered, order=order)
+        page, next_cursor = apply_pagination(
+            sorted_items,
+            limit=limit,
+            cursor=cursor_tuple,
+            order=order,
+        )
+
+        logger.info(
+            "file.list.succeeded",
+            extra={
+                "count": len(page),
+                "limit": limit,
+                "cursor": cursor,
+                "filters": {
+                    "status": status,
+                    "mime_type": mime_type,
+                    "extension": extension,
+                },
+            },
+        )
+
+        return FileListData(
+            files=page,
+            pagination=Pagination(
+                count=len(page),
+                next_cursor=next_cursor,
+            ),
+        )
+    except SegError:
+        raise
+    except Exception as exc:
+        logger.exception("file.list.failed")
+        raise SegError(INTERNAL_ERROR, "Failed to list files.") from exc
 
 
 # ============================================================================
