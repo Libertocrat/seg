@@ -84,3 +84,17 @@ class DeleteFileData(BaseModel):
     """
 
     file: DeleteFileResult
+
+
+class Pagination(BaseModel):
+    """Cursor pagination metadata for file listing responses."""
+
+    count: int = Field(..., ge=0)
+    next_cursor: str | None = None
+
+
+class FileListData(BaseModel):
+    """Success payload for `GET /v1/files`."""
+
+    files: list[FileMetadata]
+    pagination: Pagination

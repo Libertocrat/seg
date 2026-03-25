@@ -294,6 +294,109 @@ def test_openapi_error_contract_replaces_default_422_with_public_error_examples(
     assert "ValidationError" not in str(examples_422)
 
 
+# ============================================================================
+# v1/files endpoints contracts
+# ============================================================================
+
+
+def test_openapi_documents_files_upload_contract(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate OpenAPI examples for `POST /v1/files`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN upload operation documents canonical success and handler-level errors.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    upload = schema["paths"]["/v1/files"]["post"]
+    responses = upload["responses"]
+
+    success_example = responses["201"]["content"]["application/json"]["example"]
+    assert success_example["success"] is True
+    assert success_example["error"] is None
+    assert success_example["data"]["file"]["status"] == "ready"
+
+    for status in ("400", "401", "413", "415", "500"):
+        assert status in responses
+        examples = responses[status]["content"]["application/json"]["examples"]
+        assert isinstance(examples, dict)
+        assert examples
+
+
+def test_openapi_documents_files_metadata_contract(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate OpenAPI examples for `GET /v1/files/{id}`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN metadata operation documents canonical success and handler-level errors.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    metadata_get = schema["paths"]["/v1/files/{id}"]["get"]
+    responses = metadata_get["responses"]
+
+    success_example = responses["200"]["content"]["application/json"]["example"]
+    assert success_example["success"] is True
+    assert success_example["error"] is None
+    assert success_example["data"]["file"]["status"] == "ready"
+
+    for status in ("400", "401", "404", "500"):
+        assert status in responses
+        examples = responses[status]["content"]["application/json"]["examples"]
+        assert isinstance(examples, dict)
+        assert examples
+
+
+def test_openapi_documents_files_content_contract(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate OpenAPI contract for `GET /v1/files/{id}/content`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN content operation documents binary success response and handler-level errors.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    content_get = schema["paths"]["/v1/files/{id}/content"]["get"]
+    responses = content_get["responses"]
+
+    assert "200" in responses
+    response_200 = responses["200"]
+    assert response_200["description"] == "Streamed file content."
+    binary_schema = response_200["content"]["application/octet-stream"]["schema"]
+    assert binary_schema["type"] == "string"
+    assert binary_schema["format"] == "binary"
+
+    for status in ("400", "401", "404", "500"):
+        assert status in responses
+        examples = responses[status]["content"]["application/json"]["examples"]
+        assert isinstance(examples, dict)
+        assert examples
+
+
 def test_openapi_documents_files_delete_contract(
     minimal_safe_env,
     monkeypatch,
@@ -319,7 +422,41 @@ def test_openapi_documents_files_delete_contract(
     assert success_example["error"] is None
     assert success_example["data"]["file"]["deleted"] is True
 
-    for status in ("400", "404", "500"):
+    for status in ("400", "401", "404", "500"):
+        assert status in responses
+        examples = responses[status]["content"]["application/json"]["examples"]
+        assert isinstance(examples, dict)
+        assert examples
+
+
+def test_openapi_documents_files_list_contract(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate OpenAPI examples for `GET /v1/files`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN list operation documents canonical success and handler-level errors.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    list_get = schema["paths"]["/v1/files"]["get"]
+    responses = list_get["responses"]
+
+    success_example = responses["200"]["content"]["application/json"]["example"]
+    assert success_example["success"] is True
+    assert success_example["error"] is None
+    assert success_example["data"]["files"] == []
+    assert success_example["data"]["pagination"]["count"] == 0
+    assert success_example["data"]["pagination"]["next_cursor"] is None
+
+    for status in ("400", "401", "500"):
         assert status in responses
         examples = responses[status]["content"]["application/json"]["examples"]
         assert isinstance(examples, dict)
