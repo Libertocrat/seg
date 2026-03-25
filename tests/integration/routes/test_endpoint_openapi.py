@@ -41,7 +41,7 @@ def _openapi_document(minimal_safe_env, monkeypatch) -> dict:
 
 
 # ============================================================================
-# Section: OpenAPI spec validation
+# OpenAPI spec validation
 # ============================================================================
 
 
@@ -67,7 +67,7 @@ def test_openapi_is_valid_spec(minimal_safe_env, monkeypatch):
 
 
 # ============================================================================
-# Section: Security contract
+# Security contract
 # ============================================================================
 
 
@@ -97,7 +97,7 @@ def test_openapi_sets_security_for_private_and_public_routes(
 
 
 # ============================================================================
-# Section: Execute contract projection
+# Execute contract projection
 # ============================================================================
 
 
@@ -144,7 +144,7 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
 
 
 # ============================================================================
-# Section: Global metadata
+# Global metadata
 # ============================================================================
 
 
@@ -181,7 +181,7 @@ def test_openapi_includes_global_metadata_from_app_settings(
 
 
 # ============================================================================
-# Section: Public endpoint overrides
+# Public endpoint overrides
 # ============================================================================
 
 
@@ -218,7 +218,7 @@ def test_openapi_applies_public_endpoint_response_overrides(
 
 
 # ============================================================================
-# Section: Component schemas
+# Component schemas
 # ============================================================================
 
 
@@ -262,7 +262,7 @@ def test_openapi_registers_action_models_and_prunes_internal_schemas(
 
 
 # ============================================================================
-# Section: Error examples
+# Error examples
 # ============================================================================
 
 
@@ -292,3 +292,35 @@ def test_openapi_error_contract_replaces_default_422_with_public_error_examples(
 
     # The generic FastAPI validation wrapper should not leak through examples.
     assert "ValidationError" not in str(examples_422)
+
+
+def test_openapi_documents_files_delete_contract(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate OpenAPI examples for `DELETE /v1/files/{id}`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN delete operation documents canonical success and handler-level errors.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    delete = schema["paths"]["/v1/files/{id}"]["delete"]
+    responses = delete["responses"]
+
+    success_example = responses["200"]["content"]["application/json"]["example"]
+    assert success_example["success"] is True
+    assert success_example["error"] is None
+    assert success_example["data"]["file"]["deleted"] is True
+
+    for status in ("400", "404", "500"):
+        assert status in responses
+        examples = responses[status]["content"]["application/json"]["examples"]
+        assert isinstance(examples, dict)
+        assert examples
