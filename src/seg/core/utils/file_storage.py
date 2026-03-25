@@ -11,6 +11,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Iterator
 from uuid import UUID
 
 import magic
@@ -222,6 +223,111 @@ def load_file_metadata(
 
     payload = json.loads(meta_path.read_text(encoding="utf-8"))
     return FileMetadata.model_validate(payload)
+
+
+def delete_blob_file(
+    file_id: UUID,
+    settings: Settings | None = None,
+) -> Path:
+    """Delete the persisted blob file for a file id.
+
+    This operation is strict and never silent:
+    - Raises FileNotFoundError if the blob does not exist
+    - Raises OSError on failure
+
+    Args:
+        file_id: UUID of the persisted file.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Deleted blob file path.
+
+    Raises:
+        FileNotFoundError: If the blob file does not exist.
+        OSError: If deletion fails due to OS-level error.
+    """
+
+    blob_path = get_blob_path(file_id, settings)
+    blob_path.unlink()
+    return blob_path
+
+
+def delete_metadata_file(
+    file_id: UUID,
+    settings: Settings | None = None,
+) -> Path:
+    """Delete the persisted metadata file for a file id.
+
+    This operation is strict and never silent:
+    - Raises FileNotFoundError if metadata does not exist
+    - Raises OSError on failure
+
+    Args:
+        file_id: UUID of the persisted file.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Deleted metadata file path.
+
+    Raises:
+        FileNotFoundError: If the metadata file does not exist.
+        OSError: If deletion fails due to OS-level error.
+    """
+
+    meta_path = get_meta_path(file_id, settings)
+    meta_path.unlink()
+    return meta_path
+
+
+def sanitize_download_filename(
+    original_filename: str | None,
+    file_id: UUID,
+) -> str:
+    """Return a safe filename for Content-Disposition download responses.
+
+    Args:
+        original_filename: Filename persisted in metadata.
+        file_id: UUID used for deterministic fallback naming.
+
+    Returns:
+        Sanitized filename, or `file_<uuid>.bin` fallback.
+    """
+
+    fallback = f"file_{file_id}.bin"
+    candidate = Path(original_filename or "").name
+
+    if not candidate:
+        return fallback
+
+    sanitized = "".join(ch for ch in candidate if ch >= " " and ch != "\x7f")
+    sanitized = sanitized.replace("/", "").replace("\\", "").strip().strip(".")
+
+    return sanitized or fallback
+
+
+def iter_file_chunks(
+    path: Path,
+    chunk_size: int = 65536,
+) -> Iterator[bytes]:
+    """Yield file bytes in fixed-size chunks.
+
+    Args:
+        path: File path to stream.
+        chunk_size: Bytes per chunk.
+
+    Yields:
+        Binary chunks until EOF.
+    """
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be > 0")
+
+    with path.open("rb") as file_obj:
+        while True:
+            chunk = file_obj.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
 
 
 def _normalize_extension(filename: str | None) -> str:

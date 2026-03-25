@@ -390,6 +390,61 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
         success_example=FILES_GET_SUCCESS_EXAMPLE,
     )
 
+    FILES_DELETE_ERRORS = [
+        errors.FILE_NOT_FOUND,
+        errors.INVALID_REQUEST,
+        errors.INTERNAL_ERROR,
+    ]
+
+    FILES_DELETE_SUCCESS_EXAMPLE = {
+        "success": True,
+        "error": None,
+        "data": {
+            "file": {
+                "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "deleted": True,
+            }
+        },
+    }
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/files/{id}",
+        method="delete",
+        errors=FILES_DELETE_ERRORS,
+        success_example=FILES_DELETE_SUCCESS_EXAMPLE,
+    )
+
+    FILES_CONTENT_GET_ERRORS = [
+        errors.FILE_NOT_FOUND,
+        errors.INVALID_REQUEST,
+        errors.INTERNAL_ERROR,
+    ]
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/files/{id}/content",
+        method="get",
+        errors=FILES_CONTENT_GET_ERRORS,
+    )
+
+    files_content_operation = (
+        schema.get("paths", {}).get("/v1/files/{id}/content", {}).get("get")
+    )
+    if files_content_operation:
+        files_content_responses = files_content_operation.setdefault("responses", {})
+        files_content_responses["200"] = {
+            "description": "Streamed file content.",
+            "content": {
+                "application/octet-stream": {
+                    "schema": {
+                        "type": "string",
+                        "format": "binary",
+                    }
+                }
+            },
+        }
+
 
 # ---------------------------------------------------------------------
 # /v1/execute dynamic contract

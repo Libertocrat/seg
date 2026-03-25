@@ -10,11 +10,13 @@ import hashlib
 import json
 import os
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import Form, UploadFile
+from pydantic import ValidationError
 
 from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.config import Settings, get_settings
@@ -29,19 +31,289 @@ from seg.core.errors import (
     UNSUPPORTED_MEDIA_TYPE,
     SegError,
 )
-from seg.core.schemas.files import FileMetadata, UploadFileRequest
+from seg.core.schemas.files import DeleteFileResult, FileMetadata, UploadFileRequest
 from seg.core.utils.file_storage import (
     FileExtensionMissingError,
     MimeMappingNotDefinedError,
     UnsupportedMediaTypeValidationError,
     _detect_mime,
     _validate_extension_and_mime,
+    delete_blob_file,
+    delete_metadata_file,
     get_blob_path,
     get_meta_path,
     get_tmp_dir,
+    load_file_metadata,
     logger,
+    sanitize_download_filename,
     save_file_metadata,
 )
+
+# ============================================================================
+# Helper classes and functions
+# ============================================================================
+
+
+@dataclass(slots=True, frozen=True)
+class FileContentDescriptor:
+    """Transport-neutral descriptor for streamed file content."""
+
+    file_id: uuid.UUID
+    blob_path: Path
+    mime_type: str
+    filename: str
+    size_bytes: int | None
+
+
+def safe_load_metadata(
+    file_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> FileMetadata:
+    """Safely load and validate file metadata from SEG storage.
+
+    This helper centralizes the metadata loading and validation pipeline used
+    across multiple file handlers (e.g., delete, content, metadata retrieval).
+
+    It enforces a consistent error mapping strategy aligned with SEG's
+    structured error model (`SegError`), ensuring that:
+
+    - Missing metadata is mapped to FILE_NOT_FOUND
+    - Corrupted JSON is mapped to INVALID_REQUEST
+    - Schema validation failures are mapped to INVALID_REQUEST
+    - Unexpected system errors are mapped to INTERNAL_ERROR
+
+    This function should be used by all handlers that require metadata access
+    to avoid duplication and ensure consistent behavior.
+
+    Args:
+        file_id: UUID of the file whose metadata should be loaded.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        A validated FileMetadata instance.
+
+    Raises:
+        SegError:
+            - FILE_NOT_FOUND: If metadata file does not exist.
+            - INVALID_REQUEST: If metadata is corrupted or invalid.
+            - INTERNAL_ERROR: If an unexpected system error occurs.
+    """
+
+    cfg = settings or get_settings()
+
+    try:
+        metadata = load_file_metadata(file_id, cfg)
+
+    except OSError as exc:
+        logger.exception(
+            "file.metadata.prepare_failed",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INTERNAL_ERROR,
+            "Failed to read file metadata.",
+        ) from exc
+
+    except json.JSONDecodeError as exc:
+        logger.warning(
+            "file.metadata.invalid_json",
+            extra={"file_id": str(file_id), "reason": "invalid_json"},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Invalid file metadata (corrupted JSON).",
+            details={"file_id": str(file_id)},
+        ) from exc
+
+    except ValidationError as exc:
+        logger.warning(
+            "file.metadata.invalid_schema",
+            extra={"file_id": str(file_id), "reason": "invalid_schema"},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Invalid file metadata schema.",
+            details={"file_id": str(file_id)},
+        ) from exc
+
+    except Exception as exc:
+        logger.exception(
+            "file.metadata.prepare_failed",
+            extra={"file_id": str(file_id), "reason": "unexpected_error"},
+        )
+        raise SegError(
+            INTERNAL_ERROR,
+            "Unexpected error while loading file metadata.",
+        ) from exc
+
+    if metadata is None:
+        logger.warning(
+            "file.metadata.not_found",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        )
+
+    return metadata
+
+
+# ============================================================================
+# DELETE /v1/files/{file_id} handler
+# ============================================================================
+
+
+async def delete_file_handler(
+    file_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> DeleteFileResult:
+    """Delete a previously uploaded file and its metadata.
+
+    Flow:
+    - Load and validate metadata
+    - Verify storage consistency and blob presence
+    - Delete blob first, then metadata
+    - Return typed delete result
+    """
+
+    cfg = settings or get_settings()
+    metadata = safe_load_metadata(file_id, cfg)
+
+    if metadata is None:
+        logger.warning(
+            "file.delete.metadata_not_found",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        )
+
+    if metadata.id != file_id:
+        logger.warning(
+            "file.delete.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "File metadata does not match requested file id.",
+            details={"file_id": str(file_id)},
+        )
+
+    if metadata.status != "ready":
+        logger.warning(
+            "file.delete.not_ready",
+            extra={"file_id": str(file_id), "status": metadata.status},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "File is not in deletable state.",
+            details={"file_id": str(file_id), "status": metadata.status},
+        )
+
+    if not metadata.stored_filename or not metadata.stored_filename.strip():
+        logger.warning(
+            "file.delete.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file reference is missing from metadata.",
+            details={"file_id": str(file_id)},
+        )
+
+    blob_path = get_blob_path(file_id, cfg)
+    meta_path = get_meta_path(file_id, cfg)
+
+    if metadata.stored_filename != blob_path.name:
+        logger.warning(
+            "file.delete.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file reference does not match expected blob path.",
+            details={"file_id": str(file_id)},
+        )
+
+    if not blob_path.exists():
+        logger.warning(
+            "file.delete.blob_not_found",
+            extra={"file_id": str(file_id), "blob_path": str(blob_path)},
+        )
+        raise SegError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        )
+
+    if not blob_path.is_file():
+        logger.warning(
+            "file.delete.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file path is not a regular file.",
+            details={"file_id": str(file_id)},
+        )
+
+    try:
+        delete_blob_file(file_id, cfg)
+    except FileNotFoundError as exc:
+        logger.warning(
+            "file.delete.blob_not_found",
+            extra={"file_id": str(file_id), "blob_path": str(blob_path)},
+        )
+        raise SegError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        ) from exc
+    except OSError as exc:
+        logger.exception(
+            "file.delete.blob_delete_failed",
+            extra={"file_id": str(file_id), "blob_path": str(blob_path)},
+        )
+        raise SegError(
+            INTERNAL_ERROR,
+            "Failed to delete file blob.",
+        ) from exc
+
+    try:
+        delete_metadata_file(file_id, cfg)
+    except FileNotFoundError as exc:
+        logger.exception(
+            "file.delete.metadata_delete_failed",
+            extra={"file_id": str(file_id), "meta_path": str(meta_path)},
+        )
+        raise SegError(
+            INTERNAL_ERROR,
+            "Failed to delete file metadata.",
+        ) from exc
+    except OSError as exc:
+        logger.exception(
+            "file.delete.metadata_delete_failed",
+            extra={"file_id": str(file_id), "meta_path": str(meta_path)},
+        )
+        raise SegError(
+            INTERNAL_ERROR,
+            "Failed to delete file metadata.",
+        ) from exc
+
+    logger.info(
+        "file.delete.succeeded",
+        extra={
+            "file_id": str(file_id),
+            "blob_path": str(blob_path),
+            "meta_path": str(meta_path),
+            "original_filename": metadata.original_filename,
+            "stored_filename": metadata.stored_filename,
+            "mime_type": metadata.mime_type,
+            "size_bytes": metadata.size_bytes,
+        },
+    )
+
+    return DeleteFileResult(id=file_id, deleted=True)
 
 
 def parse_post_file_request(
@@ -50,6 +322,11 @@ def parse_post_file_request(
     """Build the typed request schema for `POST /v1/files` form fields."""
 
     return UploadFileRequest(checksum=checksum)
+
+
+# ============================================================================
+# GET /v1/files/{file_id} handler
+# ============================================================================
 
 
 async def get_file_metadata_handler(
@@ -68,13 +345,33 @@ async def get_file_metadata_handler(
     """
 
     cfg = settings or get_settings()
+    metadata = safe_load_metadata(file_id, cfg)
 
-    meta_path = get_meta_path(file_id, cfg)
+    logger.info(
+        "file.metadata.retrieved",
+        extra={"file_id": str(file_id)},
+    )
 
-    # 1. File does not exist -> 404
-    if not meta_path.exists():
+    return metadata
+
+
+# ============================================================================
+# GET /v1/files/{file_id}/content handler
+# ============================================================================
+
+
+async def get_file_content_handler(
+    file_id: uuid.UUID,
+    settings: Settings | None = None,
+) -> FileContentDescriptor:
+    """Resolve and validate metadata + blob path for content streaming."""
+
+    cfg = settings or get_settings()
+    metadata = safe_load_metadata(file_id, cfg)
+
+    if metadata is None:
         logger.warning(
-            "file.metadata.not_found",
+            "file.content.metadata_not_found",
             extra={"file_id": str(file_id)},
         )
         raise SegError(
@@ -82,52 +379,117 @@ async def get_file_metadata_handler(
             details={"file_id": str(file_id)},
         )
 
-    # 2. Try to load + parse metadata
+    if metadata.id != file_id:
+        logger.warning(
+            "file.content.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "File metadata does not match requested file id.",
+            details={"file_id": str(file_id)},
+        )
+
+    if metadata.status != "ready":
+        logger.warning(
+            "file.content.not_ready",
+            extra={"file_id": str(file_id), "status": metadata.status},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "File is not available for download.",
+            details={"file_id": str(file_id), "status": metadata.status},
+        )
+
+    if not metadata.stored_filename or not metadata.stored_filename.strip():
+        logger.warning(
+            "file.content.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file reference is missing from metadata.",
+            details={"file_id": str(file_id)},
+        )
+
+    blob_path = get_blob_path(file_id, cfg)
+
+    if metadata.stored_filename != blob_path.name:
+        logger.warning(
+            "file.content.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file reference does not match expected blob path.",
+            details={"file_id": str(file_id)},
+        )
+
+    if not blob_path.exists():
+        logger.warning(
+            "file.content.blob_not_found",
+            extra={"file_id": str(file_id), "blob_path": str(blob_path)},
+        )
+        raise SegError(
+            FILE_NOT_FOUND,
+            details={"file_id": str(file_id)},
+        )
+
+    if not blob_path.is_file():
+        logger.warning(
+            "file.content.invalid_metadata",
+            extra={"file_id": str(file_id)},
+        )
+        raise SegError(
+            INVALID_REQUEST,
+            "Stored file path is not a regular file.",
+            details={"file_id": str(file_id)},
+        )
+
     try:
-        raw = meta_path.read_text(encoding="utf-8")
+        size_bytes = blob_path.stat().st_size
     except OSError as exc:
         logger.exception(
-            "file.metadata.read_failed",
+            "file.content.prepare_failed",
             extra={"file_id": str(file_id)},
         )
         raise SegError(
             INTERNAL_ERROR,
-            "Failed to read file metadata.",
+            "Failed to prepare file content for streaming.",
         ) from exc
 
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.warning(
-            "file.metadata.invalid_json",
-            extra={"file_id": str(file_id)},
-        )
-        raise SegError(
-            INVALID_REQUEST,
-            "Invalid file metadata (corrupted JSON).",
-            details={"file_id": str(file_id)},
-        ) from exc
+    mime_type = metadata.mime_type.strip().lower() if metadata.mime_type else ""
+    if "/" not in mime_type:
+        mime_type = "application/octet-stream"
 
-    try:
-        metadata = FileMetadata.model_validate(payload)
-    except Exception as exc:
-        logger.warning(
-            "file.metadata.invalid_schema",
-            extra={"file_id": str(file_id)},
-        )
-        raise SegError(
-            INVALID_REQUEST,
-            "Invalid file metadata schema.",
-            details={"file_id": str(file_id)},
-        ) from exc
-
-    # 3. Success
-    logger.info(
-        "file.metadata.retrieved",
-        extra={"file_id": str(file_id)},
+    filename = sanitize_download_filename(
+        metadata.original_filename,
+        file_id,
     )
 
-    return metadata
+    logger.info(
+        "file.content.resolved",
+        extra={
+            "file_id": str(file_id),
+            "blob_path": str(blob_path),
+            "mime_type": mime_type,
+            "filename": filename,
+            "size_bytes": size_bytes,
+        },
+    )
+
+    return FileContentDescriptor(
+        file_id=file_id,
+        blob_path=blob_path,
+        mime_type=mime_type,
+        filename=filename,
+        size_bytes=size_bytes,
+    )
+
+
+# ============================================================================
+# POST /v1/files handler
+# ============================================================================
 
 
 async def upload_file_handler(
@@ -160,7 +522,7 @@ async def upload_file_handler(
     moved_to_blob = False
 
     try:
-        # NOTE: UploadFile stream is consumed during read; cannot be reused.
+        # Note: UploadFile stream is consumed during read; cannot be reused.
         with tmp_path.open("wb") as temp_f:
             while True:
                 chunk = await upload.read(1024 * 1024)

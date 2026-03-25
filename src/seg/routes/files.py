@@ -10,14 +10,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
-from seg.core.schemas.files import UploadFileData, UploadFileRequest
+from seg.core.schemas.files import DeleteFileData, UploadFileData, UploadFileRequest
+from seg.core.utils.file_storage import iter_file_chunks
 from seg.routes.handlers.files import (
+    delete_file_handler,
+    get_file_content_handler,
     get_file_metadata_handler,
     parse_post_file_request,
     upload_file_handler,
@@ -73,6 +76,31 @@ get_metadata_description = (
     "- Verify upload success\n"
     "- Inspect file properties (size, type, checksum)\n"
     "- Integrate with automation workflows (e.g., n8n)\n"
+)
+
+get_content_description = (
+    "**Stream the binary contents of a previously uploaded file managed by SEG.**\n\n"
+    "This endpoint resolves the file through SEG metadata, validates that the "
+    "file is in ready state, and returns the blob as a streamed download "
+    "response.\n\n"
+    "Behavior:\n"
+    "- Validates the provided file identifier (UUID)\n"
+    "- Loads metadata from SEG-managed storage\n"
+    "- Verifies that the file is available for download\n"
+    "- Streams the file content without loading the entire blob into memory\n\n"
+    "Security considerations:\n"
+    "- No direct filesystem paths are exposed\n"
+    "- Only SEG-managed file identifiers are accepted\n"
+    "- Access is controlled via SEG authentication middleware\n"
+)
+
+delete_description = (
+    "**Hard-delete a previously uploaded file managed by SEG.**\n\n"
+    "This endpoint resolves the file through SEG metadata and removes both "
+    "storage artifacts in strict order:\n"
+    "- blob (`files/blobs/file_<uuid>.bin`)\n"
+    "- metadata (`files/meta/file_<uuid>.json`)\n\n"
+    "Deletion is only allowed when file metadata is in `ready` state."
 )
 
 
@@ -144,6 +172,80 @@ async def get_file(id: UUID) -> JSONResponse | ResponseEnvelope[UploadFileData]:
     try:
         metadata = await get_file_metadata_handler(file_id=id)
         return ResponseEnvelope.success_response(UploadFileData(file=metadata))
+    except SegError as exc:
+        payload = ResponseEnvelope.failure(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(status_code=exc.http_status, content=payload.model_dump())
+
+
+@router.get(
+    "/files/{id}/content",
+    summary="Download file content",
+    description=get_content_description,
+    response_model=None,  # Response is a streamed binary, not JSON
+    responses={
+        200: {
+            "description": "Streamed file content.",
+            "content": {
+                "application/octet-stream": {
+                    "schema": {"type": "string", "format": "binary"}
+                }
+            },
+            "headers": {
+                "Content-Disposition": {
+                    "description": "Download filename",
+                    "schema": {"type": "string"},
+                },
+                "Content-Length": {
+                    "description": "Size of the file in bytes",
+                    "schema": {"type": "integer"},
+                },
+            },
+        }
+    },
+)
+async def get_file_content(id: UUID):
+    """Stream file content by UUID."""
+
+    try:
+        descriptor = await get_file_content_handler(file_id=id)
+
+        headers = {
+            "Content-Disposition": f'attachment; filename="{descriptor.filename}"',
+        }
+
+        if descriptor.size_bytes is not None:
+            headers["Content-Length"] = str(descriptor.size_bytes)
+
+        return StreamingResponse(
+            iter_file_chunks(descriptor.blob_path),
+            media_type=descriptor.mime_type,
+            headers=headers,
+        )
+    except SegError as exc:
+        payload = ResponseEnvelope.failure(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(status_code=exc.http_status, content=payload.model_dump())
+
+
+@router.delete(
+    "/files/{id}",
+    summary="Delete a stored file",
+    description=delete_description,
+    response_model=ResponseEnvelope[DeleteFileData],
+)
+async def delete_file(id: UUID) -> JSONResponse | ResponseEnvelope[DeleteFileData]:
+    """Delete file blob + metadata by UUID."""
+
+    try:
+        result = await delete_file_handler(file_id=id)
+        return ResponseEnvelope.success_response(DeleteFileData(file=result))
     except SegError as exc:
         payload = ResponseEnvelope.failure(
             code=exc.code,

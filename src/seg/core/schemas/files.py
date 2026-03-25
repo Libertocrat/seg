@@ -62,3 +62,25 @@ class UploadFileRequest(BaseModel):
         default=None,
         description="Optional SHA-256 checksum provided by the client.",
     )
+
+
+class DeleteFileResult(BaseModel):
+    """Delete result payload for a previously stored file.
+
+    Attributes:
+        id: UUID of the deleted file.
+        deleted: Deletion success flag.
+    """
+
+    id: UUID
+    deleted: bool
+
+
+class DeleteFileData(BaseModel):
+    """Success payload for `DELETE /v1/files/{id}`.
+
+    Attributes:
+        file: Structured delete outcome.
+    """
+
+    file: DeleteFileResult
