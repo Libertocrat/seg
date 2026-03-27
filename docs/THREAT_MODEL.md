@@ -53,7 +53,7 @@ SEG protects these assets:
 
 - Host integrity. The service reduces host exposure by running in a container, using a non-root user, and restricting filesystem access to a mounted sandbox path.
 - Sandbox filesystem contents. File operations are limited to `SEG_SANDBOX_DIR` and allowed top-level subdirectories.
-- Action execution environment. Only registered action handlers can run through `/v1/execute`.
+- Action execution environment. Only registered action handlers can run through `/v1/execute`, and SEG-managed file operations are constrained to `/v1/files` contracts.
 - Authentication token. The bearer token gates protected endpoints and is loaded from a Docker secret path.
 - Service availability. Body size limits, rate limiting, and request timeouts protect the service from simple abuse patterns.
 - Integrity of action results. Dispatcher level input validation, action specific validation, and optional result model validation reduce malformed execution results.
@@ -85,6 +85,9 @@ Trust assumptions exist at each boundary:
 The application exposes these HTTP entry points:
 
 - `/v1/execute` via POST. This is the main attack surface because it accepts an action name and action parameters.
+- `/v1/files` via POST and GET. These endpoints handle managed file upload and listing.
+- `/v1/files/{id}` via GET and DELETE. These endpoints handle managed file metadata retrieval and deletion by `file_id`.
+- `/v1/files/{id}/content` via GET. This endpoint streams file content by `file_id`.
 - `/health` via GET. This endpoint is unauthenticated.
 - `/metrics` via GET. This endpoint is unauthenticated.
 - `/docs`, `/redoc`, and `/openapi.json` when `seg_enable_docs` is enabled. These endpoints are also unauthenticated when enabled.
@@ -92,14 +95,19 @@ The application exposes these HTTP entry points:
 Attack inputs include:
 
 - request headers, especially `Authorization`, `Content-Type`, `Content-Length`, `Transfer-Encoding`, and `X-Request-Id`
-- request body content sent to `/v1/execute`
+- request body content sent to `/v1/execute` and multipart form uploads sent to `/v1/files`
 - `action` values in `ExecuteRequest`
-- action parameter fields, especially filesystem path fields
+- `file_id` path parameters and file query/filter parameters on `/v1/files` routes
+- action parameter fields, especially filesystem path fields in path-based action flows
 - environment and secret based configuration such as `SEG_ALLOWED_SUBDIRS`, `SEG_SANDBOX_DIR`, and the API token secret
+
+> [!IMPORTANT]
+> Migration notice for v0.2.0: SEG plans to migrate action definitions to a YAML DSL and deprecate path-based file specifications used by `/v1/execute` in favor of `file_id`-based workflows through `/v1/files`.
 
 Authentication coverage is as follows:
 
 - `/v1/execute` requires bearer authentication
+- `/v1/files`, `/v1/files/{id}`, and `/v1/files/{id}/content` require bearer authentication
 - `/health` does not require authentication
 - `/metrics` does not require authentication
 - docs endpoints do not require authentication when they are enabled
@@ -112,12 +120,14 @@ Authentication coverage is as follows:
 - missing or malformed `Authorization` headers
 - duplicate `Authorization` headers intended to confuse downstream handling
 - exposure of unauthenticated endpoints such as `/health`, `/metrics`, and optional docs endpoints
+- abuse of authenticated `/v1/files` endpoints through high-volume upload, listing, and download requests
 
 ### Input validation threats
 
 - malformed request paths containing disallowed bytes or separators
 - malformed raw headers
 - unsupported content types for `/v1/execute`
+- unsupported content types for `/v1/files` uploads
 - invalid `Content-Length` values
 - oversized request bodies
 - invalid action parameters that do not match the registered Pydantic model
@@ -138,6 +148,7 @@ Authentication coverage is as follows:
 - attempting to bypass handler contracts with malformed parameters
 - returning malformed action results when a result model exists
 - abusing write-like file actions such as delete or move outside policy constraints
+- abusing `/v1/files` lifecycle operations with invalid `file_id` values or illegal state transitions
 
 ### Denial of service threats
 
@@ -164,7 +175,7 @@ Authentication coverage is as follows:
 ### Input validation mitigations
 
 - `RequestIntegrityMiddleware` rejects malformed paths, malformed raw headers, invalid `Content-Length`, unsupported content types, and oversized bodies.
-- `ContentTypePolicy` restricts `POST /v1/execute` to `application/json`.
+- `ContentTypePolicy` restricts `POST /v1/execute` to `application/json` and `POST /v1/files` to `multipart/form-data`.
 - `dispatch_execute()` validates action parameters against the action specific `params_model`.
 - `dispatch_execute()` can also validate handler output against `result_model` and return `INVALID_RESULT` on mismatch.
 
@@ -212,6 +223,9 @@ Some risks remain by design or by deployment assumption.
 - `/health` and `/metrics` are intentionally unauthenticated. Optional docs endpoints are also unauthenticated when enabled. They increase externally reachable surface inside the internal network.
 - Filesystem race conditions are reduced but not fully eliminated. The code explicitly notes that path resolution before later filesystem operations can still leave TOCTOU windows in some flows.
 - Service availability still depends on the underlying container host, mounted volume performance, and upstream request volume.
+
+> [!NOTE]
+> Shared-volume mounting remains part of the current deployment model. With `/v1/files` now established as the file lifecycle API, SEG is preparing to deprecate shared-volume workflow assumptions and migrate toward a dedicated internal storage volume in a future release.
 
 ## 9. Security Assumptions
 
