@@ -16,7 +16,7 @@
 
 ## 1. System Overview
 
-Secure Execution Gateway (SEG) is a FastAPI-based internal microservice that exposes a small, allowlisted set of file operations through a single execution endpoint. It is designed to run inside trusted container infrastructure and to operate only inside a configured sandbox directory.
+Secure Execution Gateway (SEG) is a FastAPI-based internal microservice that exposes a small allowlisted action execution surface together with SEG-managed file CRUD endpoints. It is designed to run inside trusted container infrastructure and to operate only inside a configured sandbox directory.
 
 The service is not a generic command runner. Requests enter through HTTP, pass through a defense-in-depth middleware stack, and then reach a dispatcher that resolves a registered action implementation. File actions apply centralized path and filesystem controls before touching the sandboxed filesystem.
 
@@ -39,7 +39,7 @@ The main implementation lives under `src/seg`.
 | `src/seg/actions` | Dispatcher, registry, action discovery, domain exceptions, and concrete action modules. |
 | `src/seg/middleware` | HTTP middleware for authentication, request hygiene, observability, rate limiting, timeout control, request IDs, and response security headers. |
 | `src/seg/core` | Shared configuration, error definitions, OpenAPI generation, response schemas, and security utilities. |
-| `src/seg/routes` | Thin FastAPI route handlers for `/v1/execute`, `/health`, and `/metrics`. |
+| `src/seg/routes` | Thin FastAPI route handlers for `/v1/execute`, `/v1/files`, `/health`, and `/metrics`. |
 | `tests` | Smoke, unit, and integration tests covering application startup, schemas, security helpers, middleware, routes, dispatcher behavior, and file actions. |
 
 Within `src/seg/actions/file`, each supported file capability is implemented in its own module: `checksum.py`, `delete.py`, `mime_detect.py`, `move.py`, and `verify.py`. Shared action request and response models live in `src/seg/actions/file/schemas.py`.
@@ -59,9 +59,10 @@ Key application behaviors in `app.py`:
 
 ### Router registration
 
-The app includes three route modules:
+The app includes four route modules:
 
 - `/v1/execute`: main action execution endpoint.
+- `/v1/files`: SEG-managed file CRUD and content streaming endpoints.
 - `/health`: readiness endpoint that returns `{"status": "ok"}` inside the standard response envelope.
 - `/metrics`: Prometheus exposition endpoint.
 
@@ -74,7 +75,10 @@ Two global handlers are registered:
 
 ### Endpoint model
 
-`/v1/execute` is intentionally thin. The route validates the request against `ExecuteRequest`, delegates to `dispatch_execute()`, and returns the dispatcher result as a JSON response. Health and metrics are separated into dedicated routes and do not contain business logic.
+`/v1/execute` is intentionally thin. The route validates the request against `ExecuteRequest`, delegates to `dispatch_execute()`, and returns the dispatcher result as a JSON response. `/v1/files` exposes typed handlers for upload, metadata retrieval, listing, content download, and deletion using `file_id` identifiers. Health and metrics are separated into dedicated routes and do not contain business logic.
+
+> [!IMPORTANT]
+> Migration notice for v0.2.0: SEG is planned to migrate action definitions to a YAML-based DSL. Path-based file specifications in `/v1/execute` action parameters are planned for deprecation in favor of `file_id`-based flows aligned with `/v1/files`.
 
 ## 4. Middleware Security Layer
 
@@ -119,7 +123,7 @@ If security headers are disabled, the pipeline starts at `RequestIDMiddleware`.
 - Rejects malformed request paths containing NUL bytes, backslashes, or disallowed control characters.
 - Rejects malformed raw headers, including duplicate `Authorization` headers, whitespace in header names, and control characters in names or values.
 - Rejects requests that contain both `Content-Length` and `Transfer-Encoding`.
-- Enforces `application/json` as the only allowed content type for `POST /v1/execute`.
+- Enforces `application/json` for `POST /v1/execute` and `multipart/form-data` for `POST /v1/files`.
 - Enforces maximum body size through strict `Content-Length` parsing or streaming body counting when the header is absent.
 - Emits rejection metrics through `seg_request_integrity_rejections_total`.
 
@@ -343,7 +347,7 @@ MetricsRoute --> Scraper
 
 ## 9. API Documentation System
 
-SEG generates OpenAPI dynamically from the live application and current action registry.
+SEG generates OpenAPI dynamically from the live application, action registry, and file route contracts.
 
 ### Runtime schema generation
 
@@ -354,6 +358,7 @@ SEG generates OpenAPI dynamically from the live application and current action r
 - marks `/health` and `/metrics` as public in the OpenAPI document
 - registers shared schemas such as `ResponseEnvelope` and `ErrorInfo`
 - derives the `/v1/execute` request and response variants from the registered actions
+- applies explicit `/v1/files` contract overrides for upload, metadata retrieval, listing, content streaming, and delete operations
 - adds SEG response headers such as `X-Request-Id` and `Retry-After`
 - removes internal-only schemas from the published document
 - overrides the generated contracts for `/health` and `/metrics`
@@ -401,6 +406,9 @@ The Compose service:
 
 This matches the internal-service deployment model: SEG is intended to be reachable from other trusted containers on the shared network, not from a public edge.
 
+> [!NOTE]
+> The shared-volume deployment contract remains active. With `/v1/files` now available, SEG is preparing a future migration toward a dedicated internal storage volume and eventual deprecation of shared-volume file workflow patterns.
+
 ## 11. Testing Architecture
 
 Testing is organized by scope:
@@ -409,6 +417,6 @@ Testing is organized by scope:
 - `tests/actions` covers the dispatcher, registry, and file action modules.
 - `tests/core` covers schemas, settings, and security helpers.
 - `tests/integration/middleware` exercises middleware behavior end to end.
-- `tests/integration/routes` exercises route-level behavior.
+- `tests/integration/routes` exercises route-level behavior for `/v1/execute`, `/v1/files`, `/health`, and `/metrics`.
 
 The test layout separates unit-level validation of the action and security primitives from integration-level checks of the HTTP surface.

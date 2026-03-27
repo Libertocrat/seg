@@ -87,7 +87,7 @@ Within those directories:
 - `tests/actions/file` covers `file_checksum`, `file_delete`, `file_mime_detect`, `file_move`, and `file_verify`
 - `tests/core/security` covers path security, HTTP validation helpers, and security header behavior
 - `tests/integration/middleware` covers auth, observability, rate limiting, request IDs, request integrity, security headers, and timeout behavior
-- `tests/integration/routes` covers `/v1/execute`, `/health`, `/metrics`, and runtime OpenAPI generation
+- `tests/integration/routes` covers `/v1/execute`, `/v1/files`, `/health`, `/metrics`, and runtime OpenAPI generation
 
 ## 4. Unit Testing
 
@@ -139,9 +139,13 @@ Middleware integration coverage includes:
 Route integration coverage includes:
 
 - `/v1/execute` request validation, success envelope behavior, and unknown action handling
+- `/v1/files` upload, metadata retrieval, listing, content download, and delete endpoint behavior
 - `/health` success payload validation
 - `/metrics` content type and Prometheus text format validation
 - `/openapi.json` validation, security projection, action schema registration, and response overrides when docs are enabled
+
+> [!NOTE]
+> Migration notice for v0.2.0: test scope around `/v1/execute` will progressively shift from path-based file action payloads to YAML DSL-defined actions and `file_id`-based file references aligned with `/v1/files`.
 
 These tests validate the assembled application stack rather than individual helper functions.
 

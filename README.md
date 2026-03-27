@@ -71,7 +71,7 @@ SEG acts as an internal execution gateway for automation and platform workflows 
 
 The service accepts HTTP requests, validates them through a defense-in-depth middleware stack, resolves a registered action from an explicit in-memory allowlist, and executes that action only inside a configured filesystem sandbox.
 
-This design keeps the exposed capability set small and predictable. The API is centered on one execution endpoint, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
+This design keeps the exposed capability set small and predictable. The API is centered on one action execution endpoint plus SEG-managed file CRUD endpoints, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
 
 > [!IMPORTANT]
 > SEG was originally created as a secure alternative to unsafe command execution mechanisms commonly used in workflow automation platforms.
@@ -245,6 +245,9 @@ docker network create docker-network || true
 docker compose up -d --build
 ```
 
+> [!NOTE]
+> The shared volume model remains the current runtime contract. With the introduction of `/v1/files`, SEG is preparing to deprecate shared-volume usage for client-facing file workflows and migrate to a dedicated internal SEG storage volume in a future release.
+
 Notes:
 
 - `docker-compose.yml` does not publish SEG publicly
@@ -314,9 +317,15 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 
 For container identity, shared volume naming, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
 
+> [!NOTE]
+> Shared-volume integration is still required today. Because `/v1/files` now provides managed upload, metadata, listing, download, and delete operations based on `file_id`, SEG will migrate toward an internal dedicated storage volume and deprecate direct shared-volume file workflow patterns in a future release.
+
 ## 8. API Overview
 
-The primary API model is `POST /v1/execute`, which accepts an action name and a validated parameter object.
+The primary API model now includes `POST /v1/execute` for allowlisted actions and `/v1/files` endpoints for SEG-managed file lifecycle operations.
+
+> [!IMPORTANT]
+> Migration notice for v0.2.0: SEG will transition action definitions to a YAML-based DSL model. Path-based file specifications used by action parameters under `/v1/execute` are planned for deprecation in favor of `file_id`-based workflows aligned with `/v1/files`.
 
 ### Endpoints
 
@@ -324,9 +333,14 @@ The public HTTP surface is intentionally small.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `/v1/execute` | execute allowlisted actions |
-| `/health` | service readiness |
-| `/metrics` | Prometheus metrics |
+| `POST /v1/execute` | execute allowlisted actions |
+| `POST /v1/files` | upload and persist a managed file |
+| `GET /v1/files/{id}` | retrieve managed file metadata by `file_id` |
+| `GET /v1/files` | list managed files with cursor pagination |
+| `GET /v1/files/{id}/content` | stream managed file content by `file_id` |
+| `DELETE /v1/files/{id}` | delete a managed file by `file_id` |
+| `GET /health` | service readiness |
+| `GET /metrics` | Prometheus metrics |
 
 Interactive documentation endpoints are available only when `SEG_ENABLE_DOCS=true`:
 
@@ -357,6 +371,9 @@ In this example:
 - `action` selects a registered action handler
 - `params` is validated against the action-specific schema
 - `path` must remain inside the configured sandbox and allowed subdirectories
+
+> [!NOTE]
+> The action example above reflects the current `/v1/execute` contract. For upcoming versions, SEG will standardize file references on `file_id` and deprecate path-based file references in action payloads.
 
 Example success response:
 

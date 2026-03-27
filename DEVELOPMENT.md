@@ -295,6 +295,9 @@ docker compose logs -f
 docker compose ps
 ```
 
+> [!NOTE]
+> The shared volume workflow remains required for the current local stack. With the introduction of `/v1/files`, SEG is preparing a future migration to an internal dedicated storage volume and gradual deprecation of shared-volume file workflow assumptions.
+
 ## 5. Dependency Sets
 
 Python dependencies are split across the `requirements/` directory.
@@ -454,6 +457,9 @@ scripts/init-shared-volume.sh --env-file .env
 ```
 
 The initializer prepares the mounted volume at `/data` inside its temporary helper container. In the SEG container, the same volume is mounted at `SEG_SANDBOX_DIR`, which defaults to `/data` in `.env.example` and can be changed in `.env`.
+
+> [!NOTE]
+> This shared-volume initialization flow remains valid for current releases. As `/v1/files` adoption consolidates, SEG plans to deprecate shared-volume client workflows and move to an internal dedicated storage volume model.
 
 ### 9.2 SEG Local Port Forwarding
 
