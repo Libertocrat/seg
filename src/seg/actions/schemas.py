@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 
 from seg.actions.models import ParamType
 
@@ -220,21 +220,3 @@ class ModuleSpec(BaseModel):
     binaries: List[str]
 
     actions: Dict[str, ActionSpecInput]
-
-    # ------------------------------------------------------------------
-    # Basic validations
-    # ------------------------------------------------------------------
-
-    @field_validator("version")
-    def validate_version(cls, v: int) -> int:
-        """Ensure only supported DSL version is accepted."""
-        if v != 1:
-            raise ValueError("Only DSL version 1 is supported")
-        return v
-
-    @field_validator("binaries")
-    def validate_binaries(cls, v: List[str]) -> List[str]:
-        """Ensure at least one binary is defined."""
-        if not v:
-            raise ValueError("At least one binary must be declared")
-        return v

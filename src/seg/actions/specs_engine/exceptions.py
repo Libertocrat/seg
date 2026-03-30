@@ -2,4 +2,11 @@
 
 
 class ActionSpecsParseError(Exception):
-    """Raised when a DSL spec file cannot be read or structurally parsed."""
+    """Raised when a DSL spec file cannot be loaded, parsed, or validated.
+
+    This includes:
+    - file I/O errors
+    - YAML syntax errors
+    - schema validation errors (Pydantic)
+    - semantic validation errors (validator.py)
+    """
