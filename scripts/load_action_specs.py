@@ -4,6 +4,7 @@ from pathlib import Path
 from pprint import pprint
 
 from seg.actions.specs_engine.loader import load_module_specs
+from seg.actions.specs_engine.validator import validate_modules
 
 
 def main() -> None:
@@ -11,7 +12,11 @@ def main() -> None:
 
     specs_dir = Path("src/seg/actions/specs")
 
-    modules = load_module_specs(specs_dir)
+    try:
+        modules = load_module_specs(specs_dir)
+    except Exception as e:
+        print(f"Failed to load module specs: {e}")
+        return
 
     print("\n=== MODULES LOADED ===\n")
 
@@ -28,6 +33,13 @@ def main() -> None:
         print(f"Module: {module.module}")
         pprint(module.model_dump(), depth=5)
         print()
+
+    print("\n=== VALIDATING MODULES ===\n")
+    try:
+        validate_modules(modules)
+        print("All modules are valid.")
+    except Exception:
+        print("Module validation failed")
 
 
 if __name__ == "__main__":
