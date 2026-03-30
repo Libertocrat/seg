@@ -14,6 +14,9 @@ pydantic-settings==2.12.0
 python-magic==0.4.27
 python-multipart==0.0.22
 
+## Specs yml parsing
+PyYAML==6.0.3
+
 ## Observability / Metrics
 prometheus-client==0.24.1
 

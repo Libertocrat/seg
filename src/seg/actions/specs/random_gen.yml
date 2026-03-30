@@ -1,0 +1,72 @@
+version: 1
+
+module: random_gen
+description: "Random value generators"
+
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+
+tags: "random, uuid, token, openssl, api_key"
+
+binaries:
+  - uuidgen
+  - openssl
+
+actions:
+
+  uuid4:
+    description: "Generate a UUID version 4"
+    summary: "Generate UUID v4"
+
+    command:
+      - binary: uuidgen
+      - "-r"
+
+
+  uuid1:
+    description: "Generate a UUID version 1 (time-based)"
+    summary: "Generate UUID v1"
+
+    command:
+      - binary: uuidgen
+      - "-t"
+
+
+  token_hex:
+    description: "Generate a random hexadecimal token using OpenSSL"
+    summary: "Generate hex token"
+
+    args:
+      bytes:
+        type: int
+        required: false
+        default: 16
+        min: 1
+        max: 64
+        description: "Number of random bytes to generate"
+
+    command:
+      - binary: openssl
+      - "rand"
+      - "-hex"
+      - arg: bytes
+
+
+  token_base64:
+    description: "Generate a random base64 token using OpenSSL"
+    summary: "Generate base64 token"
+
+    args:
+      bytes:
+        type: int
+        required: false
+        default: 16
+        min: 1
+        max: 64
+        description: "Number of random bytes to generate"
+
+    command:
+      - binary: openssl
+      - "rand"
+      - "-base64"
+      - arg: bytes
