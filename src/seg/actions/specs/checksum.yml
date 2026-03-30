@@ -1,0 +1,70 @@
+version: 1
+
+module: checksum
+description: "File checksum utilities"
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+tags: "checksum, file, hash, sha256, md5, sha1"
+
+binaries:
+  - sha256sum
+  - md5sum
+  - sha1sum
+
+actions:
+
+  sha256:
+    description: "Compute SHA256 checksum of a file"
+    summary: "Compute SHA256"
+
+    args:
+      file:
+        type: file_id
+        required: true
+        description: "ID of the file to compute the checksum for"
+
+        max_size: 1048576 # 1 MB
+
+    flags:
+      binary_output:
+        value: "-b"
+        default: false
+        description: "Output in binary mode if set to `true`"
+
+    command:
+      - binary: sha256sum
+      - flag: binary_output
+      - arg: file
+
+
+  md5:
+    description: "Compute MD5 checksum of a file"
+    summary: "Compute MD5"
+    args:
+      file:
+        type: file_id
+        required: true
+        description: "ID of the file to compute the checksum for"
+
+        max_size: 1048576 # 1 MB
+
+    command:
+      - binary: md5sum
+      - arg: file
+
+
+  sha1:
+    description: "Compute SHA1 checksum of a file"
+    summary: "Compute SHA1"
+
+    args:
+      file:
+        type: file_id
+        required: true
+        description: "ID of the file to compute the checksum for"
+
+        max_size: 1048576 # 1 MB
+
+    command:
+      - binary: sha1sum
+      - arg: file
