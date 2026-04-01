@@ -13,9 +13,9 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from seg.actions.build_engine.builder import build_actions
+from seg.actions.exceptions import ActionSpecsBuildError
 from seg.actions.models import ActionSpec, ParamType
-from seg.actions.specs_engine.builder import build_actions
-from seg.actions.specs_engine.exceptions import ActionSpecsBuildError
 
 # ============================================================================
 # build_actions: happy path

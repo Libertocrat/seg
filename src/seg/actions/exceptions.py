@@ -1,4 +1,4 @@
-"""Exception types for SEG DSL specs engine."""
+"""Exception types for SEG DSL build engine."""
 
 
 class ActionSpecsParseError(Exception):
@@ -14,3 +14,15 @@ class ActionSpecsParseError(Exception):
 
 class ActionSpecsBuildError(Exception):
     """Raised when validated DSL specs cannot be compiled into `ActionSpec`."""
+
+
+class ActionRuntimeError(Exception):
+    """Base class for SEG action runtime-layer errors."""
+
+
+class ActionInvalidArgError(ActionRuntimeError):
+    """Raised when a user-provided runtime parameter is invalid."""
+
+
+class ActionRuntimeRenderError(ActionRuntimeError):
+    """Raised when runtime command rendering fails unexpectedly."""

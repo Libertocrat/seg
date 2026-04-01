@@ -8,7 +8,7 @@ supporting structures that describe action inputs and execution behavior.
 Design principles:
 - ActionSpec is a passive, immutable data structure.
 - It contains no execution logic.
-- It is produced by the specs engine from `.yml` files.
+- It is produced by the build engine from `.yml` files.
 - It is consumed by the dispatcher and runtime execution layer.
 - Pydantic is used for external validation (DSL parsing and request params),
   while these dataclasses model the validated internal runtime state.
@@ -35,17 +35,17 @@ class ParamType(str, Enum):
     """Supported logical parameter types for SEG action arguments.
 
     This enum defines the set of value types currently supported by the
-    SEG specs engine for action arguments declared in `.yml` files.
+    SEG build engine for action arguments declared in `.yml` files.
 
     The value of each enum member matches the literal string expected in
-    the DSL. The specs engine will later map these logical types to the
+    the DSL. The build engine will later map these logical types to the
     appropriate Python or Pydantic runtime types when generating the
     action-specific `params_model`.
 
     Notes:
         - This enum applies to action arguments, not flags.
         - Flags are modeled separately and always resolve to `bool`.
-        - Type-specific constraints are validated later by the specs engine.
+        - Type-specific constraints are validated later by the build engine.
           For example, `max_size` is valid only for `file_id`.
     """
 
@@ -95,7 +95,7 @@ class ArgDef:
     """Typed internal definition of an action argument.
 
     ArgDef represents a validated action argument after the `.yml` file has
-    been parsed and normalized by the specs engine. It is intentionally kept
+    been parsed and normalized by the build engine. It is intentionally kept
     generic and lightweight: a single structure is used for all argument types,
     while type-specific rule enforcement is delegated to the specs validator.
 
@@ -111,7 +111,7 @@ class ArgDef:
             argument may still resolve through `default` when one is defined.
 
         default:
-            Optional default value for the argument. The specs engine must
+            Optional default value for the argument. The build engine must
             validate that the default is compatible with the declared type.
 
         min:
@@ -127,7 +127,7 @@ class ArgDef:
         max_size:
             Optional maximum allowed file size in bytes. This constraint is
             meaningful only for `file_id` arguments and must be rejected by the
-            specs validator for any other type.
+            build validator for any other type.
 
         description:
             Human-readable description of the argument. This is required in the

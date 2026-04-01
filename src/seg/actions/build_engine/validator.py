@@ -23,6 +23,7 @@ import unicodedata
 from typing import NoReturn
 from uuid import UUID
 
+from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.models import ParamType
 from seg.actions.schemas import (
     ActionSpecInput,
@@ -33,9 +34,8 @@ from seg.actions.schemas import (
     FlagSpec,
     ModuleSpec,
 )
-from seg.actions.specs_engine.exceptions import ActionSpecsParseError
 
-logger = logging.getLogger("seg.actions.specs_engine.validator")
+logger = logging.getLogger("seg.actions.build_engine.validator")
 
 _NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 

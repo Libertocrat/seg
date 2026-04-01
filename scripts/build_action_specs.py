@@ -3,9 +3,9 @@
 from pathlib import Path
 from pprint import pprint
 
-from seg.actions.specs_engine.builder import build_actions
-from seg.actions.specs_engine.loader import load_module_specs
-from seg.actions.specs_engine.validator import validate_modules
+from seg.actions.build_engine.builder import build_actions
+from seg.actions.build_engine.loader import load_module_specs
+from seg.actions.build_engine.validator import validate_modules
 
 
 def main() -> None:

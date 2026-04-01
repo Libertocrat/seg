@@ -24,6 +24,7 @@ from typing import Any, cast
 
 from pydantic import UUID4, BaseModel, Field, create_model
 
+from seg.actions.exceptions import ActionSpecsBuildError
 from seg.actions.models import (
     ActionSpec,
     ArgDef,
@@ -44,9 +45,8 @@ from seg.actions.schemas import (
 from seg.actions.schemas import (
     FlagCmd as SchemaFlagCmd,
 )
-from seg.actions.specs_engine.exceptions import ActionSpecsBuildError
 
-logger = logging.getLogger("seg.actions.specs_engine.builder")
+logger = logging.getLogger("seg.actions.build_engine.builder")
 
 
 def build_actions(modules: list[ModuleSpec]) -> dict[str, ActionSpec]:
