@@ -11,7 +11,7 @@ Design principles:
 - They are intentionally separate from runtime models (see models.py).
 - They enforce structural correctness but not all semantic constraints.
 - Deeper validation (type compatibility, cross-field rules) is handled
-  by the specs engine validator layer.
+  by the build engine validator layer.
 """
 
 from __future__ import annotations

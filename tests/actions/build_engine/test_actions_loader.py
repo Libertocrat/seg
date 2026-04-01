@@ -15,14 +15,14 @@ from typing import Any
 import pytest
 import yaml
 
-import seg.actions.specs_engine.loader as loader_module
-from seg.actions.schemas import ModuleSpec
-from seg.actions.specs_engine.exceptions import ActionSpecsParseError
-from seg.actions.specs_engine.loader import (
+import seg.actions.build_engine.loader as loader_module
+from seg.actions.build_engine.loader import (
     discover_spec_files,
     load_module_spec,
     load_module_specs,
 )
+from seg.actions.exceptions import ActionSpecsParseError
+from seg.actions.schemas import ModuleSpec
 
 # ============================================================================
 # Local fixtures and helpers

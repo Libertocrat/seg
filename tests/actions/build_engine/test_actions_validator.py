@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import pytest
 
+from seg.actions.build_engine.validator import validate_modules
+from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.schemas import ArgCmd, BinaryCmd, FlagCmd
-from seg.actions.specs_engine.exceptions import ActionSpecsParseError
-from seg.actions.specs_engine.validator import validate_modules
 
 # ============================================================================
 # validate_modules: happy path

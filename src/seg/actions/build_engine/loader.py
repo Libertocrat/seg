@@ -13,10 +13,10 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.schemas import ModuleSpec
-from seg.actions.specs_engine.exceptions import ActionSpecsParseError
 
-logger = logging.getLogger("seg.actions.specs_engine.loader")
+logger = logging.getLogger("seg.actions.build_engine.loader")
 
 
 def discover_spec_files(specs_dir: Path) -> list[Path]:
