@@ -18,9 +18,11 @@ Design principles:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, fields, is_dataclass
 from enum import Enum
-from typing import Any, Optional, Tuple, Type, TypedDict, Union
+from typing import Any, Literal, Optional, Tuple, Type, TypedDict, Union
+from uuid import UUID
 
 from pydantic import BaseModel
 
@@ -60,19 +62,27 @@ class ParamType(str, Enum):
 
 
 class BinaryCmd(TypedDict):
-    binary: str
+    kind: Literal["binary"]
+    value: str
 
 
 class ArgCmd(TypedDict):
-    arg: str
+    kind: Literal["arg"]
+    name: str
 
 
 class FlagCmd(TypedDict):
-    flag: str
+    kind: Literal["flag"]
+    name: str
+
+
+class ConstCmd(TypedDict):
+    kind: Literal["const"]
+    value: str
 
 
 # Public alias for readability in ActionSpec typing.
-CommandElement = Union[str, BinaryCmd, ArgCmd, FlagCmd]
+CommandElement = Union[BinaryCmd, ArgCmd, FlagCmd, ConstCmd]
 
 
 # ===========================================================================
@@ -223,11 +233,12 @@ class ActionSpec:
 
         command_template:
             Normalized ordered representation of the command to build at
-            runtime. Each token is strongly typed and may represent:
-                - the selected binary
-                - a dynamic argument
-                - a conditional flag
-                - a fixed literal string
+            runtime. Each token is strongly typed and uses a discriminated
+            shape with a `kind` field. Runtime tokens may represent:
+                - the selected binary (`kind='binary'`)
+                - a dynamic argument (`kind='arg'`)
+                - a conditional flag (`kind='flag'`)
+                - a fixed literal string (`kind='const'`)
 
         arg_defs:
             Typed argument definitions keyed by argument name. These originate
@@ -338,3 +349,86 @@ class ActionSpec:
     def has_defaults(self) -> bool:
         """Return True if the action defines any default runtime params."""
         return bool(self.defaults)
+
+    def model_dump(self) -> dict[str, Any]:
+        """Return a JSON-friendly nested dictionary representation.
+
+        This mirrors the developer ergonomics of Pydantic's `model_dump()` for
+        debugging and inspection of compiled runtime `ActionSpec` objects.
+
+        Returns:
+            Nested dictionary containing only JSON-serializable primitives,
+            lists, and dictionaries.
+        """
+
+        raw = {
+            "name": self.name,
+            "module": self.module,
+            "action": self.action,
+            "version": self.version,
+            "params_model": self.params_model,
+            "binary": self.binary,
+            "command_template": self.command_template,
+            "arg_defs": self.arg_defs,
+            "flag_defs": self.flag_defs,
+            "defaults": self.defaults,
+            "authors": self.authors,
+            "tags": self.tags,
+            "summary": self.summary,
+            "description": self.description,
+            "deprecated": self.deprecated,
+            "params_example": self.params_example,
+        }
+        return _to_jsonable(raw)
+
+    def model_dump_json(self, *, indent: int | None = 2) -> str:
+        """Return a JSON string representation of this action spec.
+
+        Args:
+            indent: Optional JSON indentation level.
+
+        Returns:
+            JSON string for debug and diagnostics output.
+        """
+
+        return json.dumps(self.model_dump(), indent=indent, sort_keys=False)
+
+
+def _to_jsonable(value: Any) -> Any:
+    """Recursively convert runtime values into JSON-serializable structures.
+
+    Args:
+        value: Arbitrary runtime value.
+
+    Returns:
+        JSON-friendly representation of `value`.
+    """
+
+    if isinstance(value, Enum):
+        return value.value
+
+    if isinstance(value, UUID):
+        return str(value)
+
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+
+    if isinstance(value, type) and issubclass(value, BaseModel):
+        return {
+            "name": value.__name__,
+            "schema": value.model_json_schema(),
+        }
+
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field.name: _to_jsonable(getattr(value, field.name))
+            for field in fields(value)
+        }
+
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        return [_to_jsonable(item) for item in value]
+
+    return value

@@ -10,3 +10,7 @@ class ActionSpecsParseError(Exception):
     - schema validation errors (Pydantic)
     - semantic validation errors (validator.py)
     """
+
+
+class ActionSpecsBuildError(Exception):
+    """Raised when validated DSL specs cannot be compiled into `ActionSpec`."""

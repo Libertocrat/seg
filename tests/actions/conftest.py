@@ -19,11 +19,40 @@ from seg.actions.schemas import ModuleSpec
 
 
 @pytest.fixture
-def make_action_payload():
-    """Return a factory for minimal valid action payloads.
+def make_action_spec_input():
+    """Return a factory for ActionSpecInput-compatible dictionaries.
 
     Returns:
-            A callable that builds `ActionSpecInput`-compatible dictionaries.
+        A callable that builds raw action payloads without YAML parsing.
+    """
+
+    def _make(
+        *,
+        description: str = "test action",
+        summary: str | None = None,
+        args: dict[str, Any] | None = None,
+        flags: dict[str, Any] | None = None,
+        command: list[Any] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "description": description,
+            "summary": summary,
+            "args": args,
+            "flags": flags,
+            "command": [{"binary": "echo"}] if command is None else command,
+        }
+
+    return _make
+
+
+@pytest.fixture
+def make_action_payload(make_action_spec_input):
+    """Return a factory for minimal valid action payloads.
+
+    This fixture remains as a compatibility alias for existing test files.
+
+    Returns:
+        A callable that builds `ActionSpecInput`-compatible dictionaries.
     """
 
     def _make(
@@ -32,21 +61,12 @@ def make_action_payload():
         flags: dict[str, Any] | None = None,
         command: list[Any] | None = None,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {
-            "description": "test",
-            "command": [{"binary": "echo"}],
-        }
-
-        if args is not None:
-            payload["args"] = args
-
-        if flags is not None:
-            payload["flags"] = flags
-
-        if command is not None:
-            payload["command"] = command
-
-        return payload
+        return make_action_spec_input(
+            description="test",
+            args=args,
+            flags=flags,
+            command=command,
+        )
 
     return _make
 

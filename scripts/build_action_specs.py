@@ -3,6 +3,7 @@
 from pathlib import Path
 from pprint import pprint
 
+from seg.actions.specs_engine.builder import build_actions
 from seg.actions.specs_engine.loader import load_module_specs
 from seg.actions.specs_engine.validator import validate_modules
 
@@ -40,6 +41,16 @@ def main() -> None:
         print("All modules are valid.")
     except Exception:
         print("Module validation failed")
+
+    try:
+        compiled_actions = build_actions(modules)
+        print("\n=== COMPILED ACTIONS ===\n")
+        for action_name, action_spec in compiled_actions.items():
+            print(f"Action: {action_name}")
+            pprint(action_spec.model_dump(), depth=8)
+            print()
+    except Exception:
+        print("Action compilation failed")
 
 
 if __name__ == "__main__":
