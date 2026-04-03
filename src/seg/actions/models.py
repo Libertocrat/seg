@@ -432,3 +432,27 @@ def _to_jsonable(value: Any) -> Any:
         return [_to_jsonable(item) for item in value]
 
     return value
+
+
+# ===========================================================================
+# ActionExecutionResult
+# ===========================================================================
+
+
+@dataclass(frozen=True, slots=True)
+class ActionExecutionResult:
+    """Execution result returned by the SEG runtime executor.
+
+    Attributes:
+        returncode: Process exit code returned by the OS.
+        stdout: Raw stdout bytes captured from the process.
+        stderr: Raw stderr bytes captured from the process.
+        exec_time: Total wall-clock execution time in seconds.
+        pid: OS process identifier, or None if process never started.
+    """
+
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+    exec_time: float
+    pid: int | None = None

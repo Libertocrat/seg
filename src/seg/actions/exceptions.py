@@ -26,3 +26,11 @@ class ActionInvalidArgError(ActionRuntimeError):
 
 class ActionRuntimeRenderError(ActionRuntimeError):
     """Raised when runtime command rendering fails unexpectedly."""
+
+
+class ActionRuntimeExecError(ActionRuntimeError):
+    """Raised when command execution fails at the runtime layer."""
+
+
+class ActionExecutionTimeoutError(ActionRuntimeExecError):
+    """Raised when execution exceeds the allowed timeout."""
