@@ -9,27 +9,18 @@ authors:
 tags: "random, uuid, token, openssl, api_key"
 
 binaries:
-  - uuidgen
+  - cat
   - openssl
 
 actions:
 
-  uuid4:
+  uuid:
     description: "Generate a UUID version 4"
     summary: "Generate UUID v4"
 
     command:
-      - binary: uuidgen
-      - "-r"
-
-
-  uuid1:
-    description: "Generate a UUID version 1 (time-based)"
-    summary: "Generate UUID v1"
-
-    command:
-      - binary: uuidgen
-      - "-t"
+      - binary: cat
+      - "/proc/sys/kernel/random/uuid"
 
 
   token_hex:

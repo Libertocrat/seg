@@ -27,8 +27,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from seg.app import create_app
 from seg.core.config import Settings
-from seg.core.errors import INVALID_REQUEST, TIMEOUT
+from seg.core.errors import INVALID_REQUEST, TIMEOUT, SegError
 from seg.core.schemas.envelope import ResponseEnvelope
+from seg.core.schemas.execute import ExecuteActionData
 from seg.middleware.timeout import TIMEOUTS_TOTAL
 
 # ============================================================================
@@ -159,7 +160,7 @@ def slow_metrics_endpoint(monkeypatch):
 
 @pytest.fixture
 def slow_execute_endpoint_success(monkeypatch):
-    """Patch dispatcher to simulate slow successful execution.
+    """Patch execute handler to simulate slow successful execution.
 
     Args:
         monkeypatch: Pytest helper for runtime attribute patching.
@@ -168,20 +169,27 @@ def slow_execute_endpoint_success(monkeypatch):
         None. The dispatcher is patched in-place.
     """
 
-    async def slow_dispatch(req):
+    async def slow_execute_handler(_request, _payload):
         await asyncio.sleep(0.2)
-        envelope = ResponseEnvelope.success_response({"result": "ok"})
-        return envelope, 200
+        return ExecuteActionData(
+            exit_code=0,
+            stdout="ok",
+            stdout_encoding="utf-8",
+            stderr="",
+            stderr_encoding="utf-8",
+            exec_time=0.2,
+            pid=12345,
+        )
 
     monkeypatch.setattr(
-        "seg.routes.execute.dispatch_execute",
-        slow_dispatch,
+        "seg.routes.execute.execute_action_handler",
+        slow_execute_handler,
     )
 
 
 @pytest.fixture
 def slow_execute_endpoint_error(monkeypatch):
-    """Patch dispatcher to simulate slow execution returning domain failure.
+    """Patch execute handler to simulate slow execution raising SegError.
 
     Args:
         monkeypatch: Pytest helper for runtime attribute patching.
@@ -190,19 +198,16 @@ def slow_execute_endpoint_error(monkeypatch):
         None. The dispatcher is patched in-place.
     """
 
-    async def slow_dispatch(req):
+    async def slow_execute_handler(_request, _payload):
         await asyncio.sleep(0.2)
-
-        envelope = ResponseEnvelope.failure(
-            code=INVALID_REQUEST.code,
+        raise SegError(
+            INVALID_REQUEST,
             message="delayed boom",
         )
 
-        return envelope, INVALID_REQUEST.http_status
-
     monkeypatch.setattr(
-        "seg.routes.execute.dispatch_execute",
-        slow_dispatch,
+        "seg.routes.execute.execute_action_handler",
+        slow_execute_handler,
     )
 
 
@@ -274,7 +279,6 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     low_timeout_client,
     slow_execute_endpoint_success,
     auth_headers,
-    sandbox_file_factory,
 ):
     """
     GIVEN a slow successful action (> timeout)
@@ -282,17 +286,9 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     THEN TIMEOUT takes priority
     """
 
-    # Create valid file for checksum action
-    sf = sandbox_file_factory(
-        name="file.txt",
-        content=b"hello",
-    )
-
     payload = {
-        "action": "file_checksum",
-        "params": {
-            "path": str(sf.rel_path),
-        },
+        "action": "random_gen.uuid",
+        "params": {},
     }
 
     before = _timeout_metric_value("/v1/execute", "POST")
@@ -318,7 +314,6 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     low_timeout_client,
     slow_execute_endpoint_error,
     auth_headers,
-    sandbox_file_factory,
 ):
     """
     GIVEN a slow action that eventually raises SegError
@@ -326,17 +321,9 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     THEN TIMEOUT is returned instead of domain error
     """
 
-    # Create valid file for checksum action
-    sf = sandbox_file_factory(
-        name="file.txt",
-        content=b"hello",
-    )
-
     payload = {
-        "action": "file_checksum",
-        "params": {
-            "path": str(sf.rel_path),
-        },
+        "action": "random_gen.uuid",
+        "params": {},
     }
 
     before = _timeout_metric_value("/v1/execute", "POST")

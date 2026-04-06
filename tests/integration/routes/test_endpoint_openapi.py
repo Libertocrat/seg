@@ -242,16 +242,13 @@ def test_openapi_registers_action_models_and_prunes_internal_schemas(
     components = schema["components"]["schemas"]
     for model_name in (
         "ExecuteRequest",
-        "ChecksumParams",
-        "ChecksumResult",
-        "DeleteParams",
-        "DeleteResult",
-        "FileMoveParams",
-        "FileMoveResult",
-        "MimeDetectParams",
-        "MimeDetectResult",
-        "FileVerifyParams",
-        "FileVerifyResult",
+        "ExecuteActionData",
+        "ChecksumSha256Params",
+        "ChecksumMd5Params",
+        "ChecksumSha1Params",
+        "RandomGenUuidParams",
+        "RandomGenTokenHexParams",
+        "RandomGenTokenBase64Params",
     ):
         assert model_name in components
 

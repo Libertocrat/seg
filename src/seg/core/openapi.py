@@ -10,10 +10,10 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 
 import seg.core.errors as errors
-from seg.actions.registry import get_registry_snapshot
+from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
-from seg.core.schemas.execute import ExecuteRequest
+from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
 
 # Define explicit response contract overrides for endpoints that cannot be correctly
 # inferred from FastAPI's default schema generation
@@ -498,7 +498,10 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
         return
 
     post["tags"] = ["Execution"]
-    registry = get_registry_snapshot()
+    registry = getattr(app.state, "action_registry", None)
+    if not isinstance(registry, ActionRegistry):
+        return
+
     components = schema.setdefault("components", {})
     schemas_section = components.setdefault("schemas", {})
 
@@ -506,10 +509,10 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     # 1. Ensure all action models are registered in components.schemas
     # ------------------------------------------------------------------
     _register_model(ExecuteRequest, schemas_section, nested=True)
-    for spec in registry.values():
+    _register_model(ExecuteActionData, schemas_section, nested=True)
+    for name in registry.list_names():
+        spec = registry.get(name)
         _register_model(spec.params_model, schemas_section, nested=True)
-        if spec.result_model:
-            _register_model(spec.result_model, schemas_section, nested=True)
 
     # ------------------------------------------------------------------
     # 2. Build request oneOf variants + discriminator
@@ -518,7 +521,8 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     request_variants = []
     request_examples = {}
 
-    for name, spec in registry.items():
+    for name in registry.list_names():
+        spec = registry.get(name)
         variant: dict[str, Any] = {
             "type": "object",
             "description": spec.description or spec.summary,
@@ -568,41 +572,30 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     # 3. Build response 200 with dynamic result oneOf
     # ------------------------------------------------------------------
 
-    result_refs = []
     response_examples = {}
 
-    for name, spec in registry.items():
-        if spec.result_model:
-            result_refs.append(
-                {"$ref": f"#/components/schemas/{spec.result_model.__name__}"}
-            )
-
-            if spec.result_model and spec.result_example is not None:
-                data_example = spec.result_example.model_dump(exclude_none=False)
-            else:
-                data_example = {}
-
-            response_examples[name] = {
-                "summary": f"Response for action: {name}",
-                "value": {
-                    "success": True,
-                    "error": None,
-                    "data": data_example,
+    for name in registry.list_names():
+        response_examples[name] = {
+            "summary": f"Response for action: {name}",
+            "value": {
+                "success": True,
+                "error": None,
+                "data": {
+                    "exit_code": 0,
+                    "stdout": "",
+                    "stdout_encoding": "utf-8",
+                    "stderr": "",
+                    "stderr_encoding": "utf-8",
+                    "exec_time": 0.01,
+                    "pid": 12345,
                 },
-            }
+            },
+        }
 
     responses = post.setdefault("responses", {})
     response_200 = responses.setdefault("200", {})
     response_200_content = response_200.setdefault("content", {})
     response_200_json = response_200_content.setdefault("application/json", {})
-
-    if result_refs:
-        response_200_json["schema"] = {
-            "allOf": [
-                {"$ref": "#/components/schemas/ResponseEnvelope"},
-                {"properties": {"data": {"oneOf": result_refs}}},
-            ]
-        }
 
     response_200_json["examples"] = response_examples
 
@@ -644,7 +637,8 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     # ------------------------------------------------------------------
 
     action_lines = []
-    for name, spec in registry.items():
+    for name in registry.list_names():
+        spec = registry.get(name)
         label = f"- `{name}`"
         if spec.summary:
             label += f": {spec.summary}"

@@ -1,0 +1,102 @@
+"""Route handler for SEG `/v1/execute` runtime orchestration."""
+
+from __future__ import annotations
+
+import base64
+from typing import Literal
+
+from fastapi import Request
+from pydantic import ValidationError
+
+from seg.actions.dispatcher import dispatch_action
+from seg.actions.exceptions import (
+    ActionExecutionTimeoutError,
+    ActionInvalidArgError,
+    ActionNotFoundError,
+    ActionRuntimeExecError,
+    ActionRuntimeRenderError,
+)
+from seg.actions.registry import ActionRegistry
+from seg.core.errors import (
+    ACTION_NOT_FOUND,
+    INTERNAL_ERROR,
+    INVALID_PARAMS,
+    INVALID_REQUEST,
+    TIMEOUT,
+    SegError,
+)
+from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
+
+
+def _encode_output(data: bytes) -> tuple[str, Literal["utf-8", "base64"]]:
+    """Encode process output bytes for JSON transport."""
+
+    try:
+        return data.decode("utf-8"), "utf-8"
+    except UnicodeDecodeError:
+        return base64.b64encode(data).decode("ascii"), "base64"
+
+
+def _get_action_registry(request: Request) -> ActionRegistry:
+    registry = getattr(request.app.state, "action_registry", None)
+    if not isinstance(registry, ActionRegistry):
+        raise SegError(
+            INTERNAL_ERROR,
+            message="Action registry is not available.",
+        )
+    return registry
+
+
+async def execute_action_handler(
+    request: Request,
+    payload: ExecuteRequest,
+) -> ExecuteActionData:
+    """Execute one DSL action and map runtime exceptions to `SegError`."""
+
+    registry = _get_action_registry(request)
+
+    try:
+        result = await dispatch_action(registry, payload.action, payload.params)
+    except ActionNotFoundError as exc:
+        raise SegError(
+            ACTION_NOT_FOUND,
+            message=f"Action '{payload.action}' is not supported.",
+            details={"action": payload.action},
+        ) from exc
+    except ValidationError as exc:
+        raise SegError(
+            INVALID_PARAMS,
+            details={"errors": exc.errors()},
+        ) from exc
+    except ActionInvalidArgError as exc:
+        raise SegError(
+            INVALID_PARAMS,
+            details={"reason": str(exc)},
+        ) from exc
+    except ActionRuntimeRenderError as exc:
+        raise SegError(
+            INVALID_REQUEST,
+            details={"reason": str(exc)},
+        ) from exc
+    except ActionExecutionTimeoutError as exc:
+        raise SegError(TIMEOUT) from exc
+    except ActionRuntimeExecError as exc:
+        raise SegError(INTERNAL_ERROR, details={"reason": str(exc)}) from exc
+    except Exception as exc:
+        raise SegError(
+            INTERNAL_ERROR,
+            details={"reason": "unexpected error"},
+        ) from exc
+
+    stdout, stdout_encoding = _encode_output(result.stdout)
+    stderr, stderr_encoding = _encode_output(result.stderr)
+
+    return ExecuteActionData(
+        exit_code=result.returncode,
+        stdout=stdout,
+        stdout_encoding=stdout_encoding,
+        stderr=stderr,
+        stderr_encoding=stderr_encoding,
+        exec_time=result.exec_time,
+        pid=result.pid,
+    )
