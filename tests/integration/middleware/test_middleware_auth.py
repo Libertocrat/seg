@@ -104,24 +104,15 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
 def test_protected_endpoint_allows_valid_auth(
     client,
     auth_headers,
-    sandbox_file_factory,
 ):
     """
     GIVEN a protected endpoint
     WHEN it is called with a valid Authorization header
     THEN the request is allowed to proceed
     """
-    # Create a minimal valid file for the action layer
-    sf = sandbox_file_factory(
-        name="file.txt",
-        content=b"hello",
-    )
-
     payload = {
-        "action": "file_checksum",
-        "params": {
-            "path": str(sf.rel_path),
-        },
+        "action": "random_gen.uuid",
+        "params": {},
     }
 
     response = client.post(

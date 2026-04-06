@@ -18,7 +18,6 @@ from typing import Annotated
 from fastapi import Form, UploadFile
 from pydantic import ValidationError
 
-from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.config import Settings, get_settings
 from seg.core.errors import (
     FILE_EXTENSION_MISSING,
@@ -37,6 +36,7 @@ from seg.core.schemas.files import (
     FileMetadata,
     Pagination,
     UploadFileRequest,
+    VerifyChecksumParams,
 )
 from seg.core.utils.file_listing import (
     apply_filters,

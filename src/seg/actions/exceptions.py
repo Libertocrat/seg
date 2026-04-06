@@ -16,6 +16,10 @@ class ActionSpecsBuildError(Exception):
     """Raised when validated DSL specs cannot be compiled into `ActionSpec`."""
 
 
+class ActionNotFoundError(Exception):
+    """Raised when a requested action name is not present in the registry."""
+
+
 class ActionRuntimeError(Exception):
     """Base class for SEG action runtime-layer errors."""
 

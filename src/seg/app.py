@@ -7,12 +7,13 @@ exported as `app` for use by ASGI servers (for example, uvicorn).
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from seg.actions import discover_and_register
+from seg.actions.registry import build_registry_from_specs
 from seg.core import (
     Settings,
     generic_exception_handler,
@@ -134,19 +135,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Attach settings to app state (single source of truth)
     app.state.settings = settings
 
-    # Discover and import action modules so they register themselves with
-    # the central action registry. This scans `seg.actions` and imports
-    # submodules which are expected to call `register_action(...)` at
-    # module import time. We catch and log errors to avoid failing app
-    # startup due to a single broken action module.
     try:
-        discover_and_register()
-    except Exception:
-        import logging
-
-        logging.getLogger("seg.actions").exception(
-            "Action discovery failed during startup"
-        )
+        specs_dir = Path(__file__).resolve().parent / "actions" / "specs"
+        app.state.action_registry = build_registry_from_specs(specs_dir)
+    except Exception as exc:
+        raise RuntimeError("Failed to build action registry") from exc
 
     # Middlewares (order matters): registration is written so runtime order
     # becomes SecurityHeaders (optional) -> RequestID -> Observability ->

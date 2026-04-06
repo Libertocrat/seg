@@ -98,3 +98,17 @@ class FileListData(BaseModel):
 
     files: list[FileMetadata]
     pagination: Pagination
+
+
+# Lightweight enum for algorithms supported in v1. Expand as needed.
+Algorithm = Literal["sha256", "md5", "sha1"]
+
+
+class VerifyChecksumParams(BaseModel):
+    """Optional checksum validation parameters for `file_verify`."""
+
+    expected: str = Field(..., description="Expected checksum (hex string).")
+    algorithm: Algorithm = Field(
+        "sha256",
+        description="Hash algorithm (sha256, md5, sha1).",
+    )

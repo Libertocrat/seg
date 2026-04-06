@@ -2,31 +2,31 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from seg.actions.dispatcher import dispatch_execute
+from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
-from seg.core.schemas.execute import ExecuteRequest
+from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
+from seg.routes.handlers.execute import execute_action_handler
 
 router = APIRouter(prefix="/v1", tags=["execute"])
 
 
-@router.post("/execute", response_model=ResponseEnvelope[Any])
-async def execute(req: ExecuteRequest) -> JSONResponse:
-    """HTTP endpoint that delegates action execution to the dispatcher.
+@router.post("/execute", response_model=ResponseEnvelope[ExecuteActionData])
+async def execute(
+    request: Request,
+    req: ExecuteRequest,
+) -> JSONResponse | ResponseEnvelope[ExecuteActionData]:
+    """Execute an allow-listed DSL action via the runtime handler."""
 
-    The route is intentionally thin: it validates the HTTP boundary via
-    `ExecuteRequest` (FastAPI/Pydantic) and forwards the request to the
-    action dispatcher which performs action resolution, params validation
-    and execution. The dispatcher returns a `ResponseEnvelope` which the
-    route returns directly to the client.
-    """
-
-    envelope, status = await dispatch_execute(req)
-    return JSONResponse(
-        status_code=status,
-        content=envelope.model_dump(),
-    )
+    try:
+        data = await execute_action_handler(request, req)
+        return ResponseEnvelope.success_response(data)
+    except SegError as exc:
+        payload = ResponseEnvelope.failure(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(status_code=exc.http_status, content=payload.model_dump())

@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
-from seg.actions.file.schemas import VerifyChecksumParams
 from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.core.schemas.files import (
@@ -21,6 +20,7 @@ from seg.core.schemas.files import (
     FileListData,
     UploadFileData,
     UploadFileRequest,
+    VerifyChecksumParams,
 )
 from seg.core.utils.file_storage import iter_file_chunks
 from seg.routes.handlers.files import (
