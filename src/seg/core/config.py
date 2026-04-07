@@ -142,8 +142,7 @@ class Settings(BaseSettings):
     seg_app_version: str = Field("0.1.0")
     seg_enable_docs: bool = Field(False)
     seg_enable_security_headers: bool = Field(True)
-    seg_allowed_binaries_override: str | None = Field(None)
-    seg_blocked_binaries_override: str | None = Field(None)
+    seg_blocked_binaries_extra: str | None = Field(None)
 
     model_config = {
         "env_file": ".env",
@@ -219,30 +218,31 @@ class Settings(BaseSettings):
             raise ValueError("seg_app_version must use semantic version format x.y.z")
         return s
 
-    @field_validator(
-        "seg_allowed_binaries_override",
-        "seg_blocked_binaries_override",
-        mode="before",
-    )
-    def _validate_binary_overrides(cls, v):
-        """Validate optional binary override CSV values."""
+    @field_validator("seg_blocked_binaries_extra", mode="before")
+    def _validate_blocked_binary_extra(cls, v):
+        """Validate optional extra blocked binary CSV values."""
 
         if v is None:
             return None
 
         s = str(v)
         if s.strip() == "":
-            raise ValueError("binary override must be a non-empty CSV string")
+            raise ValueError("blocked binaries extra must be a non-empty CSV string")
 
         parsed = list(parse_csv(s))
         raw_parts = [part.strip() for part in s.split(",")]
         if len(parsed) != len(raw_parts):
-            raise ValueError("binary override must not contain empty CSV entries")
+            raise ValueError(
+                "blocked binaries extra must not contain empty CSV entries"
+            )
 
         for binary in parse_csv_set(s):
             if not _is_simple_binary_name(binary):
                 raise ValueError(
-                    f"invalid binary override entry '{binary}': paths are not allowed"
+                    (
+                        "invalid blocked binaries extra entry "
+                        f"'{binary}': paths are not allowed"
+                    )
                 )
 
         return s

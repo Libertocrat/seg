@@ -193,72 +193,58 @@ def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):
 
 
 # ============================================================================
-# Binary override settings
+# Blocked binary extra settings
 # ============================================================================
 
 
-def test_binary_overrides_valid_csv(minimal_safe_env, monkeypatch):
+def test_blocked_binary_extra_valid_csv(minimal_safe_env, monkeypatch):
     """
-    GIVEN valid CSV values for binary override settings
+    GIVEN a valid CSV value for blocked binary extra entries
     WHEN Settings are validated
-    THEN both override fields are accepted as configured
+    THEN blocked extra field is accepted as configured
     """
-    monkeypatch.setenv("SEG_ALLOWED_BINARIES_OVERRIDE", "echo,openssl")
-    monkeypatch.setenv("SEG_BLOCKED_BINARIES_OVERRIDE", "bash,sh")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_EXTRA", "bash,sh")
 
     s = Settings.model_validate({})
 
-    assert s.seg_allowed_binaries_override == "echo,openssl"
-    assert s.seg_blocked_binaries_override == "bash,sh"
+    assert s.seg_blocked_binaries_extra == "bash,sh"
 
 
-@pytest.mark.parametrize(
-    "env_name",
-    ["SEG_ALLOWED_BINARIES_OVERRIDE", "SEG_BLOCKED_BINARIES_OVERRIDE"],
-    ids=["allowed_blank", "blocked_blank"],
-)
-def test_binary_overrides_reject_blank_value(minimal_safe_env, monkeypatch, env_name):
+def test_blocked_binary_extra_rejects_blank_value(minimal_safe_env, monkeypatch):
     """
-    GIVEN a blank binary override value
+    GIVEN a blank blocked binary extra value
     WHEN Settings are validated
     THEN ValidationError is raised
     """
-    monkeypatch.setenv(env_name, "   ")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_EXTRA", "   ")
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})
 
 
-@pytest.mark.parametrize(
-    "env_name",
-    ["SEG_ALLOWED_BINARIES_OVERRIDE", "SEG_BLOCKED_BINARIES_OVERRIDE"],
-    ids=["allowed_path_entry", "blocked_path_entry"],
-)
-def test_binary_overrides_reject_path_entries(minimal_safe_env, monkeypatch, env_name):
+def test_blocked_binary_extra_rejects_path_entries(minimal_safe_env, monkeypatch):
     """
-    GIVEN a binary override containing a path-like token
+    GIVEN blocked binary extra entries containing a path-like token
     WHEN Settings are validated
     THEN ValidationError is raised
     """
-    monkeypatch.setenv(env_name, "echo,/bin/echo")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_EXTRA", "echo,/bin/echo")
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})
 
 
-def test_binary_overrides_accept_duplicate_values(minimal_safe_env, monkeypatch):
+def test_blocked_binary_extra_accepts_duplicate_values(minimal_safe_env, monkeypatch):
     """
-    GIVEN duplicate binary names in override CSV values
+    GIVEN duplicate binary names in blocked extra CSV values
     WHEN Settings are validated
     THEN validation succeeds without errors
     """
-    monkeypatch.setenv("SEG_ALLOWED_BINARIES_OVERRIDE", "echo,echo,openssl")
-    monkeypatch.setenv("SEG_BLOCKED_BINARIES_OVERRIDE", "bash,bash")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_EXTRA", "bash,bash")
 
     s = Settings.model_validate({})
 
-    assert s.seg_allowed_binaries_override == "echo,echo,openssl"
-    assert s.seg_blocked_binaries_override == "bash,bash"
+    assert s.seg_blocked_binaries_extra == "bash,bash"
 
 
 # ============================================================================
