@@ -49,6 +49,7 @@ def security_headers_test_client(app):
 
     @app.get("/test-security-headers-leak")
     async def _leak_headers() -> JSONResponse:
+        """Return response containing headers that must be removed."""
         response = JSONResponse(content={"ok": True})
         response.headers["Server"] = "uvicorn"
         response.headers["X-Powered-By"] = "FastAPI"
@@ -56,6 +57,7 @@ def security_headers_test_client(app):
 
     @app.get("/test-security-headers-override")
     async def _override_headers() -> JSONResponse:
+        """Return response containing headers that middleware must override."""
         response = JSONResponse(content={"ok": True})
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "origin"

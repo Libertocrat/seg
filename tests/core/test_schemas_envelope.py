@@ -32,6 +32,7 @@ def test_error_info_requires_code_and_message():
 def test_error_info_accepts_optional_details():
     """
     GIVEN an ErrorInfo with details
+    WHEN the model is instantiated
     THEN details must be preserved as-is
     """
     details = {"path": "/etc", "reason": "permission denied"}
@@ -55,6 +56,7 @@ def test_error_info_accepts_optional_details():
 def test_success_response_factory_sets_success_true():
     """
     GIVEN ResponseEnvelope.success_response(data)
+    WHEN the factory method is called
     THEN success=True, data is set, error is None
     """
     payload = {"result": "ok"}
@@ -74,6 +76,7 @@ def test_success_response_factory_sets_success_true():
 def test_failure_response_factory_sets_success_false():
     """
     GIVEN ResponseEnvelope.failure(code, message)
+    WHEN the factory method is called
     THEN success=False, error is populated, data is None
     """
     env = ResponseEnvelope.failure(
@@ -91,6 +94,7 @@ def test_failure_response_factory_sets_success_false():
 def test_failure_response_includes_error_details():
     """
     GIVEN ResponseEnvelope.failure(code, message, details)
+    WHEN the factory method is called with details
     THEN error.details is preserved
     """
     details = {"field": "path", "reason": "traversal detected"}
@@ -115,6 +119,7 @@ def test_failure_response_includes_error_details():
 def test_response_envelope_has_stable_shape():
     """
     GIVEN any ResponseEnvelope
+    WHEN instances are created from success and failure factories
     THEN fields success, data, and error always exist
     """
     success_env = ResponseEnvelope.success_response(data={"ok": True})

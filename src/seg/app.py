@@ -137,7 +137,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     try:
         specs_dir = Path(__file__).resolve().parent / "actions" / "specs"
-        app.state.action_registry = build_registry_from_specs(specs_dir)
+        app.state.action_registry = build_registry_from_specs(specs_dir, settings)
     except Exception as exc:
         raise RuntimeError("Failed to build action registry") from exc
 

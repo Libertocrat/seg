@@ -207,7 +207,16 @@ actions:
         encoding="utf-8",
     )
 
-    return build_registry_from_specs(specs_dir)
+    sandbox_dir = tmp_path / "sandbox"
+    sandbox_dir.mkdir(parents=True, exist_ok=True)
+    settings = Settings.model_validate(
+        {
+            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_allowed_subdirs": "tmp",
+        }
+    )
+
+    return build_registry_from_specs(specs_dir, settings)
 
 
 # ============================================================================
@@ -437,6 +446,17 @@ def upload_file_id(client, auth_headers):
         content: bytes = b"hello world",
         content_type: str = "text/plain",
     ) -> UUID:
+        """Upload one file through the API and return its persisted UUID.
+
+        Args:
+            name: Uploaded filename.
+            content: Binary file content.
+            content_type: Uploaded content type header value.
+
+        Returns:
+            Persisted file UUID returned by API.
+        """
+
         response = client.post(
             "/v1/files",
             headers=auth_headers,
@@ -512,6 +532,17 @@ def sandbox_file_factory(minimal_safe_env):
         content: bytes,
         subdir: str | None = None,
     ) -> SandboxFile:
+        """Create one sandbox file and return its path metadata object.
+
+        Args:
+            name: Filename to create.
+            content: Binary file content.
+            subdir: Optional allowed sandbox subdirectory.
+
+        Returns:
+            SandboxFile with absolute and relative path variants.
+        """
+
         chosen = subdir or allowed[0]
         base = sandbox / chosen
         base.mkdir(parents=True, exist_ok=True)
@@ -565,6 +596,16 @@ def file_factory(sandbox_file_factory):
     """
 
     def create(file_type: str, name: str) -> SandboxFile:
+        """Create a realistic file payload by logical file type.
+
+        Args:
+            file_type: Logical fixture file type key.
+            name: Filename to create.
+
+        Returns:
+            SandboxFile for the generated payload.
+        """
+
         file_type = file_type.lower()
 
         # ------------------------------------------------------------------

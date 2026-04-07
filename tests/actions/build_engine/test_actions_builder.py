@@ -16,6 +16,37 @@ from pydantic import ValidationError
 from seg.actions.build_engine.builder import build_actions
 from seg.actions.exceptions import ActionSpecsBuildError
 from seg.actions.models import ActionSpec, ParamType
+from seg.core.config import Settings
+
+# ============================================================================
+# Fixtures and helpers
+# ============================================================================
+
+
+def _test_settings(
+    *,
+    allowed_override: str | None = None,
+    blocked_override: str | None = None,
+) -> Settings:
+    """Build minimal runtime settings for builder tests.
+
+    Args:
+        allowed_override: Optional CSV allowlist override.
+        blocked_override: Optional CSV blocklist override.
+
+    Returns:
+        Validated Settings instance for build_actions.
+    """
+
+    return Settings.model_validate(
+        {
+            "seg_sandbox_dir": "/seg",
+            "seg_allowed_subdirs": "tmp",
+            "seg_allowed_binaries_override": allowed_override,
+            "seg_blocked_binaries_override": blocked_override,
+        }
+    )
+
 
 # ============================================================================
 # build_actions: happy path
@@ -30,7 +61,7 @@ def test_build_actions_returns_dict(make_valid_module):
     """
     module = make_valid_module()
 
-    result = build_actions([module])
+    result = build_actions([module], _test_settings())
 
     assert isinstance(result, dict)
     assert all(isinstance(key, str) for key in result)
@@ -57,7 +88,7 @@ def test_action_names_are_namespaced(
         make_module_payload(module_name="random_gen", actions={"token_hex": action})
     )
 
-    result = build_actions([module])
+    result = build_actions([module], _test_settings())
 
     assert "random_gen.token_hex" in result
 
@@ -100,7 +131,7 @@ def test_command_template_structure(
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
-    spec = build_actions([module])["test_module.test_action"]
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
 
     assert isinstance(spec.command_template, tuple)
     assert spec.command_template == (
@@ -123,7 +154,7 @@ def test_command_template_normalizes_literal_as_const_token(
     action = make_action_spec_input(command=[{"binary": "echo"}, "-hex"])
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
-    spec = build_actions([module])["test_module.test_action"]
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
 
     assert spec.command_template[1] == {"kind": "const", "value": "-hex"}
 
@@ -148,7 +179,7 @@ def test_binary_extracted_from_command(
         make_module_payload(binaries=["openssl"], actions={"token_hex": action})
     )
 
-    spec = build_actions([module])["test_module.token_hex"]
+    spec = build_actions([module], _test_settings())["test_module.token_hex"]
 
     assert spec.binary == "openssl"
 
@@ -183,7 +214,7 @@ def test_arg_defs_compiled_correctly(
     )
     module = make_module_spec(make_module_payload(actions={"token_hex": action}))
 
-    spec = build_actions([module])["test_module.token_hex"]
+    spec = build_actions([module], _test_settings())["test_module.token_hex"]
     arg_def = spec.arg_defs["bytes"]
 
     assert arg_def.type == ParamType.INT
@@ -220,7 +251,7 @@ def test_flag_defs_compiled_correctly(
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
-    spec = build_actions([module])["test_module.test_action"]
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
     flag_def = spec.flag_defs["verbose"]
 
     assert flag_def.value == "-v"
@@ -272,7 +303,7 @@ def test_defaults_include_optional_args_and_flags(
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
-    spec = build_actions([module])["test_module.test_action"]
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
 
     assert spec.defaults == {"optional_arg": 10, "verbose": True}
 
@@ -322,7 +353,9 @@ def test_params_model_fields(
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
-    model = build_actions([module])["test_module.test_action"].params_model
+    model = build_actions([module], _test_settings())[
+        "test_module.test_action"
+    ].params_model
 
     assert set(model.model_fields.keys()) == {"bytes", "name", "verbose"}
     assert model.model_fields["bytes"].annotation is int
@@ -369,7 +402,9 @@ def test_params_model_required_behavior(
         ],
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
-    model = build_actions([module])["test_module.test_action"].params_model
+    model = build_actions([module], _test_settings())[
+        "test_module.test_action"
+    ].params_model
 
     with pytest.raises(ValidationError):
         model.model_validate({})
@@ -400,7 +435,9 @@ def test_file_id_validates_uuid4(
         command=[{"binary": "echo"}, {"arg": "file"}],
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
-    model = build_actions([module])["test_module.test_action"].params_model
+    model = build_actions([module], _test_settings())[
+        "test_module.test_action"
+    ].params_model
 
     with pytest.raises(ValidationError):
         model.model_validate({"file": "not-a-uuid"})
@@ -433,7 +470,7 @@ def test_params_model_name_generation(
         )
     )
 
-    spec = build_actions([module])["random_gen.token_hex"]
+    spec = build_actions([module], _test_settings())["random_gen.token_hex"]
 
     assert spec.params_model.__name__ == "RandomGenTokenHexParams"
 
@@ -456,7 +493,7 @@ def test_tags_normalization(
     payload["tags"] = "A, b, a , C"
     module = make_module_spec(payload)
 
-    spec = build_actions([module])["test_module.ping"]
+    spec = build_actions([module], _test_settings())["test_module.ping"]
 
     assert spec.tags == ("a", "b", "c")
 
@@ -479,7 +516,7 @@ def test_authors_normalization(
     payload["authors"] = ["Alice", "Bob"]
     module = make_module_spec(payload)
 
-    spec = build_actions([module])["test_module.ping"]
+    spec = build_actions([module], _test_settings())["test_module.ping"]
 
     assert spec.authors == ("Alice", "Bob")
 
@@ -508,7 +545,7 @@ def test_duplicate_action_names_raise_error(
     )
 
     with pytest.raises(ActionSpecsBuildError, match="duplicate fully qualified"):
-        build_actions([first, second])
+        build_actions([first, second], _test_settings())
 
 
 # ============================================================================
@@ -539,7 +576,7 @@ def test_missing_binary_raises_error(
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
 
     with pytest.raises(ActionSpecsBuildError, match="no binary token found"):
-        build_actions([module])
+        build_actions([module], _test_settings())
 
 
 def test_invalid_command_element_raises_error(make_valid_module):
@@ -552,7 +589,7 @@ def test_invalid_command_element_raises_error(make_valid_module):
     module.actions["ping"].command = [123]
 
     with pytest.raises(ActionSpecsBuildError, match="unsupported type"):
-        build_actions([module])
+        build_actions([module], _test_settings())
 
 
 # ============================================================================
@@ -574,7 +611,86 @@ def test_input_not_mutated(
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
     before = module.model_dump(mode="python")
 
-    _ = build_actions([module])
+    _ = build_actions([module], _test_settings())
 
     after = module.model_dump(mode="python")
     assert after == before
+
+
+def test_build_actions_attaches_execution_policy(make_valid_module):
+    """
+    GIVEN a valid module and default runtime settings
+    WHEN build_actions is called
+    THEN each ActionSpec includes an execution_policy
+    """
+    module = make_valid_module()
+
+    spec = build_actions([module], _test_settings())["test_module.ping"]
+
+    assert spec.execution_policy.allowed == ("echo",)
+    assert "bash" in spec.execution_policy.blocked
+
+
+def test_build_actions_merges_allowed_override(make_valid_module):
+    """
+    GIVEN a valid module and allowed override values
+    WHEN build_actions is called
+    THEN override binaries are merged into the effective allowlist
+    """
+    module = make_valid_module()
+
+    spec = build_actions(
+        [module],
+        _test_settings(allowed_override="openssl"),
+    )["test_module.ping"]
+
+    assert "echo" in spec.execution_policy.allowed
+    assert "openssl" in spec.execution_policy.allowed
+
+
+def test_build_actions_merges_blocked_override(make_valid_module):
+    """
+    GIVEN a valid module and blocked override values
+    WHEN build_actions is called
+    THEN override binaries are merged into the effective blocklist
+    """
+    module = make_valid_module()
+
+    spec = build_actions(
+        [module],
+        _test_settings(blocked_override="openssl"),
+    )["test_module.ping"]
+
+    assert "openssl" in spec.execution_policy.blocked
+
+
+def test_build_actions_fails_when_primary_binary_is_blocked_override(
+    make_valid_module,
+):
+    """
+    GIVEN a valid module and blocked override matching action binary
+    WHEN build_actions is called
+    THEN ActionSpecsBuildError is raised fail-closed
+    """
+    module = make_valid_module()
+
+    with pytest.raises(ActionSpecsBuildError, match="is not allowed by effective"):
+        build_actions([module], _test_settings(blocked_override="echo"))
+
+
+def test_build_actions_blocklist_wins_allowlist_conflict(make_valid_module):
+    """
+    GIVEN conflicting allow and block overrides for one binary
+    WHEN build_actions is called
+    THEN the binary is excluded from effective allowlist
+    """
+    module = make_valid_module()
+
+    with pytest.raises(ActionSpecsBuildError, match="is not allowed by effective"):
+        build_actions(
+            [module],
+            _test_settings(
+                allowed_override="echo",
+                blocked_override="echo",
+            ),
+        )

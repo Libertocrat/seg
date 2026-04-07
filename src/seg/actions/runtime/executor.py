@@ -10,12 +10,25 @@ from __future__ import annotations
 import asyncio
 import time
 
-from seg.actions.exceptions import ActionExecutionTimeoutError, ActionRuntimeExecError
+from seg.actions.exceptions import (
+    ActionBinaryBlockedError,
+    ActionBinaryNotAllowedError,
+    ActionBinaryPathForbiddenError,
+    ActionExecutionTimeoutError,
+    ActionRuntimeExecError,
+)
+from seg.actions.models.core import ActionSpec
 from seg.actions.models.runtime import ActionExecutionResult
+from seg.actions.security.policy import (
+    is_binary_allowed,
+    is_binary_blocked,
+    is_simple_binary_name,
+)
 
 
 async def execute_command(
     argv: list[str],
+    spec: ActionSpec,
     timeout: float | None = None,  # noqa: ASYNC109
 ) -> ActionExecutionResult:
     """Execute a validated command using an async subprocess.
@@ -40,6 +53,20 @@ async def execute_command(
     for item in argv:
         if not isinstance(item, str):
             raise TypeError("argv must contain only strings")
+
+    binary = argv[0]
+    if not is_simple_binary_name(binary):
+        raise ActionBinaryPathForbiddenError("Binary paths are forbidden")
+
+    if is_binary_blocked(binary, spec.execution_policy):
+        raise ActionBinaryBlockedError(
+            f"Binary '{binary}' is blocked by execution policy"
+        )
+
+    if not is_binary_allowed(binary, spec.execution_policy):
+        raise ActionBinaryNotAllowedError(
+            f"Binary '{binary}' is not allowed by execution policy"
+        )
 
     if timeout is not None and timeout <= 0:
         raise ValueError("timeout must be greater than 0")
@@ -84,7 +111,12 @@ async def execute_command(
             pid=pid,
         )
 
-    except ActionExecutionTimeoutError:
+    except (
+        ActionExecutionTimeoutError,
+        ActionBinaryBlockedError,
+        ActionBinaryNotAllowedError,
+        ActionBinaryPathForbiddenError,
+    ):
         raise
     except (FileNotFoundError, PermissionError, OSError) as exc:
         raise ActionRuntimeExecError(f"Failed to execute command: {argv[0]}") from exc

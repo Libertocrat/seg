@@ -129,6 +129,7 @@ def slow_health_endpoint(monkeypatch):
     """
 
     async def slow_health():
+        """Simulate delayed health response beyond timeout threshold."""
         await asyncio.sleep(0.2)
         payload = ResponseEnvelope.success_response({"status": "ok"}).model_dump()
         return JSONResponse(payload)
@@ -151,6 +152,7 @@ def slow_metrics_endpoint(monkeypatch):
     """
 
     async def slow_metrics():
+        """Simulate delayed metrics response beyond timeout threshold."""
         await asyncio.sleep(0.2)
         data = generate_latest()
         return Response(content=data, media_type=CONTENT_TYPE_LATEST)
@@ -170,6 +172,7 @@ def slow_execute_endpoint_success(monkeypatch):
     """
 
     async def slow_execute_handler(_request, _payload):
+        """Simulate delayed successful execute handler response."""
         await asyncio.sleep(0.2)
         return ExecuteActionData(
             exit_code=0,
@@ -199,6 +202,7 @@ def slow_execute_endpoint_error(monkeypatch):
     """
 
     async def slow_execute_handler(_request, _payload):
+        """Simulate delayed execute handler raising a domain error."""
         await asyncio.sleep(0.2)
         raise SegError(
             INVALID_REQUEST,
@@ -229,6 +233,7 @@ def test_generic_slow_handler_is_intercepted_by_timeout(
 
     @low_timeout_app.get("/test-slow")
     async def slow_handler():
+        """Simulate a generic slow route for timeout interception tests."""
         await asyncio.sleep(0.5)
         return {"ok": True}
 
@@ -436,6 +441,7 @@ def test_timeout_metric_uses_normalized_path(
 
     @low_timeout_app.get("/test-slow-normalized")
     async def slow():
+        """Simulate a slow route used to verify metric path normalization."""
         await asyncio.sleep(0.5)
         return {"ok": True}
 

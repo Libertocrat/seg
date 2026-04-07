@@ -34,6 +34,19 @@ def make_action_spec_input():
         flags: dict[str, Any] | None = None,
         command: list[Any] | None = None,
     ) -> dict[str, Any]:
+        """Build a raw action payload dictionary for tests.
+
+        Args:
+            description: Action description text.
+            summary: Optional short action summary.
+            args: Optional argument definitions payload.
+            flags: Optional flag definitions payload.
+            command: Optional command token payload.
+
+        Returns:
+            Action payload dictionary compatible with ActionSpecInput.
+        """
+
         return {
             "description": description,
             "summary": summary,
@@ -61,6 +74,17 @@ def make_action_payload(make_action_spec_input):
         flags: dict[str, Any] | None = None,
         command: list[Any] | None = None,
     ) -> dict[str, Any]:
+        """Build a minimal valid action payload.
+
+        Args:
+            args: Optional argument definitions payload.
+            flags: Optional flag definitions payload.
+            command: Optional command token payload.
+
+        Returns:
+            Action payload dictionary for module-level fixtures.
+        """
+
         return make_action_spec_input(
             description="test",
             args=args,
@@ -96,6 +120,18 @@ def make_module_payload(make_action_payload):
         binaries: list[str] | None = None,
         actions: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        """Build a ModuleSpec-compatible payload dictionary.
+
+        Args:
+            module_name: Module namespace name.
+            version: DSL module version.
+            binaries: Optional allowed binaries list.
+            actions: Optional action mapping payload.
+
+        Returns:
+            Module payload dictionary.
+        """
+
         return {
             "version": version,
             "module": module_name,
@@ -116,6 +152,15 @@ def make_module_spec():
     """
 
     def _make(payload: dict[str, Any]) -> ModuleSpec:
+        """Validate payload and return a ModuleSpec instance.
+
+        Args:
+            payload: Raw module payload dictionary.
+
+        Returns:
+            Validated ModuleSpec model.
+        """
+
         return ModuleSpec.model_validate(payload)
 
     return _make
@@ -136,6 +181,12 @@ def make_valid_module(make_module_payload, make_module_spec):
     """
 
     def _make() -> ModuleSpec:
+        """Build one valid ModuleSpec for common test setup.
+
+        Returns:
+            Minimal valid ModuleSpec instance.
+        """
+
         return make_module_spec(make_module_payload())
 
     return _make

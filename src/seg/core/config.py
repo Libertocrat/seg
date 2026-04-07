@@ -13,11 +13,24 @@ from typing import NoReturn
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
-from seg.core.utils.parsing import parse_csv
+from seg.core.utils.parsing import parse_csv, parse_csv_set
 
 logger = logging.getLogger(__name__)
 
 SEG_API_TOKEN_SECRET_PATH = Path("/run/secrets/seg_api_token")
+
+
+def _is_simple_binary_name(binary: str) -> bool:
+    """Return whether a token is a simple binary name.
+
+    Args:
+        binary: Raw binary token to validate.
+
+    Returns:
+        True when token is non-empty and has no path separators.
+    """
+    stripped = binary.strip()
+    return stripped != "" and "/" not in stripped and "\\" not in stripped
 
 
 def validate_api_token(token: str) -> str:
@@ -129,6 +142,8 @@ class Settings(BaseSettings):
     seg_app_version: str = Field("0.1.0")
     seg_enable_docs: bool = Field(False)
     seg_enable_security_headers: bool = Field(True)
+    seg_allowed_binaries_override: str | None = Field(None)
+    seg_blocked_binaries_override: str | None = Field(None)
 
     model_config = {
         "env_file": ".env",
@@ -202,6 +217,34 @@ class Settings(BaseSettings):
         s = str(v).strip()
         if not re.fullmatch(r"\d+\.\d+\.\d+", s):
             raise ValueError("seg_app_version must use semantic version format x.y.z")
+        return s
+
+    @field_validator(
+        "seg_allowed_binaries_override",
+        "seg_blocked_binaries_override",
+        mode="before",
+    )
+    def _validate_binary_overrides(cls, v):
+        """Validate optional binary override CSV values."""
+
+        if v is None:
+            return None
+
+        s = str(v)
+        if s.strip() == "":
+            raise ValueError("binary override must be a non-empty CSV string")
+
+        parsed = list(parse_csv(s))
+        raw_parts = [part.strip() for part in s.split(",")]
+        if len(parsed) != len(raw_parts):
+            raise ValueError("binary override must not contain empty CSV entries")
+
+        for binary in parse_csv_set(s):
+            if not _is_simple_binary_name(binary):
+                raise ValueError(
+                    f"invalid binary override entry '{binary}': paths are not allowed"
+                )
+
         return s
 
 

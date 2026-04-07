@@ -167,6 +167,51 @@ def test_validate_modules_rejects_invalid_binary_names(
         validate_modules([module])
 
 
+def test_validate_modules_rejects_blocked_binary(
+    make_module_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a module with a default-blocked binary in binaries
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_module_spec(make_module_payload(binaries=["bash"]))
+
+    with pytest.raises(ActionSpecsParseError, match="blocked by SEG default policy"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_binary_with_forward_slash(
+    make_module_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a module with a forward-slash binary name
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_module_spec(make_module_payload(binaries=["bin/echo"]))
+
+    with pytest.raises(ActionSpecsParseError, match="invalid binary name"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_binary_with_backslash(
+    make_module_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a module with a backslash binary name
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_module_spec(make_module_payload(binaries=[r"bin\\echo"]))
+
+    with pytest.raises(ActionSpecsParseError, match="invalid binary name"):
+        validate_modules([module])
+
+
 @pytest.mark.parametrize(
     "tags,error_message",
     [("   ", "tags must be a non-empty CSV string"), ("alpha,,beta", "empty CSV")],

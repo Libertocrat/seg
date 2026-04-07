@@ -6,6 +6,7 @@ from pprint import pprint
 from seg.actions.build_engine.builder import build_actions
 from seg.actions.build_engine.loader import load_module_specs
 from seg.actions.build_engine.validator import validate_modules
+from seg.core.config import Settings
 
 
 def main() -> None:
@@ -43,7 +44,13 @@ def main() -> None:
         print("Module validation failed")
 
     try:
-        compiled_actions = build_actions(modules)
+        settings = Settings.model_validate(
+            {
+                "seg_sandbox_dir": "/seg",
+                "seg_allowed_subdirs": "tmp",
+            }
+        )
+        compiled_actions = build_actions(modules, settings)
         print("\n=== COMPILED ACTIONS ===\n")
         for action_name, action_spec in compiled_actions.items():
             print(f"Action: {action_name}")

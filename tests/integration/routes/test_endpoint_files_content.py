@@ -108,6 +108,12 @@ def force_path_stat_failure(monkeypatch):
             """Minimal Path-like wrapper that injects stat() failure."""
 
             def __init__(self, path):
+                """Initialize wrapped path proxy.
+
+                Args:
+                    path: Real path instance to proxy.
+                """
+
                 self._path = path
 
             def exists(self) -> bool:
@@ -807,6 +813,7 @@ def test_files_content_get_handles_metadata_read_os_error(
         )
 
         def _raise_os_error(*_args, **_kwargs):
+            """Raise deterministic OS error for metadata-read failure tests."""
             raise OSError("read failure")
 
         monkeypatch.setattr(

@@ -7,9 +7,60 @@ error wrapping, and runtime execution metadata.
 from __future__ import annotations
 
 import pytest
+from pydantic import BaseModel
 
-from seg.actions.exceptions import ActionExecutionTimeoutError, ActionRuntimeExecError
+from seg.actions.exceptions import (
+    ActionBinaryBlockedError,
+    ActionBinaryNotAllowedError,
+    ActionBinaryPathForbiddenError,
+    ActionExecutionTimeoutError,
+    ActionRuntimeExecError,
+)
+from seg.actions.models.core import ActionSpec
+from seg.actions.models.security import BinaryPolicy
 from seg.actions.runtime.executor import execute_command
+
+
+def _make_spec(
+    *,
+    allowed: tuple[str, ...] = (
+        "echo",
+        "cat",
+        "sleep",
+        "seg_binary_that_does_not_exist_123456",
+    ),
+    blocked: tuple[str, ...] = (),
+) -> ActionSpec:
+    """Create a minimal ActionSpec configured for executor unit tests.
+
+    Args:
+        allowed: Allowed binary tuple for effective policy.
+        blocked: Blocked binary tuple for effective policy.
+
+    Returns:
+        ActionSpec ready for execute_command tests.
+    """
+
+    return ActionSpec(
+        name="test.exec",
+        module="test",
+        action="exec",
+        version=1,
+        params_model=BaseModel,
+        binary="echo",
+        command_template=({"kind": "binary", "value": "echo"},),
+        execution_policy=BinaryPolicy(allowed=allowed, blocked=blocked),
+        arg_defs={},
+        flag_defs={},
+        defaults={},
+        authors=None,
+        tags=(),
+        summary=None,
+        description=None,
+        deprecated=False,
+        params_example=None,
+    )
+
 
 # ============================================================================
 # PRECONDITIONS
@@ -25,7 +76,7 @@ async def test_execute_command__rejects_empty_argv():
     """
 
     with pytest.raises(ValueError, match="argv must not be empty"):
-        await execute_command([])
+        await execute_command([], _make_spec())
 
 
 @pytest.mark.parametrize(
@@ -46,7 +97,7 @@ async def test_execute_command__rejects_non_string_argv(argv):
     """
 
     with pytest.raises(TypeError, match="argv must contain only strings"):
-        await execute_command(argv)
+        await execute_command(argv, _make_spec())
 
 
 @pytest.mark.parametrize(
@@ -65,7 +116,54 @@ async def test_execute_command__rejects_invalid_timeout(
     """
 
     with pytest.raises(ValueError, match="timeout must be greater than 0"):
-        await execute_command(["echo", "ok"], timeout=timeout)
+        await execute_command(["echo", "ok"], _make_spec(), timeout=timeout)
+
+
+# ============================================================================
+# POLICY VALIDATION
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_execute_command__blocked_binary_raises():
+    """
+    GIVEN a blocked binary by effective policy
+    WHEN execute_command is called
+    THEN ActionBinaryBlockedError is raised
+    """
+
+    spec = _make_spec(allowed=("echo",), blocked=("echo",))
+
+    with pytest.raises(ActionBinaryBlockedError, match="blocked"):
+        await execute_command(["echo", "ok"], spec)
+
+
+@pytest.mark.asyncio
+async def test_execute_command__not_allowed_binary_raises():
+    """
+    GIVEN a binary outside the allowlist
+    WHEN execute_command is called
+    THEN ActionBinaryNotAllowedError is raised
+    """
+
+    spec = _make_spec(allowed=("cat",), blocked=())
+
+    with pytest.raises(ActionBinaryNotAllowedError, match="not allowed"):
+        await execute_command(["echo", "ok"], spec)
+
+
+@pytest.mark.asyncio
+async def test_execute_command__path_like_binary_raises():
+    """
+    GIVEN a path-like binary token
+    WHEN execute_command is called
+    THEN ActionBinaryPathForbiddenError is raised
+    """
+
+    spec = _make_spec(allowed=("echo", "bin/echo"), blocked=())
+
+    with pytest.raises(ActionBinaryPathForbiddenError, match="forbidden"):
+        await execute_command(["bin/echo", "ok"], spec)
 
 
 # ============================================================================
@@ -81,7 +179,7 @@ async def test_execute_command__simple_success():
     THEN execution succeeds with expected output
     """
 
-    result = await execute_command(["echo", "hello"])
+    result = await execute_command(["echo", "hello"], _make_spec())
 
     assert result.returncode == 0
     assert result.stdout == b"hello\n"
@@ -95,7 +193,7 @@ async def test_execute_command__command_with_arguments():
     THEN stdout reflects correct argument ordering
     """
 
-    result = await execute_command(["echo", "alpha", "beta", "gamma"])
+    result = await execute_command(["echo", "alpha", "beta", "gamma"], _make_spec())
 
     assert result.returncode == 0
     assert result.stdout == b"alpha beta gamma\n"
@@ -114,7 +212,9 @@ async def test_execute_command__non_zero_exit_returns_result():
     THEN result is returned without raising
     """
 
-    result = await execute_command(["cat", "/definitely/missing-seg-file"])
+    result = await execute_command(
+        ["cat", "/definitely/missing-seg-file"], _make_spec()
+    )
 
     assert result.returncode != 0
     assert isinstance(result.stderr, bytes)
@@ -135,7 +235,7 @@ async def test_execute_command__timeout_raises_error():
     """
 
     with pytest.raises(ActionExecutionTimeoutError, match="timed out"):
-        await execute_command(["sleep", "1"], timeout=0.01)
+        await execute_command(["sleep", "1"], _make_spec(), timeout=0.01)
 
 
 @pytest.mark.asyncio
@@ -147,7 +247,7 @@ async def test_execute_command__timeout_error_message():
     """
 
     with pytest.raises(ActionExecutionTimeoutError, match="0.01"):
-        await execute_command(["sleep", "1"], timeout=0.01)
+        await execute_command(["sleep", "1"], _make_spec(), timeout=0.01)
 
 
 # ============================================================================
@@ -164,7 +264,7 @@ async def test_execute_command__binary_not_found():
     """
 
     with pytest.raises(ActionRuntimeExecError, match="Failed to execute command"):
-        await execute_command(["seg_binary_that_does_not_exist_123456"])
+        await execute_command(["seg_binary_that_does_not_exist_123456"], _make_spec())
 
 
 # ============================================================================
@@ -180,7 +280,7 @@ async def test_execute_command__exec_time_is_positive():
     THEN exec_time is greater than zero
     """
 
-    result = await execute_command(["echo", "ok"])
+    result = await execute_command(["echo", "ok"], _make_spec())
 
     assert result.returncode == 0
     assert result.exec_time > 0
@@ -194,7 +294,7 @@ async def test_execute_command__pid_is_set():
     THEN pid is a valid integer
     """
 
-    result = await execute_command(["echo", "ok"])
+    result = await execute_command(["echo", "ok"], _make_spec())
 
     assert result.returncode == 0
     assert isinstance(result.pid, int)
@@ -214,7 +314,7 @@ async def test_execute_command__stdout_is_bytes():
     THEN stdout is bytes
     """
 
-    result = await execute_command(["echo", "ok"])
+    result = await execute_command(["echo", "ok"], _make_spec())
 
     assert result.returncode == 0
     assert isinstance(result.stdout, bytes)
@@ -228,7 +328,9 @@ async def test_execute_command__stderr_is_bytes():
     THEN stderr is bytes
     """
 
-    result = await execute_command(["cat", "/definitely/missing-seg-file"])
+    result = await execute_command(
+        ["cat", "/definitely/missing-seg-file"], _make_spec()
+    )
 
     assert isinstance(result.stderr, bytes)
     assert result.stderr != b""
@@ -248,6 +350,7 @@ async def test_execute_command__wraps_unexpected_errors(monkeypatch):
     """
 
     async def _boom(*_args, **_kwargs):
+        """Raise a deterministic runtime error for monkeypatch coverage."""
         raise RuntimeError("boom")
 
     monkeypatch.setattr(
@@ -259,7 +362,7 @@ async def test_execute_command__wraps_unexpected_errors(monkeypatch):
         ActionRuntimeExecError,
         match="Unexpected failure during command execution",
     ):
-        await execute_command(["echo", "ok"])
+        await execute_command(["echo", "ok"], _make_spec())
 
 
 # ============================================================================
@@ -283,6 +386,6 @@ async def test_execute_command__multiple_valid_commands(argv: list[str]):
     THEN execution succeeds
     """
 
-    result = await execute_command(argv)
+    result = await execute_command(argv, _make_spec())
 
     assert result.returncode == 0

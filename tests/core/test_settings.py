@@ -193,6 +193,75 @@ def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):
 
 
 # ============================================================================
+# Binary override settings
+# ============================================================================
+
+
+def test_binary_overrides_valid_csv(minimal_safe_env, monkeypatch):
+    """
+    GIVEN valid CSV values for binary override settings
+    WHEN Settings are validated
+    THEN both override fields are accepted as configured
+    """
+    monkeypatch.setenv("SEG_ALLOWED_BINARIES_OVERRIDE", "echo,openssl")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_OVERRIDE", "bash,sh")
+
+    s = Settings.model_validate({})
+
+    assert s.seg_allowed_binaries_override == "echo,openssl"
+    assert s.seg_blocked_binaries_override == "bash,sh"
+
+
+@pytest.mark.parametrize(
+    "env_name",
+    ["SEG_ALLOWED_BINARIES_OVERRIDE", "SEG_BLOCKED_BINARIES_OVERRIDE"],
+    ids=["allowed_blank", "blocked_blank"],
+)
+def test_binary_overrides_reject_blank_value(minimal_safe_env, monkeypatch, env_name):
+    """
+    GIVEN a blank binary override value
+    WHEN Settings are validated
+    THEN ValidationError is raised
+    """
+    monkeypatch.setenv(env_name, "   ")
+
+    with pytest.raises(ValidationError):
+        Settings.model_validate({})
+
+
+@pytest.mark.parametrize(
+    "env_name",
+    ["SEG_ALLOWED_BINARIES_OVERRIDE", "SEG_BLOCKED_BINARIES_OVERRIDE"],
+    ids=["allowed_path_entry", "blocked_path_entry"],
+)
+def test_binary_overrides_reject_path_entries(minimal_safe_env, monkeypatch, env_name):
+    """
+    GIVEN a binary override containing a path-like token
+    WHEN Settings are validated
+    THEN ValidationError is raised
+    """
+    monkeypatch.setenv(env_name, "echo,/bin/echo")
+
+    with pytest.raises(ValidationError):
+        Settings.model_validate({})
+
+
+def test_binary_overrides_accept_duplicate_values(minimal_safe_env, monkeypatch):
+    """
+    GIVEN duplicate binary names in override CSV values
+    WHEN Settings are validated
+    THEN validation succeeds without errors
+    """
+    monkeypatch.setenv("SEG_ALLOWED_BINARIES_OVERRIDE", "echo,echo,openssl")
+    monkeypatch.setenv("SEG_BLOCKED_BINARIES_OVERRIDE", "bash,bash")
+
+    s = Settings.model_validate({})
+
+    assert s.seg_allowed_binaries_override == "echo,echo,openssl"
+    assert s.seg_blocked_binaries_override == "bash,bash"
+
+
+# ============================================================================
 # API Docs and OpenAPI
 # ============================================================================
 

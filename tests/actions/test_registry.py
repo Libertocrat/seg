@@ -15,6 +15,7 @@ import pytest
 from seg.actions.exceptions import ActionNotFoundError
 from seg.actions.models import ActionSpec
 from seg.actions.registry import ActionRegistry, build_registry_from_specs
+from seg.core.config import Settings
 
 # ============================================================================
 # Registry Build
@@ -49,7 +50,14 @@ actions:
         encoding="utf-8",
     )
 
-    registry = build_registry_from_specs(specs_dir)
+    settings = Settings.model_validate(
+        {
+            "seg_sandbox_dir": str(tmp_path / "sandbox"),
+            "seg_allowed_subdirs": "tmp",
+        }
+    )
+
+    registry = build_registry_from_specs(specs_dir, settings)
 
     assert isinstance(registry, ActionRegistry)
     assert registry.has("sample.ping") is True

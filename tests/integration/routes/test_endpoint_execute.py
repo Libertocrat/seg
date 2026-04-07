@@ -8,6 +8,14 @@ and that responses follow the ResponseEnvelope contract.
 They do NOT test dispatcher internals or action business logic.
 """
 
+import pytest
+
+from seg.actions.exceptions import (
+    ActionBinaryBlockedError,
+    ActionBinaryNotAllowedError,
+    ActionBinaryPathForbiddenError,
+)
+
 # ============================================================================
 # Request Validation
 # ============================================================================
@@ -238,6 +246,48 @@ def test_execute_out_of_range_param_maps_to_invalid_params(
 
     assert response.status_code == 400
     assert body["error"]["code"] == "INVALID_PARAMS"
+
+
+@pytest.mark.parametrize(
+    ("raised_error", "test_id"),
+    [
+        (ActionBinaryBlockedError("blocked"), "blocked_binary"),
+        (ActionBinaryNotAllowedError("not_allowed"), "not_allowed_binary"),
+        (ActionBinaryPathForbiddenError("path_forbidden"), "path_like_binary"),
+    ],
+    ids=["blocked_binary", "not_allowed_binary", "path_like_binary"],
+)
+def test_execute_binary_policy_errors_map_to_permission_denied(
+    client,
+    auth_headers,
+    monkeypatch,
+    raised_error,
+    test_id,
+):
+    """
+    GIVEN dispatcher raises a binary-policy runtime error
+    WHEN /v1/execute is called
+    THEN endpoint maps error to PERMISSION_DENIED envelope
+    """
+    _ = test_id
+
+    async def _raise(*_args, **_kwargs):
+        """Raise the parametrized dispatcher error for mapping tests."""
+        raise raised_error
+
+    monkeypatch.setattr("seg.routes.handlers.execute.dispatch_action", _raise)
+
+    response = client.post(
+        "/v1/execute",
+        headers=auth_headers,
+        json={"action": "test_runtime.ping", "params": {}},
+    )
+
+    body = response.json()
+
+    assert response.status_code == 403
+    assert body["success"] is False
+    assert body["error"]["code"] == "PERMISSION_DENIED"
 
 
 # ============================================================================

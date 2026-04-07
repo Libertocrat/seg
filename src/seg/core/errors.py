@@ -64,6 +64,13 @@ class SegError(Exception):
         message: str | None = None,
         details: dict[str, Any] | None = None,
     ) -> None:
+        """Build a normalized runtime SegError instance.
+
+        Args:
+            error: Canonical error definition.
+            message: Optional message override.
+            details: Optional structured error metadata.
+        """
         self.error = error
         self.code = error.code
         self.http_status = error.http_status

@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from seg.actions.dispatcher import dispatch_action
-from seg.actions.exceptions import ActionNotFoundError
+from seg.actions.exceptions import ActionBinaryBlockedError, ActionNotFoundError
 from seg.actions.models import ActionExecutionResult
 
 # ============================================================================
@@ -64,3 +64,60 @@ async def test_dispatch_action_invalid_params(valid_registry):
             "test_runtime.repeat",
             {"count": "not-an-int"},
         )
+
+
+@pytest.mark.asyncio
+async def test_dispatch_action_passes_spec_to_executor(valid_registry, monkeypatch):
+    """
+    GIVEN a known action and dispatcher runtime flow
+    WHEN dispatch_action calls the executor
+    THEN executor receives both argv and resolved ActionSpec
+    """
+
+    captured: dict[str, object] = {}
+
+    async def _fake_execute(argv, spec):
+        """Capture executor inputs and return deterministic success result."""
+        captured["argv"] = argv
+        captured["spec_name"] = spec.name
+        return ActionExecutionResult(
+            returncode=0,
+            stdout=b"ok",
+            stderr=b"",
+            exec_time=0.001,
+            pid=123,
+        )
+
+    monkeypatch.setattr(
+        "seg.actions.dispatcher.runtime_executor.execute_command",
+        _fake_execute,
+    )
+
+    await dispatch_action(valid_registry, "test_runtime.ping", {})
+
+    assert captured["argv"] == ["echo", "hello"]
+    assert captured["spec_name"] == "test_runtime.ping"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_action_propagates_policy_runtime_errors(
+    valid_registry,
+    monkeypatch,
+):
+    """
+    GIVEN the executor raises a binary-policy runtime error
+    WHEN dispatch_action is called
+    THEN the same exception propagates unchanged
+    """
+
+    async def _raise_blocked(_argv, _spec):
+        """Raise a deterministic blocked-binary runtime error for tests."""
+        raise ActionBinaryBlockedError("blocked")
+
+    monkeypatch.setattr(
+        "seg.actions.dispatcher.runtime_executor.execute_command",
+        _raise_blocked,
+    )
+
+    with pytest.raises(ActionBinaryBlockedError, match="blocked"):
+        await dispatch_action(valid_registry, "test_runtime.ping", {})

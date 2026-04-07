@@ -37,11 +37,16 @@ from seg.actions.schemas.dsl import ArgCmd as SchemaArgCmd
 from seg.actions.schemas.dsl import BinaryCmd as SchemaBinaryCmd
 from seg.actions.schemas.dsl import FlagCmd as SchemaFlagCmd
 from seg.actions.schemas.module import ModuleSpec
+from seg.actions.security.policy import build_binary_policy, is_binary_allowed
+from seg.core.config import Settings
 
 logger = logging.getLogger("seg.actions.build_engine.builder")
 
 
-def build_actions(modules: list[ModuleSpec]) -> dict[str, ActionSpec]:
+def build_actions(
+    modules: list[ModuleSpec],
+    settings: Settings,
+) -> dict[str, ActionSpec]:
     """Compile validated modules into a flat runtime action mapping.
 
     Args:
@@ -70,7 +75,12 @@ def build_actions(modules: list[ModuleSpec]) -> dict[str, ActionSpec]:
                 )
 
             try:
-                compiled[action_fqdn] = _build_action(module, action_name, action)
+                compiled[action_fqdn] = _build_action(
+                    module,
+                    action_name,
+                    action,
+                    settings,
+                )
             except ActionSpecsBuildError:
                 raise
             except Exception as exc:
@@ -90,6 +100,7 @@ def _build_action(
     module: ModuleSpec,
     action_name: str,
     action: ActionSpecInput,
+    settings: Settings,
 ) -> ActionSpec:
     """Compile one validated DSL action into a runtime `ActionSpec`.
 
@@ -113,6 +124,12 @@ def _build_action(
         defaults = _build_defaults(arg_defs, flag_defs)
         command_template = _build_command_template(action)
         binary = _extract_primary_binary(command_template)
+        execution_policy = build_binary_policy(tuple(module.binaries), settings)
+        if not is_binary_allowed(binary, execution_policy):
+            raise ActionSpecsBuildError(
+                f"Failed to build action '{action_fqdn}': binary '{binary}' "
+                "is not allowed by effective policy"
+            )
         params_model = _build_params_model(action_fqdn, arg_defs, flag_defs)
 
         compiled = ActionSpec(
@@ -123,6 +140,7 @@ def _build_action(
             params_model=params_model,
             binary=binary,
             command_template=command_template,
+            execution_policy=execution_policy,
             arg_defs=arg_defs,
             flag_defs=flag_defs,
             defaults=defaults,
