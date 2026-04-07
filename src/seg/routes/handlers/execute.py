@@ -10,6 +10,9 @@ from pydantic import ValidationError
 
 from seg.actions.dispatcher import dispatch_action
 from seg.actions.exceptions import (
+    ActionBinaryBlockedError,
+    ActionBinaryNotAllowedError,
+    ActionBinaryPathForbiddenError,
     ActionExecutionTimeoutError,
     ActionInvalidArgError,
     ActionNotFoundError,
@@ -22,6 +25,7 @@ from seg.core.errors import (
     INTERNAL_ERROR,
     INVALID_PARAMS,
     INVALID_REQUEST,
+    PERMISSION_DENIED,
     TIMEOUT,
     SegError,
 )
@@ -38,6 +42,17 @@ def _encode_output(data: bytes) -> tuple[str, Literal["utf-8", "base64"]]:
 
 
 def _get_action_registry(request: Request) -> ActionRegistry:
+    """Resolve and validate the action registry from application state.
+
+    Args:
+        request: FastAPI request instance.
+
+    Returns:
+        Runtime ActionRegistry instance.
+
+    Raises:
+        SegError: If registry is missing or invalid in app state.
+    """
     registry = getattr(request.app.state, "action_registry", None)
     if not isinstance(registry, ActionRegistry):
         raise SegError(
@@ -76,6 +91,21 @@ async def execute_action_handler(
     except ActionRuntimeRenderError as exc:
         raise SegError(
             INVALID_REQUEST,
+            details={"reason": str(exc)},
+        ) from exc
+    except ActionBinaryBlockedError as exc:
+        raise SegError(
+            PERMISSION_DENIED,
+            details={"reason": str(exc)},
+        ) from exc
+    except ActionBinaryNotAllowedError as exc:
+        raise SegError(
+            PERMISSION_DENIED,
+            details={"reason": str(exc)},
+        ) from exc
+    except ActionBinaryPathForbiddenError as exc:
+        raise SegError(
+            PERMISSION_DENIED,
             details={"reason": str(exc)},
         ) from exc
     except ActionExecutionTimeoutError as exc:

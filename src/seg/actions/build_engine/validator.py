@@ -28,6 +28,7 @@ from seg.actions.models.core import ParamType
 from seg.actions.schemas.action import ActionSpecInput
 from seg.actions.schemas.dsl import ArgCmd, ArgSpec, BinaryCmd, FlagCmd, FlagSpec
 from seg.actions.schemas.module import ModuleSpec
+from seg.actions.security.policy import DEFAULT_BLOCKED_BINARIES, is_simple_binary_name
 
 logger = logging.getLogger("seg.actions.build_engine.validator")
 
@@ -140,6 +141,7 @@ def _validate_module_binaries(module: ModuleSpec) -> None:
         _raise_module_error(module.module, "module must declare at least one binary")
 
     seen: set[str] = set()
+    blocked_binaries = set(DEFAULT_BLOCKED_BINARIES)
 
     for binary in module.binaries:
         _validate_identifier(
@@ -147,6 +149,16 @@ def _validate_module_binaries(module: ModuleSpec) -> None:
             identifier_kind="binary",
             identifier_value=binary,
         )
+        if not is_simple_binary_name(binary) and ("/" in binary or "\\" in binary):
+            _raise_module_error(
+                module.module,
+                f"binary '{binary}' must be a simple name without path separators",
+            )
+        if binary in blocked_binaries:
+            _raise_module_error(
+                module.module,
+                f"binary '{binary}' is blocked by SEG default policy",
+            )
         if binary in seen:
             _raise_module_error(
                 module.module,

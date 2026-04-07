@@ -6,7 +6,7 @@ from typing import Any
 
 from seg.actions.models import ActionExecutionResult
 from seg.actions.registry import ActionRegistry
-from seg.actions.runtime.executor import execute_command
+from seg.actions.runtime import executor as runtime_executor
 from seg.actions.runtime.renderer import render_command
 
 
@@ -25,4 +25,4 @@ async def dispatch_action(
     validated = spec.params_model.model_validate(params)
     params_dict = validated.model_dump(mode="python")
     argv = render_command(spec, params_dict)
-    return await execute_command(argv)
+    return await runtime_executor.execute_command(argv, spec)

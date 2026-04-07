@@ -42,6 +42,15 @@ def make_module_payload():
     """Return a factory for minimal valid `ModuleSpec`-compatible payloads."""
 
     def _make(module_name: str) -> dict[str, Any]:
+        """Build a minimal valid module payload.
+
+        Args:
+            module_name: Module namespace to embed in payload.
+
+        Returns:
+            ModuleSpec-compatible dictionary.
+        """
+
         return {
             "version": 1,
             "module": module_name,
@@ -162,6 +171,18 @@ def make_invalid_yaml():
         non_mapping_root: bool = False,
         empty: bool = False,
     ) -> str:
+        """Generate malformed YAML variants for parser failure scenarios.
+
+        Args:
+            syntax_error: Produce invalid YAML syntax.
+            bad_indent: Produce invalid indentation.
+            non_mapping_root: Produce a non-mapping YAML root.
+            empty: Produce an effectively empty YAML document.
+
+        Returns:
+            YAML string with requested malformed characteristic.
+        """
+
         # ------------------------------------------------------------------
         # Hard overrides (highest priority)
         # ------------------------------------------------------------------
@@ -516,6 +537,7 @@ def test_load_module_specs_fails_fast_on_first_invalid_file(
     calls: list[str] = []
 
     def _tracking_load(path: Path) -> ModuleSpec:
+        """Record load order and delegate to the real loader."""
         calls.append(path.name)
         return real_load_module_spec(path)
 

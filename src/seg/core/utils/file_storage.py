@@ -56,6 +56,12 @@ class MimeMappingNotDefinedError(ValueError):
     """Raised when SEG has no MIME mapping for the file extension."""
 
     def __init__(self, extension: str):
+        """Initialize error for an unknown extension mapping.
+
+        Args:
+            extension: File extension missing from trusted MIME map.
+        """
+
         self.extension = extension
         super().__init__(f"No MIME mapping defined for extension: {extension}")
 
@@ -64,6 +70,14 @@ class UnsupportedMediaTypeValidationError(ValueError):
     """Raised when uploaded extension and detected MIME are incompatible."""
 
     def __init__(self, extension: str, detected_mime: str, message: str):
+        """Initialize media-type validation error details.
+
+        Args:
+            extension: Normalized extension declared by uploaded filename.
+            detected_mime: MIME type detected from file content.
+            message: Human-readable validation failure message.
+        """
+
         self.extension = extension
         self.detected_mime = detected_mime
         super().__init__(message)

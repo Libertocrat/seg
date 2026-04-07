@@ -36,5 +36,17 @@ class ActionRuntimeExecError(ActionRuntimeError):
     """Raised when command execution fails at the runtime layer."""
 
 
+class ActionBinaryBlockedError(ActionRuntimeExecError):
+    """Raised when execution targets a binary blocked by policy."""
+
+
+class ActionBinaryNotAllowedError(ActionRuntimeExecError):
+    """Raised when execution targets a binary outside the allowlist."""
+
+
+class ActionBinaryPathForbiddenError(ActionRuntimeExecError):
+    """Raised when execution targets a path-like binary token."""
+
+
 class ActionExecutionTimeoutError(ActionRuntimeExecError):
     """Raised when execution exceeds the allowed timeout."""

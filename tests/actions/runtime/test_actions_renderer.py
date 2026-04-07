@@ -22,6 +22,7 @@ from seg.actions.models.core import (
     FlagDef,
     ParamType,
 )
+from seg.actions.models.security import BinaryPolicy
 from seg.actions.runtime.renderer import render_command
 from seg.core.schemas.files import FileMetadata
 
@@ -85,6 +86,7 @@ def _make_spec(
         params_model=BaseModel,
         binary="echo",
         command_template=template,
+        execution_policy=BinaryPolicy(allowed=("echo",), blocked=()),
         arg_defs={} if arg_defs is None else arg_defs,
         flag_defs={} if flag_defs is None else flag_defs,
         defaults={} if defaults is None else defaults,
@@ -702,6 +704,7 @@ def test_render_command__wraps_unexpected_errors(monkeypatch):
     )
 
     def _explode(*_args, **_kwargs):
+        """Raise a deterministic runtime failure for error-wrapping tests."""
         raise RuntimeError("boom")
 
     monkeypatch.setattr("seg.actions.runtime.renderer._validate_arg", _explode)

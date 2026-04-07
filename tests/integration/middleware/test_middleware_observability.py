@@ -108,6 +108,7 @@ def server_error_client(app):
 
     @app.get("/test-observability-500")
     async def _raise_error() -> dict[str, str]:
+        """Raise deterministic runtime error for middleware observability tests."""
         raise RuntimeError("forced 500 for observability integration test")
 
     # Make sure to set "raise_server_exceptions=False" to prevent raising exceptions
