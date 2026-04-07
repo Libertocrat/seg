@@ -25,14 +25,12 @@ from seg.core.config import Settings
 
 def _test_settings(
     *,
-    allowed_override: str | None = None,
-    blocked_override: str | None = None,
+    blocked_extra: str | None = None,
 ) -> Settings:
     """Build minimal runtime settings for builder tests.
 
     Args:
-        allowed_override: Optional CSV allowlist override.
-        blocked_override: Optional CSV blocklist override.
+        blocked_extra: Optional CSV blocklist extra entries.
 
     Returns:
         Validated Settings instance for build_actions.
@@ -42,8 +40,7 @@ def _test_settings(
         {
             "seg_sandbox_dir": "/seg",
             "seg_allowed_subdirs": "tmp",
-            "seg_allowed_binaries_override": allowed_override,
-            "seg_blocked_binaries_override": blocked_override,
+            "seg_blocked_binaries_extra": blocked_extra,
         }
     )
 
@@ -631,56 +628,39 @@ def test_build_actions_attaches_execution_policy(make_valid_module):
     assert "bash" in spec.execution_policy.blocked
 
 
-def test_build_actions_merges_allowed_override(make_valid_module):
+def test_build_actions_merges_blocked_extra(make_valid_module):
     """
-    GIVEN a valid module and allowed override values
+    GIVEN a valid module and blocked extra values
     WHEN build_actions is called
-    THEN override binaries are merged into the effective allowlist
+    THEN extra binaries are merged into the effective blocklist
     """
     module = make_valid_module()
 
     spec = build_actions(
         [module],
-        _test_settings(allowed_override="openssl"),
-    )["test_module.ping"]
-
-    assert "echo" in spec.execution_policy.allowed
-    assert "openssl" in spec.execution_policy.allowed
-
-
-def test_build_actions_merges_blocked_override(make_valid_module):
-    """
-    GIVEN a valid module and blocked override values
-    WHEN build_actions is called
-    THEN override binaries are merged into the effective blocklist
-    """
-    module = make_valid_module()
-
-    spec = build_actions(
-        [module],
-        _test_settings(blocked_override="openssl"),
+        _test_settings(blocked_extra="openssl"),
     )["test_module.ping"]
 
     assert "openssl" in spec.execution_policy.blocked
 
 
-def test_build_actions_fails_when_primary_binary_is_blocked_override(
+def test_build_actions_fails_when_primary_binary_is_blocked_extra(
     make_valid_module,
 ):
     """
-    GIVEN a valid module and blocked override matching action binary
+    GIVEN a valid module and blocked extra matching action binary
     WHEN build_actions is called
     THEN ActionSpecsBuildError is raised fail-closed
     """
     module = make_valid_module()
 
     with pytest.raises(ActionSpecsBuildError, match="is not allowed by effective"):
-        build_actions([module], _test_settings(blocked_override="echo"))
+        build_actions([module], _test_settings(blocked_extra="echo"))
 
 
-def test_build_actions_blocklist_wins_allowlist_conflict(make_valid_module):
+def test_build_actions_blocklist_wins_module_allowlist(make_valid_module):
     """
-    GIVEN conflicting allow and block overrides for one binary
+    GIVEN a module-allowed binary also present in blocked extra entries
     WHEN build_actions is called
     THEN the binary is excluded from effective allowlist
     """
@@ -689,8 +669,5 @@ def test_build_actions_blocklist_wins_allowlist_conflict(make_valid_module):
     with pytest.raises(ActionSpecsBuildError, match="is not allowed by effective"):
         build_actions(
             [module],
-            _test_settings(
-                allowed_override="echo",
-                blocked_override="echo",
-            ),
+            _test_settings(blocked_extra="echo"),
         )

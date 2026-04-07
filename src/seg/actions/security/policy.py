@@ -82,7 +82,7 @@ def build_binary_policy(
 
     Args:
             module_binaries: Module-declared allowlist binaries.
-            settings: Runtime settings with optional policy overrides.
+            settings: Runtime settings with optional policy extras.
 
     Returns:
             BinaryPolicy containing sorted effective allow/block tuples.
@@ -91,23 +91,15 @@ def build_binary_policy(
     for binary in module_binaries:
         validate_binary_name_or_raise(binary)
 
-    allowed_override = parse_csv_set(
-        getattr(settings, "seg_allowed_binaries_override", None)
-    )
-    blocked_override = parse_csv_set(
-        getattr(settings, "seg_blocked_binaries_override", None)
-    )
+    blocked_extra = parse_csv_set(getattr(settings, "seg_blocked_binaries_extra", None))
 
-    for binary in allowed_override:
-        validate_binary_name_or_raise(binary)
-    for binary in blocked_override:
+    for binary in blocked_extra:
         validate_binary_name_or_raise(binary)
 
     blocked = set(DEFAULT_BLOCKED_BINARIES)
-    blocked.update(blocked_override)
+    blocked.update(blocked_extra)
 
     allowed = set(module_binaries)
-    allowed.update(allowed_override)
     allowed.difference_update(blocked)
 
     return BinaryPolicy(
