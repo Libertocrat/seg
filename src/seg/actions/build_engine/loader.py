@@ -14,7 +14,7 @@ import yaml
 from pydantic import ValidationError
 
 from seg.actions.exceptions import ActionSpecsParseError
-from seg.actions.schemas import ModuleSpec
+from seg.actions.schemas.module import ModuleSpec
 
 logger = logging.getLogger("seg.actions.build_engine.loader")
 

@@ -12,7 +12,7 @@ import pytest
 
 from seg.actions.build_engine.validator import validate_modules
 from seg.actions.exceptions import ActionSpecsParseError
-from seg.actions.schemas import ArgCmd, BinaryCmd, FlagCmd
+from seg.actions.schemas.dsl import ArgCmd, BinaryCmd, FlagCmd
 
 # ============================================================================
 # validate_modules: happy path

@@ -11,7 +11,7 @@ import asyncio
 import time
 
 from seg.actions.exceptions import ActionExecutionTimeoutError, ActionRuntimeExecError
-from seg.actions.models import ActionExecutionResult
+from seg.actions.models.runtime import ActionExecutionResult
 
 
 async def execute_command(

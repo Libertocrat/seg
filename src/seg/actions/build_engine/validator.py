@@ -24,16 +24,10 @@ from typing import NoReturn
 from uuid import UUID
 
 from seg.actions.exceptions import ActionSpecsParseError
-from seg.actions.models import ParamType
-from seg.actions.schemas import (
-    ActionSpecInput,
-    ArgCmd,
-    ArgSpec,
-    BinaryCmd,
-    FlagCmd,
-    FlagSpec,
-    ModuleSpec,
-)
+from seg.actions.models.core import ParamType
+from seg.actions.schemas.action import ActionSpecInput
+from seg.actions.schemas.dsl import ArgCmd, ArgSpec, BinaryCmd, FlagCmd, FlagSpec
+from seg.actions.schemas.module import ModuleSpec
 
 logger = logging.getLogger("seg.actions.build_engine.validator")
 

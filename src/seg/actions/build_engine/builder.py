@@ -25,26 +25,18 @@ from typing import Any, cast
 from pydantic import UUID4, BaseModel, Field, create_model
 
 from seg.actions.exceptions import ActionSpecsBuildError
-from seg.actions.models import (
+from seg.actions.models.core import (
     ActionSpec,
     ArgDef,
     CommandElement,
     FlagDef,
     ParamType,
 )
-from seg.actions.schemas import (
-    ActionSpecInput,
-    ModuleSpec,
-)
-from seg.actions.schemas import (
-    ArgCmd as SchemaArgCmd,
-)
-from seg.actions.schemas import (
-    BinaryCmd as SchemaBinaryCmd,
-)
-from seg.actions.schemas import (
-    FlagCmd as SchemaFlagCmd,
-)
+from seg.actions.schemas.action import ActionSpecInput
+from seg.actions.schemas.dsl import ArgCmd as SchemaArgCmd
+from seg.actions.schemas.dsl import BinaryCmd as SchemaBinaryCmd
+from seg.actions.schemas.dsl import FlagCmd as SchemaFlagCmd
+from seg.actions.schemas.module import ModuleSpec
 
 logger = logging.getLogger("seg.actions.build_engine.builder")
 

@@ -18,7 +18,7 @@ from seg.actions.exceptions import (
     ActionRuntimeError,
     ActionRuntimeRenderError,
 )
-from seg.actions.models import (
+from seg.actions.models.core import (
     ActionSpec,
     ArgCmd,
     ArgDef,

@@ -13,6 +13,8 @@ from typing import NoReturn
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 
+from seg.core.utils.parsing import parse_csv
+
 logger = logging.getLogger(__name__)
 
 SEG_API_TOKEN_SECRET_PATH = Path("/run/secrets/seg_api_token")
@@ -155,7 +157,7 @@ class Settings(BaseSettings):
         # At this point validation guarantees `raw` is a non-empty string.
         if raw.strip() == "*":
             return ["*"]
-        return [p.strip() for p in raw.split(",") if p.strip()]
+        return list(parse_csv(raw))
 
     @field_validator("seg_sandbox_dir", "seg_allowed_subdirs", mode="before")
     def _validate_required_non_empty(cls, v, info):
@@ -184,10 +186,13 @@ class Settings(BaseSettings):
         s = str(v).strip()
         # Only allow '*' or CSV of simple names (no slashes)
         if s != "*":
-            for part in s.split(","):
-                name = part.strip()
+            parsed = list(parse_csv(s))
+            raw_parts = [part.strip() for part in s.split(",")]
+            if len(parsed) != len(raw_parts):
+                raise ValueError("Invalid SEG_ALLOWED_SUBDIRS entry: ''")
+            for name in parsed:
                 if name == "" or "/" in name or name in (".", ".."):
-                    raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{part}'")
+                    raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{name}'")
         return s
 
     @field_validator("seg_app_version", mode="before")
