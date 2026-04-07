@@ -15,7 +15,13 @@ import pytest
 from pydantic import BaseModel
 
 from seg.actions.exceptions import ActionInvalidArgError, ActionRuntimeRenderError
-from seg.actions.models import ActionSpec, ArgDef, CommandElement, FlagDef, ParamType
+from seg.actions.models.core import (
+    ActionSpec,
+    ArgDef,
+    CommandElement,
+    FlagDef,
+    ParamType,
+)
 from seg.actions.runtime.renderer import render_command
 from seg.core.schemas.files import FileMetadata
 
