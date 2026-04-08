@@ -57,6 +57,8 @@ def build_docs_settings() -> Settings:
         seg_data_root="~/.seg/data",
         seg_enable_docs=True,
         seg_max_bytes=1048576,
+        seg_max_stdout_bytes=None,
+        seg_max_stderr_bytes=None,
         seg_timeout_ms=5000,
         seg_rate_limit_rps=5,
         seg_enable_security_headers=True,

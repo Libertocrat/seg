@@ -136,6 +136,8 @@ class Settings(BaseSettings):
     # `SEG_ALLOWED_SUBDIRS` is required and must be non-empty (CSV or "*")
     seg_allowed_subdirs: str = Field(...)
     seg_max_bytes: int = Field(104857600)
+    seg_max_stdout_bytes: int | None = Field(None)
+    seg_max_stderr_bytes: int | None = Field(None)
     seg_timeout_ms: int = Field(5000)
     seg_rate_limit_rps: int = Field(10)
     seg_log_level: str = Field("INFO")
@@ -208,6 +210,12 @@ class Settings(BaseSettings):
                 if name == "" or "/" in name or name in (".", ".."):
                     raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{name}'")
         return s
+
+    @field_validator("seg_max_stdout_bytes", "seg_max_stderr_bytes", mode="before")
+    def _validate_output_limits(cls, v: int | None) -> int | None:
+        if v is not None and v <= 0:
+            raise ValueError("must be greater than 0")
+        return v
 
     @field_validator("seg_app_version", mode="before")
     def _validate_seg_app_version(cls, v):

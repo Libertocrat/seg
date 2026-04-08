@@ -20,6 +20,12 @@ from seg.actions.exceptions import (
     ActionRuntimeRenderError,
 )
 from seg.actions.registry import ActionRegistry
+from seg.actions.runtime.output import (
+    DEFAULT_MAX_STDERR_BYTES,
+    DEFAULT_MAX_STDOUT_BYTES,
+    postprocess_output,
+)
+from seg.core.config import Settings, get_settings
 from seg.core.errors import (
     ACTION_NOT_FOUND,
     INTERNAL_ERROR,
@@ -118,15 +124,29 @@ async def execute_action_handler(
             details={"reason": "unexpected error"},
         ) from exc
 
-    stdout, stdout_encoding = _encode_output(result.stdout)
-    stderr, stderr_encoding = _encode_output(result.stderr)
+    settings = getattr(request.app.state, "settings", None)
+    cfg = settings if isinstance(settings, Settings) else get_settings()
+
+    max_stdout = getattr(cfg, "seg_max_stdout_bytes", None) or DEFAULT_MAX_STDOUT_BYTES
+    max_stderr = getattr(cfg, "seg_max_stderr_bytes", None) or DEFAULT_MAX_STDERR_BYTES
+
+    safe = postprocess_output(
+        result,
+        max_stdout=max_stdout,
+        max_stderr=max_stderr,
+    )
+
+    stdout, stdout_encoding = _encode_output(safe.stdout)
+    stderr, stderr_encoding = _encode_output(safe.stderr)
 
     return ExecuteActionData(
-        exit_code=result.returncode,
+        exit_code=safe.returncode,
         stdout=stdout,
         stdout_encoding=stdout_encoding,
         stderr=stderr,
         stderr_encoding=stderr_encoding,
-        exec_time=result.exec_time,
-        pid=result.pid,
+        exec_time=safe.exec_time,
+        pid=safe.pid,
+        truncated=safe.truncated,
+        redacted=safe.redacted,
     )
