@@ -26,3 +26,5 @@ class ExecuteActionData(BaseModel):
     stderr_encoding: Literal["utf-8", "base64"]
     exec_time: float
     pid: int | None = None
+    truncated: bool
+    redacted: bool

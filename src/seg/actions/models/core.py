@@ -58,7 +58,7 @@ class BinaryCmd(TypedDict):
     """Runtime command token representing the executable binary.
 
     Attributes:
-        kind: Discriminator value fixed to ``binary``.
+        kind: Discriminator value fixed to `binary`.
         value: Binary name to execute.
     """
 
@@ -70,7 +70,7 @@ class ArgCmd(TypedDict):
     """Runtime command token referencing a resolved argument value.
 
     Attributes:
-        kind: Discriminator value fixed to ``arg``.
+        kind: Discriminator value fixed to `arg`.
         name: Argument key resolved from action params.
     """
 
@@ -82,7 +82,7 @@ class FlagCmd(TypedDict):
     """Runtime command token referencing a conditional flag parameter.
 
     Attributes:
-        kind: Discriminator value fixed to ``flag``.
+        kind: Discriminator value fixed to `flag`.
         name: Flag key resolved from action params.
     """
 
@@ -94,7 +94,7 @@ class ConstCmd(TypedDict):
     """Runtime command token containing a literal command value.
 
     Attributes:
-        kind: Discriminator value fixed to ``const``.
+        kind: Discriminator value fixed to `const`.
         value: Literal value inserted directly into argv.
     """
 

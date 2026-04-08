@@ -182,6 +182,8 @@ def slow_execute_endpoint_success(monkeypatch):
             stderr_encoding="utf-8",
             exec_time=0.2,
             pid=12345,
+            truncated=False,
+            redacted=False,
         )
 
     monkeypatch.setattr(

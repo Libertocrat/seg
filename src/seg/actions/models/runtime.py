@@ -14,3 +14,17 @@ class ActionExecutionResult:
     stderr: bytes
     exec_time: float
     pid: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ActionExecutionOutput:
+    """Sanitized execution result safe for external exposure."""
+
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+    exec_time: float
+    pid: int | None
+
+    truncated: bool
+    redacted: bool
