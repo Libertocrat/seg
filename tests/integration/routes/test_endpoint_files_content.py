@@ -95,7 +95,7 @@ def force_path_stat_failure(monkeypatch):
         monkeypatch: pytest fixture used to patch runtime behavior.
     """
 
-    from seg.routes.handlers import files as files_handler
+    from seg.routes.files.handlers import get_file_content as files_handler
 
     original_get_blob_path = files_handler.get_blob_path
 
@@ -817,7 +817,7 @@ def test_files_content_get_handles_metadata_read_os_error(
             raise OSError("read failure")
 
         monkeypatch.setattr(
-            "seg.routes.handlers.files.load_file_metadata",
+            "seg.routes.files.utils.load_file_metadata",
             _raise_os_error,
         )
 

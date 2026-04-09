@@ -29,8 +29,8 @@ from seg.app import create_app
 from seg.core.config import Settings
 from seg.core.errors import INVALID_REQUEST, TIMEOUT, SegError
 from seg.core.schemas.envelope import ResponseEnvelope
-from seg.core.schemas.execute import ExecuteActionData
 from seg.middleware.timeout import TIMEOUTS_TOTAL
+from seg.routes.actions.schemas import ExecuteActionData
 
 # ============================================================================
 # Helpers
@@ -187,7 +187,7 @@ def slow_execute_endpoint_success(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "seg.routes.execute.execute_action_handler",
+        "seg.routes.actions.router.execute_action_handler",
         slow_execute_handler,
     )
 
@@ -212,7 +212,7 @@ def slow_execute_endpoint_error(monkeypatch):
         )
 
     monkeypatch.setattr(
-        "seg.routes.execute.execute_action_handler",
+        "seg.routes.actions.router.execute_action_handler",
         slow_execute_handler,
     )
 

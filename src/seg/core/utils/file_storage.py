@@ -17,8 +17,8 @@ from uuid import UUID
 import magic
 
 from seg.core.config import Settings, get_settings
-from seg.core.schemas.files import FileMetadata
 from seg.core.security.mime_map import EXTENSION_MIME_MAP
+from seg.routes.files.schemas import FileMetadata
 
 logger = logging.getLogger("seg.core.file_storage")
 _MAGIC = magic.Magic(mime=True)

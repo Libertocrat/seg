@@ -15,21 +15,21 @@ from pydantic import ValidationError
 
 from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
-from seg.core.schemas.files import (
+from seg.core.utils.file_storage import iter_file_chunks
+from seg.routes.files.handlers.delete_file import delete_file_handler
+from seg.routes.files.handlers.get_file_content import get_file_content_handler
+from seg.routes.files.handlers.get_file_metadata import get_file_metadata_handler
+from seg.routes.files.handlers.list_files import list_files_handler
+from seg.routes.files.handlers.upload_file import (
+    parse_post_file_request,
+    upload_file_handler,
+)
+from seg.routes.files.schemas import (
     DeleteFileData,
     FileListData,
     UploadFileData,
     UploadFileRequest,
     VerifyChecksumParams,
-)
-from seg.core.utils.file_storage import iter_file_chunks
-from seg.routes.handlers.files import (
-    delete_file_handler,
-    get_file_content_handler,
-    get_file_metadata_handler,
-    list_files_handler,
-    parse_post_file_request,
-    upload_file_handler,
 )
 
 router = APIRouter(prefix="/v1", tags=["Files"])

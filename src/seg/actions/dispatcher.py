@@ -21,8 +21,8 @@ async def dispatch_action(
     propagate unchanged so they can be translated by the route handler layer.
     """
 
-    spec = registry.get(action_name)
-    validated = spec.params_model.model_validate(params)
+    action_spec = registry.get(action_name)
+    validated = action_spec.params_model.model_validate(params)
     params_dict = validated.model_dump(mode="python")
-    argv = render_command(spec, params_dict)
-    return await runtime_executor.execute_command(argv, spec)
+    argv = render_command(action_spec, params_dict)
+    return await runtime_executor.execute_command(argv, action_spec)

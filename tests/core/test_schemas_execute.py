@@ -9,7 +9,7 @@ handled by SEG. They focus on schema invariants, not action behavior.
 import pytest
 from pydantic import ValidationError
 
-from seg.core.schemas.execute import ExecuteRequest
+from seg.routes.actions.schemas import ExecuteRequest
 
 # ============================================================================
 # Success Cases

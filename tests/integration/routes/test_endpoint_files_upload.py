@@ -20,7 +20,6 @@ from seg.core.errors import (
     UNAUTHORIZED,
     UNSUPPORTED_MEDIA_TYPE,
 )
-from seg.core.schemas.files import FileMetadata
 from seg.core.utils.file_storage import (
     get_blob_dir,
     get_blob_path,
@@ -29,6 +28,7 @@ from seg.core.utils.file_storage import (
     get_tmp_dir,
     load_file_metadata,
 )
+from seg.routes.files.schemas import FileMetadata
 
 # ============================================================================
 # Startup / initialization
