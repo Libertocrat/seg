@@ -13,7 +13,7 @@ import seg.core.errors as errors
 from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
-from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
+from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
 
 # Define explicit response contract overrides for endpoints that cannot be correctly
 # inferred from FastAPI's default schema generation

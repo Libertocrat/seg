@@ -30,8 +30,8 @@ from seg.middleware.request_integrity import RequestIntegrityMiddleware
 from seg.middleware.schemas import ContentTypePolicy
 from seg.middleware.security_headers import SecurityHeadersMiddleware
 from seg.middleware.timeout import TimeoutMiddleware
-from seg.routes.execute import router as execute_router
-from seg.routes.files import router as files_router
+from seg.routes.actions.router import router as execute_router
+from seg.routes.files.router import router as files_router
 from seg.routes.health import router as health_router
 from seg.routes.metrics import router as metrics_router
 

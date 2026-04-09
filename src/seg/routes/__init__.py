@@ -1,5 +1,5 @@
 """Routes package for SEG."""
 
-from . import files, health, metrics
+from . import health, metrics
 
-__all__ = ["health", "metrics", "files"]
+__all__ = ["health", "metrics"]

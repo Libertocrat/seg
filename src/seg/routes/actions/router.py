@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 
 from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
-from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
-from seg.routes.handlers.execute import execute_action_handler
+from seg.routes.actions.handlers.execute_action import execute_action_handler
+from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
 
 router = APIRouter(prefix="/v1", tags=["execute"])
 

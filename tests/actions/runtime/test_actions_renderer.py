@@ -24,7 +24,7 @@ from seg.actions.models.core import (
 )
 from seg.actions.models.security import BinaryPolicy
 from seg.actions.runtime.renderer import render_command
-from seg.core.schemas.files import FileMetadata
+from seg.routes.files.schemas import FileMetadata
 
 
 def _make_metadata(file_id, *, size_bytes: int = 10) -> FileMetadata:

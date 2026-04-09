@@ -27,8 +27,8 @@ from seg.actions.models.core import (
     FlagCmd,
     ParamType,
 )
-from seg.core.schemas.files import FileMetadata
 from seg.core.utils.file_storage import get_blob_path, load_file_metadata
+from seg.routes.files.schemas import FileMetadata
 
 
 def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:

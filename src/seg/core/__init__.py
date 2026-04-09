@@ -10,7 +10,7 @@ Exports:
 
 from .config import Settings, get_settings
 from .exceptions import generic_exception_handler, http_exception_handler
-from .schemas import envelope, execute
+from .schemas import envelope
 from .security import paths
 
 __all__ = [
@@ -18,7 +18,6 @@ __all__ = [
     "get_settings",
     "paths",
     "envelope",
-    "execute",
     "generic_exception_handler",
     "http_exception_handler",
 ]

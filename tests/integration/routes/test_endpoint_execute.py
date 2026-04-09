@@ -275,7 +275,10 @@ def test_execute_binary_policy_errors_map_to_permission_denied(
         """Raise the parametrized dispatcher error for mapping tests."""
         raise raised_error
 
-    monkeypatch.setattr("seg.routes.handlers.execute.dispatch_action", _raise)
+    monkeypatch.setattr(
+        "seg.routes.actions.handlers.execute_action.dispatch_action",
+        _raise,
+    )
 
     response = client.post(
         "/v1/execute",

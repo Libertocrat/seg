@@ -35,7 +35,7 @@ from seg.core.errors import (
     TIMEOUT,
     SegError,
 )
-from seg.core.schemas.execute import ExecuteActionData, ExecuteRequest
+from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
 
 
 def _encode_output(data: bytes) -> tuple[str, Literal["utf-8", "base64"]]:
@@ -51,13 +51,13 @@ def _get_action_registry(request: Request) -> ActionRegistry:
     """Resolve and validate the action registry from application state.
 
     Args:
-        request: FastAPI request instance.
+            request: FastAPI request instance.
 
     Returns:
-        Runtime ActionRegistry instance.
+            Runtime ActionRegistry instance.
 
     Raises:
-        SegError: If registry is missing or invalid in app state.
+            SegError: If registry is missing or invalid in app state.
     """
     registry = getattr(request.app.state, "action_registry", None)
     if not isinstance(registry, ActionRegistry):
