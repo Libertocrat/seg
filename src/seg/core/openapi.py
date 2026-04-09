@@ -10,6 +10,7 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 
 import seg.core.errors as errors
+from seg.actions.models.core import ActionSpec, ParamType
 from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
@@ -476,6 +477,145 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------
 
 
+def _build_execute_action_markdown(spec: ActionSpec) -> str:
+    """Build a rich markdown description block for one action example.
+
+    Args:
+        spec: Runtime action specification.
+
+    Returns:
+        Markdown description including description, args, and flags.
+    """
+
+    description = spec.description or spec.summary or "No description provided."
+
+    lines = [
+        "",
+        description,
+        "",
+        "#### Args",
+        "",
+    ]
+
+    if spec.arg_defs:
+        for arg_name, arg_def in spec.arg_defs.items():
+            arg_line = f"- `{arg_name}` (`{arg_def.type.value}`): "
+            details: list[str] = []
+
+            if arg_def.description:
+                details.append(arg_def.description)
+
+            if arg_def.required:
+                details.append("**\\*required**")
+            else:
+                default_value = spec.defaults.get(arg_name, arg_def.default)
+                details.append(
+                    "default: " f"`{_format_openapi_markdown_value(default_value)}`"
+                )
+
+            arg_line += "; ".join(details) if details else "No details."
+            lines.append(arg_line)
+    else:
+        lines.append("- _No args_")
+
+    lines.extend(["", "#### Flags", ""])
+    if spec.flag_defs:
+        for flag_name, flag_def in spec.flag_defs.items():
+            flag_line = (
+                f"- `{flag_name}`: {flag_def.description}; "
+                "default: "
+                f"`{_format_openapi_markdown_value(flag_def.default)}`"
+            )
+            lines.append(flag_line)
+    else:
+        lines.append("- _No flags_")
+
+    if spec.deprecated:
+        lines.extend(["", "⚠️ Deprecated action."])
+
+    return "\n".join(lines)
+
+
+def _build_execute_params_example(spec: ActionSpec) -> dict[str, Any]:
+    """Build request `params` examples for one runtime action.
+
+    Args:
+        spec: Runtime action specification.
+
+    Returns:
+        Dictionary compatible with the action's `params_model`.
+    """
+
+    if spec.params_example is not None:
+        return spec.params_example.model_dump(exclude_none=False)
+
+    params_example: dict[str, Any] = {}
+
+    for arg_name, arg_def in spec.arg_defs.items():
+        if arg_def.required:
+            params_example[arg_name] = _build_required_arg_example_value(
+                arg_name,
+                arg_def.type,
+            )
+            continue
+
+        if arg_name in spec.defaults:
+            params_example[arg_name] = spec.defaults[arg_name]
+
+    for flag_name, flag_def in spec.flag_defs.items():
+        params_example[flag_name] = flag_def.default
+
+    return params_example
+
+
+def _build_required_arg_example_value(arg_name: str, param_type: ParamType) -> Any:
+    """Build a deterministic example value for a required action argument.
+
+    Args:
+        arg_name: Action argument name.
+        param_type: Argument logical type.
+
+    Returns:
+        Example value aligned with the declared param type.
+    """
+
+    if param_type == ParamType.INT:
+        return 1
+
+    if param_type == ParamType.FLOAT:
+        return 1.0
+
+    if param_type == ParamType.STRING:
+        return f"{arg_name}_value"
+
+    if param_type == ParamType.BOOL:
+        return True
+
+    if param_type == ParamType.FILE_ID:
+        return "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+
+    return None
+
+
+def _format_openapi_markdown_value(value: Any) -> str:
+    """Format a value as markdown-friendly literal text.
+
+    Args:
+        value: Runtime value to serialize for docs.
+
+    Returns:
+        String representation suitable for markdown inline code.
+    """
+
+    if value is None:
+        return "null"
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+
+    return str(value)
+
+
 def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     """Patch `/v1/execute` to reflect action-driven runtime contracts.
 
@@ -523,9 +663,12 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     for name in registry.list_names():
         spec = registry.get(name)
+        action_markdown = _build_execute_action_markdown(spec)
+        action_summary = spec.summary or spec.description or "Execute action"
+
         variant: dict[str, Any] = {
             "type": "object",
-            "description": spec.description or spec.summary,
+            "description": action_markdown,
             "properties": {
                 "action": {"type": "string", "const": name},
                 "params": {
@@ -540,15 +683,12 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
         request_variants.append(variant)
 
-        if spec.params_example is not None:
-            params_example = spec.params_example.model_dump(exclude_none=False)
-        else:
-            params_example = {}
+        params_example = _build_execute_params_example(spec)
 
         # Build request example
         request_examples[name] = {
-            "summary": f"{name}: {spec.summary}",
-            "description": spec.description,
+            "summary": f"{name}: {action_summary}",
+            "description": action_markdown,
             "value": {
                 "action": name,
                 "params": params_example,
@@ -565,6 +705,13 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
             "propertyName": "action",
         },
     }
+
+    request_body["description"] = (
+        "Request body with a required `action` selector and "
+        "action-specific `params`.\n\n"
+        "Select an example below to inspect the exact parameter contract for"
+        " each action."
+    )
 
     app_json["examples"] = request_examples
 
@@ -588,6 +735,8 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
                     "stderr_encoding": "utf-8",
                     "exec_time": 0.01,
                     "pid": 12345,
+                    "truncated": False,
+                    "redacted": False,
                 },
             },
         }
