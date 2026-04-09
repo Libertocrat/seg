@@ -143,6 +143,57 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
     assert retry_after_schema["pattern"] == "^[0-9]+$"
 
 
+def test_openapi_execute_examples_include_enriched_markdown_and_params(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate enriched action docs and params examples for `/v1/execute`.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN each action example includes markdown generated from ActionSpec
+    AND params examples include required/default values derived at runtime.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+    post = schema["paths"]["/v1/execute"]["post"]
+    examples = post["requestBody"]["content"]["application/json"]["examples"]
+
+    sha256_example = examples["checksum.sha256"]
+    sha256_description = sha256_example["description"]
+    sha256_params = sha256_example["value"]["params"]
+
+    assert "#### Args" in sha256_description
+    assert "#### Flags" in sha256_description
+    assert "`file` (`file_id`)" in sha256_description
+    assert "required" in sha256_description
+    assert "`binary_output`" in sha256_description
+    assert "default: `false`" in sha256_description
+
+    assert sha256_params["file"] == "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    assert sha256_params["binary_output"] is False
+
+    token_hex_example = examples["random_gen.token_hex"]
+    token_hex_description = token_hex_example["description"]
+    token_hex_params = token_hex_example["value"]["params"]
+
+    assert "`bytes` (`int`)" in token_hex_description
+    assert "default: `16`" in token_hex_description
+    assert token_hex_params["bytes"] == 16
+
+    uuid_example = examples["random_gen.uuid"]
+    uuid_description = uuid_example["description"]
+    uuid_params = uuid_example["value"]["params"]
+
+    assert "- _No args_" in uuid_description
+    assert "- _No flags_" in uuid_description
+    assert uuid_params == {}
+
+
 # ============================================================================
 # Global metadata
 # ============================================================================

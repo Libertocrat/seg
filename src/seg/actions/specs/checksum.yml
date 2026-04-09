@@ -48,8 +48,15 @@ actions:
 
         max_size: 1048576 # 1 MB
 
+    flags:
+      binary_output:
+        value: "-b"
+        default: false
+        description: "Output in binary mode if set to `true`"
+
     command:
       - binary: md5sum
+      - flag: binary_output
       - arg: file
 
 
@@ -65,6 +72,13 @@ actions:
 
         max_size: 1048576 # 1 MB
 
+    flags:
+      binary_output:
+        value: "-b"
+        default: false
+        description: "Output in binary mode if set to `true`"
+
     command:
       - binary: sha1sum
+      - flag: binary_output
       - arg: file
