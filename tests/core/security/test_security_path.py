@@ -90,27 +90,27 @@ def test_sanitize_normalizes_valid_path():
 # ============================================================================
 
 
-def test_resolve_path_inside_sandbox(minimal_safe_env, sandbox_dir, monkeypatch):
+def test_resolve_path_inside_sandbox(minimal_safe_env, seg_root_dir, monkeypatch):
     """
     GIVEN a valid relative path inside the sandbox
     WHEN resolve_in_sandbox is called
     THEN the resolved path is inside the sandbox directory
     """
 
-    (sandbox_dir / "uploads").mkdir(parents=True, exist_ok=True)
-    (sandbox_dir / "uploads" / "file.txt").touch()
+    (seg_root_dir / "uploads").mkdir(parents=True, exist_ok=True)
+    (seg_root_dir / "uploads" / "file.txt").touch()
 
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
-    resolved = resolve_in_sandbox(sandbox_dir, "uploads/file.txt")
+    resolved = resolve_in_sandbox(seg_root_dir, "uploads/file.txt")
 
     assert resolved.exists()
     assert resolved.is_file()
-    assert str(resolved).startswith(str(sandbox_dir))
+    assert str(resolved).startswith(str(seg_root_dir))
 
 
 def test_resolve_rejects_path_outside_sandbox(
-    minimal_safe_env, sandbox_dir, monkeypatch
+    minimal_safe_env, seg_root_dir, monkeypatch
 ):
     """
     GIVEN a path that would escape the sandbox
@@ -121,25 +121,25 @@ def test_resolve_rejects_path_outside_sandbox(
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox_dir, "../outside.txt")
+        resolve_in_sandbox(seg_root_dir, "../outside.txt")
 
 
-def test_resolve_rejects_disallowed_subdir(minimal_safe_env, sandbox_dir, monkeypatch):
+def test_resolve_rejects_disallowed_subdir(minimal_safe_env, seg_root_dir, monkeypatch):
     """
     GIVEN a path whose first component is not in the allowlist
     WHEN resolve_in_sandbox is called
     THEN a PathSecurityError is raised
     """
-    (sandbox_dir / "secret").mkdir()
+    (seg_root_dir / "secret").mkdir()
 
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "uploads")
 
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox_dir, "secret/file.txt")
+        resolve_in_sandbox(seg_root_dir, "secret/file.txt")
 
 
 def test_resolve_rejects_symlink_component(
-    minimal_safe_env, sandbox_dir, tmp_path, monkeypatch
+    minimal_safe_env, seg_root_dir, tmp_path, monkeypatch
 ):
     """
     GIVEN a sandbox directory that contains a symlink as one of its path components
@@ -160,7 +160,7 @@ def test_resolve_rejects_symlink_component(
     # ------------------------------------------------------------------
     # Arrange: create a symlink INSIDE the sandbox pointing outside
     # ------------------------------------------------------------------
-    symlink = sandbox_dir / "malicious_link"
+    symlink = seg_root_dir / "malicious_link"
     symlink.symlink_to(real_dir)
 
     # Explicitly allow the symlink name to ensure rejection is due to
@@ -171,27 +171,27 @@ def test_resolve_rejects_symlink_component(
     # Act / Assert: resolving a path through the symlink is rejected
     # ------------------------------------------------------------------
     with pytest.raises(PathSecurityError):
-        resolve_in_sandbox(sandbox_dir, "malicious_link/file.txt")
+        resolve_in_sandbox(seg_root_dir, "malicious_link/file.txt")
 
 
 def test_resolve_allows_any_subdir_when_wildcard(
-    minimal_safe_env, sandbox_dir, monkeypatch
+    minimal_safe_env, seg_root_dir, monkeypatch
 ):
     """
     GIVEN `SEG_ALLOWED_SUBDIRS` is set to "*"
     WHEN resolving a path whose first component is arbitrary
     THEN the path is allowed as long as it remains under the sandbox
     """
-    (sandbox_dir / "other").mkdir()
-    (sandbox_dir / "other" / "file.txt").touch()
+    (seg_root_dir / "other").mkdir()
+    (seg_root_dir / "other" / "file.txt").touch()
 
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "*")
 
-    resolved = resolve_in_sandbox(sandbox_dir, "other/file.txt")
+    resolved = resolve_in_sandbox(seg_root_dir, "other/file.txt")
 
     assert resolved.exists()
     assert resolved.is_file()
-    assert str(resolved).startswith(str(sandbox_dir))
+    assert str(resolved).startswith(str(seg_root_dir))
 
 
 def test_resolve_rejects_missing_sandbox_dir(minimal_safe_env, tmp_path):
@@ -261,13 +261,13 @@ def test_safe_open_rejects_non_regular_file(tmp_path):
 # ============================================================================
 
 
-def test_validate_path_open_returns_fd(minimal_safe_env, sandbox_dir):
+def test_validate_path_open_returns_fd(minimal_safe_env, seg_root_dir):
     """
     GIVEN a regular file inside the sandbox
     WHEN validate_path is called with open_no_follow=True
     THEN it returns the resolved path and an owned fd
     """
-    file_path = sandbox_dir / "tmp" / "file.txt"
+    file_path = seg_root_dir / "tmp" / "file.txt"
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_text("hello")
 

@@ -14,9 +14,7 @@ services:
     secrets:
       - seg_api_token
     volumes:
-      - type: volume
-        source: shared_volume
-        target: ${SEG_SANDBOX_DIR}
+      - seg_data:/var/lib/seg
     networks:
       - default_network
 
@@ -30,6 +28,5 @@ secrets:
     file: ./secrets/seg_api_token.txt
 
 volumes:
-  shared_volume:
-    name: ${SHARED_VOLUME_NAME}
-    external: true
+  seg_data:
+    name: ${COMPOSE_PROJECT_NAME}_data

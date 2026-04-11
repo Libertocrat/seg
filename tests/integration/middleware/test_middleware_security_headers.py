@@ -183,7 +183,7 @@ def test_security_headers_middleware_is_not_registered_when_toggle_is_false(
 )
 def test_settings_accepts_security_headers_toggle_values(
     api_token,
-    sandbox_dir,
+    seg_root_dir,
     allowed_subdirs,
     flag,
     expected,
@@ -197,7 +197,7 @@ def test_settings_accepts_security_headers_toggle_values(
     settings = Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(seg_root_dir),
             "seg_allowed_subdirs": allowed_subdirs,
             "seg_enable_security_headers": flag,
         }

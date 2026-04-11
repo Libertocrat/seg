@@ -56,12 +56,12 @@ def _rate_limited_metric_value(path: str, method: str, reason: str) -> float:
 
 
 @pytest.fixture
-def low_rps_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
+def low_rps_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
     """Return settings with a strict 1 RPS limit.
 
     Args:
         api_token: Authentication token fixture.
-        sandbox_dir: Sandbox root directory fixture.
+        seg_root_dir: Root directory fixture.
         allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
@@ -70,7 +70,7 @@ def low_rps_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(seg_root_dir),
             "seg_allowed_subdirs": allowed_subdirs,
             "seg_rate_limit_rps": 1,
         }
@@ -106,12 +106,12 @@ def low_rps_client(low_rps_app):
 
 
 @pytest.fixture
-def low_rps_docs_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
+def low_rps_docs_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
     """Return settings with docs enabled and strict 1 RPS limit.
 
     Args:
         api_token: Authentication token fixture.
-        sandbox_dir: Sandbox root directory fixture.
+        seg_root_dir: Root directory fixture.
         allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
@@ -120,7 +120,7 @@ def low_rps_docs_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(seg_root_dir),
             "seg_allowed_subdirs": allowed_subdirs,
             "seg_rate_limit_rps": 1,
             "seg_enable_docs": True,
@@ -249,12 +249,11 @@ def test_rate_limit_respects_env_configuration(
     WHEN the app is created from environment-backed settings
     THEN the third immediate request is rate limited
     """
-    sandbox_dir = tmp_path / "sandbox"
-    sandbox_dir.mkdir()
-    (sandbox_dir / "tmp").mkdir()
+    root_dir = tmp_path
+    (root_dir / "tmp").mkdir(exist_ok=True)
 
     monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
-    monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
+    monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "tmp")
     monkeypatch.setenv("SEG_RATE_LIMIT_RPS", "2")
 

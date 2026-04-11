@@ -14,13 +14,20 @@ from seg.core.config import (
     load_seg_api_token,
     validate_api_token,
 )
+from seg.core.utils.file_storage import (
+    ensure_storage_dirs,
+    get_blob_dir,
+    get_data_root,
+    get_meta_dir,
+    get_tmp_dir,
+)
 
 # ============================================================================
 # Happy path
 # ============================================================================
 
 
-def test_settings_load_from_env(minimal_safe_env, api_token, sandbox_dir):
+def test_settings_load_from_env(minimal_safe_env, api_token, seg_root_dir):
     """
     GIVEN the minimal required environment variables are set
     WHEN the Settings are validated from the environment
@@ -30,7 +37,7 @@ def test_settings_load_from_env(minimal_safe_env, api_token, sandbox_dir):
 
     # seg_api_token is no longer loaded via environment parsing in Settings.
     assert s.seg_api_token == ""
-    assert s.seg_sandbox_dir == str(sandbox_dir)
+    assert s.seg_root_dir == str(seg_root_dir.resolve())
     assert s.seg_allowed_subdirs == "tmp,uploads,output,quarantine"
     assert s.allowed_subdirs == ["tmp", "uploads", "output", "quarantine"]
 
@@ -52,6 +59,55 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_enable_security_headers is True
 
 
+# ---------------------------------------------------------------------------
+# SEG_ROOT_DIR VALIDATION
+# ---------------------------------------------------------------------------
+
+
+def test_seg_root_dir_must_be_absolute(minimal_safe_env, monkeypatch):
+    """
+    GIVEN a relative SEG_ROOT_DIR
+    WHEN settings are loaded
+    THEN validation should fail
+    """
+    monkeypatch.setenv("SEG_ROOT_DIR", "relative/path")
+
+    with pytest.raises(ValidationError):
+        Settings.model_validate({})
+
+
+def test_data_root_is_derived_from_root(tmp_path, minimal_safe_env, monkeypatch):
+    """
+    GIVEN a SEG_ROOT_DIR
+    WHEN get_data_root is called
+    THEN it should resolve to root/data
+    """
+    root_dir = tmp_path / "seg-root"
+    monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
+
+    settings = Settings.model_validate({})
+
+    assert get_data_root(settings) == root_dir.resolve() / "data"
+
+
+def test_storage_dirs_created(tmp_path, minimal_safe_env, monkeypatch):
+    """
+    GIVEN a clean root directory
+    WHEN ensure_storage_dirs runs
+    THEN all subdirectories must exist
+    """
+    root_dir = tmp_path / "seg-root"
+    monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
+
+    settings = Settings.model_validate({})
+    ensure_storage_dirs(settings)
+
+    assert get_data_root(settings).exists()
+    assert get_blob_dir(settings).exists()
+    assert get_meta_dir(settings).exists()
+    assert get_tmp_dir(settings).exists()
+
+
 # ============================================================================
 # Required variables
 # ============================================================================
@@ -60,11 +116,11 @@ def test_settings_defaults_applied(minimal_safe_env):
 @pytest.mark.parametrize(
     "missing_var",
     [
-        "SEG_SANDBOX_DIR",
+        "SEG_ROOT_DIR",
         "SEG_ALLOWED_SUBDIRS",
     ],
     ids=[
-        "seg_sandbox_dir",
+        "seg_root_dir",
         "seg_allowed_subdirs",
     ],
 )
@@ -210,16 +266,17 @@ def test_blocked_binary_extra_valid_csv(minimal_safe_env, monkeypatch):
     assert s.seg_blocked_binaries_extra == "bash,sh"
 
 
-def test_blocked_binary_extra_rejects_blank_value(minimal_safe_env, monkeypatch):
+def test_blocked_binary_extra_blank_value_becomes_none(minimal_safe_env, monkeypatch):
     """
     GIVEN a blank blocked binary extra value
     WHEN Settings are validated
-    THEN ValidationError is raised
+    THEN the value is normalized to None
     """
     monkeypatch.setenv("SEG_BLOCKED_BINARIES_EXTRA", "   ")
 
-    with pytest.raises(ValidationError):
-        Settings.model_validate({})
+    settings = Settings.model_validate({})
+
+    assert settings.seg_blocked_binaries_extra is None
 
 
 def test_blocked_binary_extra_rejects_path_entries(minimal_safe_env, monkeypatch):

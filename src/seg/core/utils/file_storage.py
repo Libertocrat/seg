@@ -94,7 +94,8 @@ def get_data_root(settings: Settings | None = None) -> Path:
     """
 
     cfg = settings or get_settings()
-    return Path(cfg.seg_data_root).expanduser().resolve()
+    root = Path(cfg.seg_root_dir).resolve()
+    return root.joinpath("data")
 
 
 def get_files_root(settings: Settings | None = None) -> Path:
@@ -184,11 +185,15 @@ def ensure_storage_dirs(settings: Settings | None = None) -> None:
         settings: Optional pre-loaded runtime settings.
     """
 
-    data_root = get_data_root(settings)
+    cfg = settings or get_settings()
+    root = Path(cfg.seg_root_dir)
+    root.mkdir(parents=True, exist_ok=True)
+
+    data_root = get_data_root(cfg)
     data_root.mkdir(parents=True, exist_ok=True)
-    get_blob_dir(settings).mkdir(parents=True, exist_ok=True)
-    get_meta_dir(settings).mkdir(parents=True, exist_ok=True)
-    get_tmp_dir(settings).mkdir(parents=True, exist_ok=True)
+    get_blob_dir(cfg).mkdir(parents=True, exist_ok=True)
+    get_meta_dir(cfg).mkdir(parents=True, exist_ok=True)
+    get_tmp_dir(cfg).mkdir(parents=True, exist_ok=True)
 
 
 def save_file_metadata(

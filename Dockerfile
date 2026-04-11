@@ -14,6 +14,7 @@ ENV PATH="/usr/local/bin:$PATH"
 # Distribution is upgraded to apply security updates and ensure latest bug fixes
 # apt-get cleanup is done in the same layer to minimize image size
 RUN apt-get update \
+    && apt-get upgrade -y \
     && apt-get dist-upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \

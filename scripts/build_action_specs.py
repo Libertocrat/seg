@@ -46,7 +46,7 @@ def main() -> None:
     try:
         settings = Settings.model_validate(
             {
-                "seg_sandbox_dir": "/seg",
+                "seg_root_dir": "/tmp/seg",  # noqa: S108 -- fixed path for testing purposes
                 "seg_allowed_subdirs": "tmp",
             }
         )

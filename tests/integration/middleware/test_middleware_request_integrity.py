@@ -60,12 +60,12 @@ def _integrity_metric_value(path: str, method: str, reason: str) -> float:
 
 
 @pytest.fixture
-def low_max_bytes_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
+def low_max_bytes_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
     """Return settings with a strict body-size limit for deterministic tests.
 
     Args:
         api_token: Authentication token fixture.
-        sandbox_dir: Sandbox root directory fixture.
+        seg_root_dir: Root directory fixture.
         allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
@@ -74,7 +74,7 @@ def low_max_bytes_settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(seg_root_dir),
             "seg_allowed_subdirs": allowed_subdirs,
             "seg_max_bytes": 16,
         }
