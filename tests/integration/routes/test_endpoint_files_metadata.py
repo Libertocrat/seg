@@ -219,7 +219,7 @@ def test_files_metadata_get_invalid_json_metadata(
     with TestClient(app) as client:
         file_id = _upload_text_file_and_get_id(client, auth_headers)
 
-        meta_path = tmp_path / "seg-data" / "files" / "meta" / f"file_{file_id}.json"
+        meta_path = tmp_path / "data" / "files" / "meta" / f"file_{file_id}.json"
         meta_path.write_text("INVALID JSON", encoding="utf-8")
 
         response = client.get(f"/v1/files/{file_id}", headers=auth_headers)
@@ -247,7 +247,7 @@ def test_files_metadata_get_invalid_schema(
     with TestClient(app) as client:
         file_id = _upload_text_file_and_get_id(client, auth_headers)
 
-        meta_path = tmp_path / "seg-data" / "files" / "meta" / f"file_{file_id}.json"
+        meta_path = tmp_path / "data" / "files" / "meta" / f"file_{file_id}.json"
         meta_path.write_text(json.dumps({"invalid": "structure"}), encoding="utf-8")
 
         response = client.get(f"/v1/files/{file_id}", headers=auth_headers)

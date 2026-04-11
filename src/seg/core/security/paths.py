@@ -262,7 +262,7 @@ def validate_path(
 
     # Resolve sandbox root
     sandbox = (
-        sandbox_dir if sandbox_dir is not None else Path(get_settings().seg_sandbox_dir)
+        sandbox_dir if sandbox_dir is not None else Path(get_settings().seg_root_dir)
     )
 
     # Resolve and validate the path under sandbox policies

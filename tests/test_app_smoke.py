@@ -17,7 +17,7 @@ from seg.core.config import Settings
 # ============================================================================
 
 
-def test_app_starts_successfully(api_token):
+def test_app_starts_successfully(api_token, tmp_path):
     """
     GIVEN a valid Settings object
     WHEN the FastAPI app is created
@@ -26,7 +26,7 @@ def test_app_starts_successfully(api_token):
     settings = Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": "/data",
+            "seg_root_dir": str(tmp_path),
             "seg_allowed_subdirs": "tmp",
         }
     )
@@ -42,7 +42,7 @@ def test_app_starts_successfully(api_token):
 # ============================================================================
 
 
-def test_health_endpoint_returns_200():
+def test_health_endpoint_returns_200(tmp_path):
     """
     GIVEN a running SEG application
     WHEN the /health endpoint is requested
@@ -51,7 +51,7 @@ def test_health_endpoint_returns_200():
     settings = Settings.model_validate(
         {
             "seg_api_token": "test-token",
-            "seg_sandbox_dir": "/data",
+            "seg_root_dir": str(tmp_path),
             "seg_allowed_subdirs": "tmp",
         }
     )

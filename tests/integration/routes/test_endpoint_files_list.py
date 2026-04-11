@@ -66,7 +66,7 @@ def _meta_path_for(tmp_path: Path, file_id: UUID) -> Path:
             Metadata json file path under SEG data root.
     """
 
-    return tmp_path / "seg-data" / "files" / "meta" / f"file_{file_id}.json"
+    return tmp_path / "data" / "files" / "meta" / f"file_{file_id}.json"
 
 
 def _list_files(

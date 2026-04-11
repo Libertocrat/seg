@@ -207,11 +207,9 @@ actions:
         encoding="utf-8",
     )
 
-    sandbox_dir = tmp_path / "sandbox"
-    sandbox_dir.mkdir(parents=True, exist_ok=True)
     settings = Settings.model_validate(
         {
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(tmp_path),
             "seg_allowed_subdirs": "tmp",
         }
     )
@@ -235,16 +233,16 @@ def api_token() -> str:
 
 
 @pytest.fixture
-def sandbox_dir(tmp_path):
-    """Create a temporary sandbox directory for filesystem-related tests.
+def seg_root_dir(tmp_path):
+    """Create a temporary SEG root directory for persistent storage tests.
 
     Args:
         tmp_path: Pytest-provided temporary directory unique to the test.
 
     Returns:
-        Path: Path to the sandbox directory.
+        Path: Path to the SEG root directory.
     """
-    d = tmp_path / "sandbox"
+    d = tmp_path / "seg-root"
     d.mkdir()
     return d
 
@@ -261,7 +259,7 @@ def allowed_subdirs() -> str:
 
 
 @pytest.fixture
-def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
+def minimal_safe_env(monkeypatch, seg_root_dir, api_token, allowed_subdirs):
     """Provide a minimal, safe environment for Settings-based tests.
 
     This fixture sets the three required SEG variables to deterministic
@@ -272,7 +270,7 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
 
     Args:
         monkeypatch: Pytest helper to set environment variables.
-        sandbox_dir: Sandbox root directory fixture.
+        seg_root_dir: Root directory fixture.
         api_token: Deterministic API token fixture.
         allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
@@ -280,16 +278,16 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
         Mapping of the environment variables configured for the test.
     """
     monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
-    monkeypatch.setenv("SEG_SANDBOX_DIR", str(sandbox_dir))
+    monkeypatch.setenv("SEG_ROOT_DIR", str(seg_root_dir))
     monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", allowed_subdirs)
     # Ensure allowed subdirectories exist to simulate a mounted volume with
     # pre-created directories. This matches production behavior where the
     # allowed subdirs are present ahead of file operations like move.
     for sub in allowed_subdirs.split(","):
-        (sandbox_dir / sub).mkdir(parents=True, exist_ok=True)
+        (seg_root_dir / sub).mkdir(parents=True, exist_ok=True)
     return {
         "SEG_API_TOKEN_DEV": api_token,
-        "SEG_SANDBOX_DIR": str(sandbox_dir),
+        "SEG_ROOT_DIR": str(seg_root_dir),
         "SEG_ALLOWED_SUBDIRS": allowed_subdirs,
     }
 
@@ -300,7 +298,7 @@ def minimal_safe_env(monkeypatch, sandbox_dir, api_token, allowed_subdirs):
 
 
 @pytest.fixture
-def settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
+def settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
     """Return a minimal, valid Settings object for tests.
 
     This fixture constructs Settings explicitly via `model_validate`,
@@ -308,7 +306,7 @@ def settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
 
     Args:
         api_token: API token fixture.
-        sandbox_dir: Sandbox directory fixture.
+        seg_root_dir: Root directory fixture.
         allowed_subdirs: Allowed subdirectories fixture.
     Returns:
         Settings: Fully validated Settings instance.
@@ -316,7 +314,7 @@ def settings(api_token, sandbox_dir, allowed_subdirs) -> Settings:
     return Settings.model_validate(
         {
             "seg_api_token": api_token,
-            "seg_sandbox_dir": str(sandbox_dir),
+            "seg_root_dir": str(seg_root_dir),
             "seg_allowed_subdirs": allowed_subdirs,
         }
     )
@@ -380,8 +378,8 @@ def create_upload_app(
 
     del minimal_safe_env  # fixture ensures baseline SEG env values
 
-    data_root = tmp_path / "seg-data"
-    monkeypatch.setenv("SEG_DATA_ROOT", str(data_root))
+    root_dir = tmp_path
+    monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
 
     def _create(*, max_bytes: int | None = None):
         """Create an application instance configured for upload-route testing.
@@ -524,7 +522,8 @@ def sandbox_file_factory(minimal_safe_env):
             Factory function to create files in the sandbox.
     """
 
-    sandbox = Path(minimal_safe_env["SEG_SANDBOX_DIR"])
+    root = Path(minimal_safe_env["SEG_ROOT_DIR"])
+    sandbox = root
     allowed = minimal_safe_env["SEG_ALLOWED_SUBDIRS"].split(",")
 
     def _create(

@@ -43,13 +43,13 @@ def _upload_file_and_get_id(
 def _meta_path_for(tmp_path: Path, file_id: UUID) -> Path:
     """Return metadata path for a test file id."""
 
-    return tmp_path / "seg-data" / "files" / "meta" / f"file_{file_id}.json"
+    return tmp_path / "data" / "files" / "meta" / f"file_{file_id}.json"
 
 
 def _blob_path_for(tmp_path: Path, file_id: UUID) -> Path:
     """Return blob path for a test file id."""
 
-    return tmp_path / "seg-data" / "files" / "blobs" / f"file_{file_id}.bin"
+    return tmp_path / "data" / "files" / "blobs" / f"file_{file_id}.bin"
 
 
 # ============================================================================

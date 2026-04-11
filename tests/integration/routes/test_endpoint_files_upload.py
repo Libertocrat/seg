@@ -40,7 +40,7 @@ def test_files_startup_creates_storage_directories(
 ):
     """Validate startup initialization of SEG-managed storage directories.
 
-    GIVEN an isolated SEG_DATA_ROOT for the test app
+    GIVEN an isolated SEG_ROOT_DIR for the test app
     WHEN the application is created
     THEN files/blobs, files/meta, and files/tmp directories exist.
     """

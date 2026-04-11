@@ -112,8 +112,7 @@ class Settings(BaseSettings):
 
     Attributes:
         seg_api_token: API token required for Bearer authentication.
-        seg_sandbox_dir: Sandbox directory used by sandboxed actions.
-        seg_data_root: Root directory used by SEG-managed file storage.
+        seg_root_dir: Root directory acting as the single SEG filesystem sandbox.
         seg_allowed_subdirs: Raw CSV string of allowed subdirectories.
         seg_max_bytes: Maximum allowed bytes for file operations.
         seg_timeout_ms: Per-request timeout (milliseconds).
@@ -126,8 +125,7 @@ class Settings(BaseSettings):
 
     # Loaded from Docker secret in `get_settings`, not from environment.
     seg_api_token: str = Field("")
-    seg_sandbox_dir: str = Field(...)
-    seg_data_root: str = Field("~/.seg/data")
+    seg_root_dir: str = Field("/var/lib/seg")
     # Read the raw env value as a string to avoid pydantic-settings attempting
     # to JSON-decode a complex type from dotenv. We expose a convenience
     # property `allowed_subdirs` (below) which returns the parsed list.
@@ -175,7 +173,7 @@ class Settings(BaseSettings):
             return ["*"]
         return list(parse_csv(raw))
 
-    @field_validator("seg_sandbox_dir", "seg_allowed_subdirs", mode="before")
+    @field_validator("seg_root_dir", "seg_allowed_subdirs", mode="before")
     def _validate_required_non_empty(cls, v, info):
         """Reject missing or blank values for required string settings."""
 
@@ -186,14 +184,19 @@ class Settings(BaseSettings):
             raise ValueError(f"{info.field_name} must be set and non-empty")
         return v
 
-    @field_validator("seg_data_root", mode="before")
-    def _validate_seg_data_root(cls, v):
-        """Validate SEG data root as a non-empty path string."""
+    @field_validator("seg_root_dir", mode="before")
+    def _validate_seg_root_dir(cls, v):
+        """Validate SEG_ROOT_DIR as a safe absolute directory path."""
 
-        s = str(v).strip()
-        if s == "":
-            raise ValueError("seg_data_root must be non-empty")
-        return s
+        p = Path(str(v).strip())
+
+        if not p.is_absolute():
+            raise ValueError("SEG_ROOT_DIR must be an absolute path")
+
+        if str(p) == "/":
+            raise ValueError("SEG_ROOT_DIR cannot be root '/'")
+
+        return str(p.resolve(strict=False))
 
     @field_validator("seg_allowed_subdirs", mode="before")
     def _validate_seg_allowed_subdirs(cls, v):
@@ -211,7 +214,8 @@ class Settings(BaseSettings):
                     raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{name}'")
         return s
 
-    @field_validator("seg_max_stdout_bytes", "seg_max_stderr_bytes", mode="before")
+    @field_validator("seg_max_stdout_bytes", "seg_max_stderr_bytes")
+    # Avoid using mode="before" to prevent string to int casting errors
     def _validate_output_limits(cls, v: int | None) -> int | None:
         if v is not None and v <= 0:
             raise ValueError("must be greater than 0")
@@ -235,7 +239,7 @@ class Settings(BaseSettings):
 
         s = str(v)
         if s.strip() == "":
-            raise ValueError("blocked binaries extra must be a non-empty CSV string")
+            return None
 
         parsed = list(parse_csv(s))
         raw_parts = [part.strip() for part in s.split(",")]
