@@ -1,4 +1,16 @@
 services:
+  seg-init:
+    image: busybox:latest
+    command: >
+      sh -c "
+        mkdir -p ${SEG_ROOT_DIR} &&
+        chown -R ${NON_ROOT_UID}:${NON_ROOT_GID} ${SEG_ROOT_DIR} &&
+        chmod -R 775 ${SEG_ROOT_DIR}
+      "
+    volumes:
+      - seg_data:${SEG_ROOT_DIR}
+    restart: "no"
+
   seg:
     build:
       context: .
@@ -14,7 +26,10 @@ services:
     secrets:
       - seg_api_token
     volumes:
-      - seg_data:/var/lib/seg
+      - seg_data:${SEG_ROOT_DIR}
+    depends_on:
+      seg-init:
+        condition: service_completed_successfully
     networks:
       - default_network
 
@@ -29,4 +44,4 @@ secrets:
 
 volumes:
   seg_data:
-    name: ${COMPOSE_PROJECT_NAME}_data
+    name: ${COMPOSE_PROJECT_NAME}_seg-data

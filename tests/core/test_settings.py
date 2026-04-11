@@ -38,8 +38,6 @@ def test_settings_load_from_env(minimal_safe_env, api_token, seg_root_dir):
     # seg_api_token is no longer loaded via environment parsing in Settings.
     assert s.seg_api_token == ""
     assert s.seg_root_dir == str(seg_root_dir.resolve())
-    assert s.seg_allowed_subdirs == "tmp,uploads,output,quarantine"
-    assert s.allowed_subdirs == ["tmp", "uploads", "output", "quarantine"]
 
 
 def test_settings_defaults_applied(minimal_safe_env):
@@ -117,11 +115,9 @@ def test_storage_dirs_created(tmp_path, minimal_safe_env, monkeypatch):
     "missing_var",
     [
         "SEG_ROOT_DIR",
-        "SEG_ALLOWED_SUBDIRS",
     ],
     ids=[
         "seg_root_dir",
-        "seg_allowed_subdirs",
     ],
 )
 def test_missing_required_env_raises(minimal_safe_env, monkeypatch, missing_var):
@@ -176,73 +172,6 @@ def test_seg_app_version_invalid_format_raises(minimal_safe_env, monkeypatch):
     THEN validation fails with ValidationError
     """
     monkeypatch.setenv("SEG_APP_VERSION", "v1.2.3")
-
-    with pytest.raises(ValidationError):
-        Settings.model_validate({})
-
-
-# ============================================================================
-# SEG_ALLOWED_SUBDIRS parsing
-# ============================================================================
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [
-        ("*", ["*"]),
-        ("scripts", ["scripts"]),
-        ("scripts,output", ["scripts", "output"]),
-        (" scripts , output ", ["scripts", "output"]),
-    ],
-    ids=[
-        "all_subdirs",
-        "single_subdir",
-        "multiple_subdirs",
-        "subdirs_with_whitespace",
-    ],
-)
-def test_allowed_subdirs_valid(minimal_safe_env, monkeypatch, value, expected):
-    """
-    GIVEN various valid values for SEG_ALLOWED_SUBDIRS (CSV or "*")
-    WHEN Settings parses the value
-    THEN `allowed_subdirs` returns the expected list
-    """
-    # override allowed_subdirs for this case
-    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", value)
-
-    s = Settings.model_validate({})
-
-    assert s.allowed_subdirs == expected
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        "",
-        "   ",
-        ".",
-        "..",
-        "scripts,/bin",
-        "scripts,../etc",
-        "scripts,,output",
-    ],
-    ids=[
-        "empty_string",
-        "whitespace_only",
-        "dot",
-        "dot_dot",
-        "absolute_path",
-        "directory_traversal",
-        "empty_element",
-    ],
-)
-def test_allowed_subdirs_invalid(minimal_safe_env, monkeypatch, value):
-    """
-    GIVEN malformed or prohibited SEG_ALLOWED_SUBDIRS values
-    WHEN Settings attempts to validate the value
-    THEN validation fails with ValidationError
-    """
-    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", value)
 
     with pytest.raises(ValidationError):
         Settings.model_validate({})

@@ -64,13 +64,12 @@ def _timeout_metric_value(path: str, method: str) -> float:
 
 
 @pytest.fixture
-def low_timeout_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
+def low_timeout_settings(api_token, seg_root_dir) -> Settings:
     """Return settings with a strict 100ms timeout.
 
     Args:
         api_token: Authentication token fixture.
         seg_root_dir: Root directory fixture.
-        allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
         Settings configured for low timeout tests.
@@ -79,7 +78,6 @@ def low_timeout_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(seg_root_dir),
-            "seg_allowed_subdirs": allowed_subdirs,
             "seg_timeout_ms": 100,
         }
     )

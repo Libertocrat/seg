@@ -113,7 +113,6 @@ class Settings(BaseSettings):
     Attributes:
         seg_api_token: API token required for Bearer authentication.
         seg_root_dir: Root directory acting as the single SEG filesystem sandbox.
-        seg_allowed_subdirs: Raw CSV string of allowed subdirectories.
         seg_max_bytes: Maximum allowed bytes for file operations.
         seg_timeout_ms: Per-request timeout (milliseconds).
         seg_rate_limit_rps: Rate limit in requests-per-second.
@@ -126,13 +125,6 @@ class Settings(BaseSettings):
     # Loaded from Docker secret in `get_settings`, not from environment.
     seg_api_token: str = Field("")
     seg_root_dir: str = Field("/var/lib/seg")
-    # Read the raw env value as a string to avoid pydantic-settings attempting
-    # to JSON-decode a complex type from dotenv. We expose a convenience
-    # property `allowed_subdirs` (below) which returns the parsed list.
-    # pydantic-settings maps field names to ENV by default
-    # (seg_allowed_subdirs -> SEG_ALLOWED_SUBDIRS)
-    # `SEG_ALLOWED_SUBDIRS` is required and must be non-empty (CSV or "*")
-    seg_allowed_subdirs: str = Field(...)
     seg_max_bytes: int = Field(104857600)
     seg_max_stdout_bytes: int | None = Field(None)
     seg_max_stderr_bytes: int | None = Field(None)
@@ -154,26 +146,7 @@ class Settings(BaseSettings):
         "extra": "ignore",
     }
 
-    @property
-    def allowed_subdirs(self) -> list[str]:
-        """Return the allowlist as a list of strings parsed from CSV.
-
-        The value is read from the raw environment-backed field
-        `seg_allowed_subdirs` which contains a comma-separated list (for
-        example: `uploads,output`). Empty or missing values return an empty
-        list.
-
-        Returns:
-            A list of non-empty, stripped subdirectory names.
-        """
-
-        raw = self.seg_allowed_subdirs
-        # At this point validation guarantees `raw` is a non-empty string.
-        if raw.strip() == "*":
-            return ["*"]
-        return list(parse_csv(raw))
-
-    @field_validator("seg_root_dir", "seg_allowed_subdirs", mode="before")
+    @field_validator("seg_root_dir", mode="before")
     def _validate_required_non_empty(cls, v, info):
         """Reject missing or blank values for required string settings."""
 
@@ -197,22 +170,6 @@ class Settings(BaseSettings):
             raise ValueError("SEG_ROOT_DIR cannot be root '/'")
 
         return str(p.resolve(strict=False))
-
-    @field_validator("seg_allowed_subdirs", mode="before")
-    def _validate_seg_allowed_subdirs(cls, v):
-        """Validate the raw allowlist format for sandbox subdirectories."""
-
-        s = str(v).strip()
-        # Only allow '*' or CSV of simple names (no slashes)
-        if s != "*":
-            parsed = list(parse_csv(s))
-            raw_parts = [part.strip() for part in s.split(",")]
-            if len(parsed) != len(raw_parts):
-                raise ValueError("Invalid SEG_ALLOWED_SUBDIRS entry: ''")
-            for name in parsed:
-                if name == "" or "/" in name or name in (".", ".."):
-                    raise ValueError(f"Invalid SEG_ALLOWED_SUBDIRS entry: '{name}'")
-        return s
 
     @field_validator("seg_max_stdout_bytes", "seg_max_stderr_bytes")
     # Avoid using mode="before" to prevent string to int casting errors

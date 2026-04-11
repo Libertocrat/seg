@@ -27,7 +27,6 @@ def test_app_starts_successfully(api_token, tmp_path):
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(tmp_path),
-            "seg_allowed_subdirs": "tmp",
         }
     )
 
@@ -52,7 +51,6 @@ def test_health_endpoint_returns_200(tmp_path):
         {
             "seg_api_token": "test-token",
             "seg_root_dir": str(tmp_path),
-            "seg_allowed_subdirs": "tmp",
         }
     )
 

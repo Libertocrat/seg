@@ -132,13 +132,6 @@ def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
     """
     rel = sanitize_rel_path(user_path)
 
-    # Enforce allowlist (first component) if configured
-    allowed = get_settings().allowed_subdirs
-    if allowed and allowed != ["*"]:
-        first = rel.split("/", 1)[0]
-        if first not in allowed:
-            raise PathSecurityError("Path not inside allowed subdirectories")
-
     # Ensure sandbox exists and is canonical
     try:
         sandbox_resolved = sandbox_dir.resolve(strict=True)

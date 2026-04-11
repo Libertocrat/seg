@@ -52,7 +52,6 @@ def build_docs_settings() -> Settings:
         seg_log_level="INFO",
         seg_app_version=get_release_version(),
         seg_api_token="docs-token",  # noqa: S106 -- fixed token for documentation purposes only
-        seg_allowed_subdirs="tmp",
         seg_root_dir="/var/lib/seg",
         seg_enable_docs=True,
         seg_max_bytes=1048576,
