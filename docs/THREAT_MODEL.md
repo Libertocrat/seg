@@ -52,7 +52,7 @@ These goals match the current architecture. They do not include multi-tenant iso
 SEG protects these assets:
 
 - Host integrity. The service reduces host exposure by running in a container, using a non-root user, and restricting filesystem access to a mounted sandbox path.
-- Sandbox filesystem contents. File operations are limited to `SEG_SANDBOX_DIR` and allowed top-level subdirectories.
+- Sandbox filesystem contents. File operations are limited to a strict root boundary at `SEG_ROOT_DIR`.
 - Action execution environment. Only registered action handlers can run through `/v1/execute`, and SEG-managed file operations are constrained to `/v1/files` contracts.
 - Authentication token. The bearer token gates protected endpoints and is loaded from a Docker secret path.
 - Service availability. Body size limits, rate limiting, and request timeouts protect the service from simple abuse patterns.
@@ -98,11 +98,7 @@ Attack inputs include:
 - request body content sent to `/v1/execute` and multipart form uploads sent to `/v1/files`
 - `action` values in `ExecuteRequest`
 - `file_id` path parameters and file query/filter parameters on `/v1/files` routes
-- action parameter fields, especially filesystem path fields in path-based action flows
-- environment and secret based configuration such as `SEG_ALLOWED_SUBDIRS`, `SEG_SANDBOX_DIR`, and the API token secret
-
-> [!IMPORTANT]
-> Migration notice for v0.2.0: SEG plans to migrate action definitions to a YAML DSL and deprecate path-based file specifications used by `/v1/execute` in favor of `file_id`-based workflows through `/v1/files`.
+- environment and secret based configuration such as `SEG_ROOT_DIR` and the API token secret
 
 Authentication coverage is as follows:
 
@@ -138,7 +134,7 @@ Authentication coverage is as follows:
 - absolute path access
 - backslash based alternate path syntax
 - escaping the sandbox root
-- access outside the configured allowed top-level subdirectories
+- access outside the configured `SEG_ROOT_DIR`
 - symlink abuse in existing path components or final file opens
 - use of non-regular files where regular files are expected
 
@@ -182,7 +178,7 @@ Authentication coverage is as follows:
 ### Filesystem mitigations
 
 - `sanitize_rel_path()` rejects NUL bytes, control characters, absolute paths, backslashes, empty paths, long paths, and traversal segments.
-- `resolve_in_sandbox()` checks the resolved path against the sandbox root and the configured top-level allowlist.
+- `resolve_in_sandbox()` checks the resolved path against the strict sandbox root boundary.
 - Existing symlink path components are rejected during sandbox resolution.
 - `safe_open_no_follow()` uses `O_NOFOLLOW` when available and verifies that the opened target is a regular file.
 - `validate_path()` and wrappers in `file_access.py` centralize path validation so handlers do not implement their own path logic.
@@ -218,14 +214,11 @@ Some risks remain by design or by deployment assumption.
 > disabled when exposing them is not acceptable.
 
 - SEG relies on container isolation. If the container runtime is misconfigured or compromised, container level protections may not hold.
-- SEG relies on correct sandbox volume configuration. An incorrect mount target or incorrect allowed subdirectory configuration weakens the filesystem boundary.
+- SEG relies on correct sandbox volume configuration. An incorrect `SEG_ROOT_DIR` mount target weakens the filesystem boundary.
 - `RateLimitMiddleware` is process local. In multi-process or multi-instance deployments, each process keeps an independent token bucket.
 - `/health` and `/metrics` are intentionally unauthenticated. Optional docs endpoints are also unauthenticated when enabled. They increase externally reachable surface inside the internal network.
 - Filesystem race conditions are reduced but not fully eliminated. The code explicitly notes that path resolution before later filesystem operations can still leave TOCTOU windows in some flows.
 - Service availability still depends on the underlying container host, mounted volume performance, and upstream request volume.
-
-> [!NOTE]
-> Shared-volume mounting remains part of the current deployment model. With `/v1/files` now established as the file lifecycle API, SEG is preparing to deprecate shared-volume workflow assumptions and migrate toward a dedicated internal storage volume in a future release.
 
 ## 9. Security Assumptions
 
@@ -234,8 +227,7 @@ The security model depends on these assumptions:
 - SEG runs on a trusted internal network.
 - The container runtime correctly isolates the SEG process.
 - The API token secret is stored securely and mounted correctly at `/run/secrets/seg_api_token`.
-- `SEG_SANDBOX_DIR` points to the intended mounted sandbox volume.
-- `SEG_ALLOWED_SUBDIRS` is configured to the intended top-level directories.
+- `SEG_ROOT_DIR` points to the intended mounted sandbox volume.
 - Upstream services treat SEG as an internal service and do not expose it directly to untrusted public traffic.
 - Operators leave docs endpoints disabled in environments where exposing them is not acceptable.
 

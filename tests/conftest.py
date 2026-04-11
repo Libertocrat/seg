@@ -210,7 +210,6 @@ actions:
     settings = Settings.model_validate(
         {
             "seg_root_dir": str(tmp_path),
-            "seg_allowed_subdirs": "tmp",
         }
     )
 
@@ -248,21 +247,10 @@ def seg_root_dir(tmp_path):
 
 
 @pytest.fixture
-def allowed_subdirs() -> str:
-    """Return a typical CSV of allowlisted subdirectories used in tests.
-
-    Returns:
-        str: CSV of allowed subdirectories (for example: "tmp,uploads,output").
-    """
-
-    return "tmp,uploads,output,quarantine"
-
-
-@pytest.fixture
-def minimal_safe_env(monkeypatch, seg_root_dir, api_token, allowed_subdirs):
+def minimal_safe_env(monkeypatch, seg_root_dir, api_token):
     """Provide a minimal, safe environment for Settings-based tests.
 
-    This fixture sets the three required SEG variables to deterministic
+    This fixture sets required SEG variables to deterministic
     values so tests don't need to repeat the same `monkeypatch.setenv`
     calls. Tests that need to vary one of these values should accept
     `minimal_safe_env` and then call `monkeypatch.setenv(...)` to
@@ -272,23 +260,16 @@ def minimal_safe_env(monkeypatch, seg_root_dir, api_token, allowed_subdirs):
         monkeypatch: Pytest helper to set environment variables.
         seg_root_dir: Root directory fixture.
         api_token: Deterministic API token fixture.
-        allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
         Mapping of the environment variables configured for the test.
     """
     monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
     monkeypatch.setenv("SEG_ROOT_DIR", str(seg_root_dir))
-    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", allowed_subdirs)
-    # Ensure allowed subdirectories exist to simulate a mounted volume with
-    # pre-created directories. This matches production behavior where the
-    # allowed subdirs are present ahead of file operations like move.
-    for sub in allowed_subdirs.split(","):
-        (seg_root_dir / sub).mkdir(parents=True, exist_ok=True)
+    (seg_root_dir / "tmp").mkdir(parents=True, exist_ok=True)
     return {
         "SEG_API_TOKEN_DEV": api_token,
         "SEG_ROOT_DIR": str(seg_root_dir),
-        "SEG_ALLOWED_SUBDIRS": allowed_subdirs,
     }
 
 
@@ -298,7 +279,7 @@ def minimal_safe_env(monkeypatch, seg_root_dir, api_token, allowed_subdirs):
 
 
 @pytest.fixture
-def settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
+def settings(api_token, seg_root_dir) -> Settings:
     """Return a minimal, valid Settings object for tests.
 
     This fixture constructs Settings explicitly via `model_validate`,
@@ -307,7 +288,6 @@ def settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
     Args:
         api_token: API token fixture.
         seg_root_dir: Root directory fixture.
-        allowed_subdirs: Allowed subdirectories fixture.
     Returns:
         Settings: Fully validated Settings instance.
     """
@@ -315,7 +295,6 @@ def settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(seg_root_dir),
-            "seg_allowed_subdirs": allowed_subdirs,
         }
     )
 
@@ -524,7 +503,6 @@ def sandbox_file_factory(minimal_safe_env):
 
     root = Path(minimal_safe_env["SEG_ROOT_DIR"])
     sandbox = root
-    allowed = minimal_safe_env["SEG_ALLOWED_SUBDIRS"].split(",")
 
     def _create(
         name: str,
@@ -542,7 +520,7 @@ def sandbox_file_factory(minimal_safe_env):
             SandboxFile with absolute and relative path variants.
         """
 
-        chosen = subdir or allowed[0]
+        chosen = subdir or "tmp"
         base = sandbox / chosen
         base.mkdir(parents=True, exist_ok=True)
 

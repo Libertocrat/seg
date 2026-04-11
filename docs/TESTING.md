@@ -144,9 +144,6 @@ Route integration coverage includes:
 - `/metrics` content type and Prometheus text format validation
 - `/openapi.json` validation, security projection, action schema registration, and response overrides when docs are enabled
 
-> [!NOTE]
-> Migration notice for v0.2.0: test scope around `/v1/execute` will progressively shift from path-based file action payloads to YAML DSL-defined actions and `file_id`-based file references aligned with `/v1/files`.
-
 These tests validate the assembled application stack rather than individual helper functions.
 
 ## 6. Security Testing
@@ -160,7 +157,6 @@ In `tests/core/security`, the current tests validate:
 - backslash rejection
 - control character rejection
 - sandbox root enforcement
-- allowed subdirectory enforcement
 - symlink rejection during path resolution
 - safe opening of regular files without following symlinks
 - strict `Content-Length` parsing and content type normalization
@@ -187,7 +183,7 @@ Shared fixtures in `tests/conftest.py` provide the common test environment.
 ### Environment and configuration isolation
 
 - `clean_seg_environment` enforces environment isolation for every test
-- `minimal_safe_env` sets a deterministic minimal SEG configuration with `SEG_API_TOKEN_DEV`, `SEG_SANDBOX_DIR`, and `SEG_ALLOWED_SUBDIRS`
+- `minimal_safe_env` sets a deterministic minimal SEG configuration with `SEG_API_TOKEN_DEV` and `SEG_ROOT_DIR`
 
 ### Application fixtures
 
@@ -202,8 +198,8 @@ Shared fixtures in `tests/conftest.py` provide the common test environment.
 
 ### Filesystem helpers
 
-- `sandbox_dir` creates a temporary sandbox root
-- `sandbox_file_factory` creates files inside allowed sandbox subdirectories and returns both absolute and sandbox-relative paths
+- `seg_root_dir` creates a temporary sandbox root
+- `sandbox_file_factory` creates files inside the sandbox root and returns both absolute and sandbox-relative paths
 - `file_factory` creates realistic sample files for MIME-sensitive tests, including text, markdown, CSV, PNG, PDF, ZIP, TAR, GZIP, EXE, ELF, shell, Python, and JavaScript files
 
 These fixtures keep tests reproducible, avoid reliance on machine-local configuration, and provide realistic filesystem inputs without external dependencies.

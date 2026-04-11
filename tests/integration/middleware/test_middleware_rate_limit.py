@@ -56,13 +56,12 @@ def _rate_limited_metric_value(path: str, method: str, reason: str) -> float:
 
 
 @pytest.fixture
-def low_rps_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
+def low_rps_settings(api_token, seg_root_dir) -> Settings:
     """Return settings with a strict 1 RPS limit.
 
     Args:
         api_token: Authentication token fixture.
         seg_root_dir: Root directory fixture.
-        allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
         Settings configured for low-RPS tests.
@@ -71,7 +70,6 @@ def low_rps_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(seg_root_dir),
-            "seg_allowed_subdirs": allowed_subdirs,
             "seg_rate_limit_rps": 1,
         }
     )
@@ -106,13 +104,12 @@ def low_rps_client(low_rps_app):
 
 
 @pytest.fixture
-def low_rps_docs_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
+def low_rps_docs_settings(api_token, seg_root_dir) -> Settings:
     """Return settings with docs enabled and strict 1 RPS limit.
 
     Args:
         api_token: Authentication token fixture.
         seg_root_dir: Root directory fixture.
-        allowed_subdirs: CSV allowlist of sandbox subdirectories.
 
     Returns:
         Settings configured for docs-enabled low-RPS tests.
@@ -121,7 +118,6 @@ def low_rps_docs_settings(api_token, seg_root_dir, allowed_subdirs) -> Settings:
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(seg_root_dir),
-            "seg_allowed_subdirs": allowed_subdirs,
             "seg_rate_limit_rps": 1,
             "seg_enable_docs": True,
         }
@@ -254,7 +250,6 @@ def test_rate_limit_respects_env_configuration(
 
     monkeypatch.setenv("SEG_API_TOKEN_DEV", api_token)
     monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
-    monkeypatch.setenv("SEG_ALLOWED_SUBDIRS", "tmp")
     monkeypatch.setenv("SEG_RATE_LIMIT_RPS", "2")
 
     get_settings.cache_clear()

@@ -9,69 +9,9 @@ This directory contains helper scripts used for local development, release artif
 
 | Script | Purpose |
 | --- | --- |
-| `scripts/init-shared-volume.sh` | Create and validate the Docker volume used as the SEG filesystem sandbox |
 | `scripts/seg-forward.sh` | Forward a localhost port to a running SEG container without publishing ports in Compose |
 | `scripts/export_openapi.py` | Build the FastAPI app and write the OpenAPI schema to disk |
 | `scripts/build_docs_site.py` | Build a versioned Swagger UI site for GitHub Pages from the exported schema |
-
-## init-shared-volume.sh
-
-Initializes the shared Docker volume used by SEG and compatible services.
-
-The script runs on the host, uses the Docker CLI, and applies filesystem changes inside a temporary `alpine:3.18` container mounted at `/data`.
-
-### Responsibilities
-
-- Create the Docker volume if it does not exist
-- Configure group ownership and `setgid` permissions for the sandbox path
-- Create allowed subdirectories when subdirectory sandbox mode is used
-- Validate existing sandbox permissions before reuse
-
-### Required configuration
-
-The script accepts `--env-file <path>` or reads variables already exported in the environment.
-
-Required variables:
-
-- `SHARED_VOLUME_NAME`: Docker named volume to initialize
-- `NON_ROOT_GID`: numeric group ID that must own the sandbox path
-- `SEG_ALLOWED_SUBDIRS`: `*` for volume root access, or a comma-separated list such as `uploads,tmp`
-
-If `--env-file` is provided, the required variables are loaded from that file. If `--env-file` is not provided, the required variables must already exist in the shell environment.
-
-### Sandbox modes
-
-- `SEG_ALLOWED_SUBDIRS="*"`: use `/data` as the sandbox root
-- `SEG_ALLOWED_SUBDIRS="a,b,c"`: use `/data/a`, `/data/b`, `/data/c`
-
-Subdirectory names must be simple names. Names containing `/`, `.` or `..` are rejected.
-
-### Behavior
-
-- New volumes are initialized with `root:<NON_ROOT_GID>` ownership and mode `2775`
-- Existing volumes are validated for group ownership and `setgid`
-- In subdirectory mode, missing allowed subdirectories are created
-- Permission conflicts stop execution unless `--force` is provided
-- `--dry-run` prints the Docker commands without changing the volume
-
-### Flags
-
-- `--env-file <path>`: load variables from a file
-- `--dry-run`: print actions without executing them
-- `--force`: apply permission fixes after conflict detection
-- `-h`, `--help`: show usage and exit
-
-### Example
-
-```bash
-./scripts/init-shared-volume.sh --env-file .env.example --dry-run
-./scripts/init-shared-volume.sh --env-file .env.example
-docker compose up -d
-```
-
-### Reference
-
-- [scripts/specs/init-shared-volume.spec.md](scripts/specs/init-shared-volume.spec.md)
 
 ## seg-forward.sh
 

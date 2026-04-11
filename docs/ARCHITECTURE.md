@@ -77,9 +77,6 @@ Two global handlers are registered:
 
 `/v1/execute` is intentionally thin. The route validates the request against `ExecuteRequest`, delegates to `dispatch_execute()`, and returns the dispatcher result as a JSON response. `/v1/files` exposes typed handlers for upload, metadata retrieval, listing, content download, and deletion using `file_id` identifiers. Health and metrics are separated into dedicated routes and do not contain business logic.
 
-> [!IMPORTANT]
-> Migration notice for v0.2.0: SEG is planned to migrate action definitions to a YAML-based DSL. Path-based file specifications in `/v1/execute` action parameters are planned for deprecation in favor of `file_id`-based flows aligned with `/v1/files`.
-
 ## 4. Middleware Security Layer
 
 SEG applies several middleware layers in `src/seg/middleware`. In `app.py`, middleware is added in reverse of the runtime execution order because Starlette runs the last added middleware first.
@@ -224,7 +221,6 @@ Filesystem security is implemented primarily in `src/seg/core/security/paths.py`
 
 `resolve_in_sandbox()` then:
 
-- checks the first path component against `SEG_ALLOWED_SUBDIRS` unless the allowlist is `*`
 - resolves the configured sandbox root strictly
 - rejects symlinks in any existing path component
 - normalizes the candidate path with `os.path.normpath()`
@@ -254,8 +250,8 @@ This lets `file_move` enforce overwrite policy without bypassing sandbox checks.
 flowchart TD
 UserInputPath --> PathValidation
 PathValidation --> SandboxRoot
-SandboxRoot --> AllowedDirectories
-AllowedDirectories --> FileOperation
+SandboxRoot --> SandboxBoundary
+SandboxBoundary --> FileOperation
 ```
 
 ## 7. Configuration System
@@ -263,9 +259,8 @@ AllowedDirectories --> FileOperation
 Configuration is defined in `src/seg/core/config.py` with a Pydantic `BaseSettings` model.
 
 > [!IMPORTANT]
-> `SEG_SANDBOX_DIR` and `SEG_ALLOWED_SUBDIRS` must be configured before SEG can
-> start. If either value is missing or invalid, configuration loading aborts
-> the process.
+> `SEG_ROOT_DIR` must be configured before SEG can start. If this value is
+> missing or invalid, configuration loading aborts the process.
 
 ### Loading behavior
 
@@ -278,8 +273,7 @@ Configuration is defined in `src/seg/core/config.py` with a Pydantic `BaseSettin
 
 Required settings include:
 
-- `SEG_SANDBOX_DIR`
-- `SEG_ALLOWED_SUBDIRS`
+- `SEG_ROOT_DIR`
 
 Validated runtime controls include:
 
@@ -289,8 +283,6 @@ Validated runtime controls include:
 - `SEG_APP_VERSION`
 - `SEG_ENABLE_DOCS`
 - `SEG_ENABLE_SECURITY_HEADERS`
-
-`SEG_ALLOWED_SUBDIRS` must be either `*` or a comma-separated list of simple top-level directory names. Nested paths, `/`, `.`, and `..` are rejected.
 
 ### API token loading
 
@@ -307,7 +299,7 @@ The API token is not read directly from the settings model. `get_settings()` cal
 
 - non-root container identity
 - Docker and Compose integration
-- sandbox location and allowed subdirectories
+- strict sandbox root location
 - body size, timeout, and rate-limit controls
 - logging and application version
 - docs toggle and security-header toggle
@@ -396,18 +388,18 @@ The image:
 
 The Compose service:
 
+- runs the ephemeral `seg-init` helper service before `seg` starts
 - builds the image from the repository Dockerfile
 - loads environment variables from `.env`
-- mounts an external named volume at `${SEG_SANDBOX_DIR}`
+- mounts the persistent volume at `${SEG_ROOT_DIR}`
 - injects the API token through the `seg_api_token` Docker secret backed by `./secrets/seg_api_token.txt`
 - attaches the service to an external Docker network named by `SHARED_DOCKER_NETWORK`
 - does not publish a host port in the provided Compose file
 - restarts with `unless-stopped`
 
-This matches the internal-service deployment model: SEG is intended to be reachable from other trusted containers on the shared network, not from a public edge.
+`seg-init` applies ownership and permission bootstrap (`NON_ROOT_UID:NON_ROOT_GID` with writable group permissions) on the mounted root before runtime startup.
 
-> [!NOTE]
-> The shared-volume deployment contract remains active. With `/v1/files` now available, SEG is preparing a future migration toward a dedicated internal storage volume and eventual deprecation of shared-volume file workflow patterns.
+This matches the internal-service deployment model: SEG is intended to be reachable from other trusted containers on the shared network, not from a public edge.
 
 ## 11. Testing Architecture
 

@@ -53,7 +53,6 @@ actions:
     settings = Settings.model_validate(
         {
             "seg_root_dir": str(tmp_path),
-            "seg_allowed_subdirs": "tmp",
         }
     )
 

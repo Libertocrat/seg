@@ -171,8 +171,10 @@ Several critical vulnerabilities discovered in workflow automation platforms bet
 ## 3. Key Features
 
 - Strict allowlisted execution model for registered actions only
-- Sandboxed filesystem operations limited by `SEG_SANDBOX_DIR` and
-  `SEG_ALLOWED_SUBDIRS`
+- Strict sandbox boundary rooted at `SEG_ROOT_DIR`
+- Persistent storage via Docker volume mounted at `SEG_ROOT_DIR`
+- Automatic non-root permission bootstrap through the ephemeral `seg-init` service
+- File management, API-first, exposed through `/v1/files` endpoints
 - Runtime configuration via environment variables and `.env` files
 - Defense-in-depth middleware for auth, request integrity, rate limiting,
   timeouts, request IDs, and observability
@@ -208,8 +210,7 @@ SEG is designed around explicit controls rather than broad execution capabilitie
 - Bearer token authentication on protected endpoints
 - Request integrity validation at the ASGI boundary
 - Strict in-memory action allowlist
-- Filesystem access limited to `SEG_SANDBOX_DIR`
-- Top-level allowlist enforcement through `SEG_ALLOWED_SUBDIRS`
+- Filesystem access limited to `SEG_ROOT_DIR`
 - Path traversal, backslash, NUL byte, and control character rejection
 - Symlink rejection during path resolution and secure file open paths
 - Process-local rate limiting
@@ -224,7 +225,7 @@ For a complete threat analysis see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 SEG is designed to run inside Docker and to remain an internal service on a shared Docker network.
 
 > [!IMPORTANT]
-> Before starting the stack, ensure the external Docker network defined by `SHARED_DOCKER_NETWORK` exists, initialize the shared volume, and create the secret file at `secrets/seg_api_token.txt`.
+> Before starting the stack, ensure the external Docker network defined by `SHARED_DOCKER_NETWORK` exists and create the secret file at `secrets/seg_api_token.txt`.
 
 Minimal local startup:
 
@@ -241,12 +242,8 @@ openssl rand -hex 32 > secrets/seg_api_token.txt
 
 # Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env
 docker network create docker-network || true
-./scripts/init-shared-volume.sh --env-file .env
 docker compose up -d --build
 ```
-
-> [!NOTE]
-> The shared volume model remains the current runtime contract. With the introduction of `/v1/files`, SEG is preparing to deprecate shared-volume usage for client-facing file workflows and migrate to a dedicated internal SEG storage volume in a future release.
 
 Notes:
 
@@ -255,7 +252,7 @@ Notes:
   - check the `.env.example` file for detailed information about env variables
 - the container joins the external network defined by `SHARED_DOCKER_NETWORK`
 - the external Docker network must exist before `docker compose up`
-- the shared volume must be initialized before the stack starts
+- `seg-init` prepares ownership and permissions on `SEG_ROOT_DIR` before `seg` starts
 - the runtime API token is loaded from `secrets/seg_api_token.txt` through the Docker secret mount
 
 Useful follow-up checks:
@@ -288,12 +285,19 @@ Settings --> Runtime[SEG Runtime Configuration]
 
 Values shown in `.env.example` are placeholder deployment values and do not necessarily represent application defaults or the configuration needed for your particular deployment environment.
 
-### Key variables
+### Required variables
+
+| Variable | Description |
+| --- | --- |
+| `SEG_ROOT_DIR` | Absolute sandbox root and persistence mount point used by SEG. |
+| `SHARED_DOCKER_NETWORK` | External Docker network used to connect SEG with internal services. |
+| `NON_ROOT_UID` | Numeric UID used by the SEG container user. |
+| `NON_ROOT_GID` | Numeric GID used for persistent storage permissions. |
+
+### Optional variables
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `SEG_SANDBOX_DIR` | Absolute sandbox root used for file operations inside the container. | `None` -> **Required** |
-| `SEG_ALLOWED_SUBDIRS` | CSV allowlist of top-level sandbox subdirectories, or `*`. | `None` -> **Required** |
 | `SEG_MAX_BYTES` | Maximum allowed file size for file-based operations. | `104857600` |
 | `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
 | `SEG_RATE_LIMIT_RPS` | Process-local request rate limit per client. | `10` |
@@ -307,25 +311,19 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 > [!IMPORTANT]
 > When deploying SEG inside an existing container environment or microservice stack, the following variables should normally be reviewed and adapted before startup:
 >
-> - `SEG_SANDBOX_DIR`
-> - `SEG_ALLOWED_SUBDIRS`
+> - `SEG_ROOT_DIR`
 > - `SHARED_DOCKER_NETWORK`
 > - `COMPOSE_PROJECT_NAME`
-> - `SHARED_VOLUME_SUFFIX`
+> - `NON_ROOT_UID`
+> - `NON_ROOT_GID`
 >
-> These variables control how SEG integrates with the shared Docker network, filesystem sandbox, and shared data volumes used by other services.
+> These variables control how SEG integrates with the Docker network, sandbox root, and storage permissions.
 
-For container identity, shared volume naming, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
-
-> [!NOTE]
-> Shared-volume integration is still required today. Because `/v1/files` now provides managed upload, metadata, listing, download, and delete operations based on `file_id`, SEG will migrate toward an internal dedicated storage volume and deprecate direct shared-volume file workflow patterns in a future release.
+For container identity, runtime limits, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
 
 ## 8. API Overview
 
-The primary API model now includes `POST /v1/execute` for allowlisted actions and `/v1/files` endpoints for SEG-managed file lifecycle operations.
-
-> [!IMPORTANT]
-> Migration notice for v0.2.0: SEG will transition action definitions to a YAML-based DSL model. Path-based file specifications used by action parameters under `/v1/execute` are planned for deprecation in favor of `file_id`-based workflows aligned with `/v1/files`.
+SEG exposes `POST /v1/execute` for allowlisted execution operations and `/v1/files` as the exclusive API for file lifecycle management.
 
 ### Endpoints
 
@@ -352,28 +350,15 @@ Hosted API documentation is published at:
 
 - [https://libertocrat.github.io/seg/api-docs/](https://libertocrat.github.io/seg/api-docs/)
 
-### Example request
+### File management model
 
-Example request for `file_checksum`:
+All file creation, retrieval, listing, download, and deletion must be performed through `/v1/files`:
 
-```json
-{
-  "action": "file_checksum",
-  "params": {
-    "path": "uploads/file.bin",
-    "algorithm": "sha256"
-  }
-}
-```
-
-In this example:
-
-- `action` selects a registered action handler
-- `params` is validated against the action-specific schema
-- `path` must remain inside the configured sandbox and allowed subdirectories
-
-> [!NOTE]
-> The action example above reflects the current `/v1/execute` contract. For upcoming versions, SEG will standardize file references on `file_id` and deprecate path-based file references in action payloads.
+- upload file: `POST /v1/files`
+- get metadata: `GET /v1/files/{id}`
+- list files: `GET /v1/files`
+- download file content: `GET /v1/files/{id}/content`
+- delete file: `DELETE /v1/files/{id}`
 
 Example success response:
 
@@ -381,21 +366,16 @@ Example success response:
 {
   "success": true,
   "data": {
-    "algorithm": "sha256",
-    "checksum": "abc123...",
-    "size_bytes": 20480
+    "file": {
+      "id": "2f78b11a-3ac4-4d8f-91ab-3d2d7d2e4b10",
+      "name": "invoice.pdf",
+      "size_bytes": 20480,
+      "content_type": "application/pdf"
+    }
   },
   "error": null
 }
 ```
-
-Current file actions implemented in `src/seg/actions/file/` are:
-
-- `file_checksum`
-- `file_delete`
-- `file_mime_detect`
-- `file_move`
-- `file_verify`
 
 ## 9. Observability
 

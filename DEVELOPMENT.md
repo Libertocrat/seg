@@ -282,9 +282,6 @@ openssl rand -hex 32 > ./secrets/seg_api_token.txt
 # Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env.
 docker network create docker-network || true
 
-# Create and configure shared volume if it doesn't exist
-./scripts/init-shared-volume.sh --env-file .env
-
 docker compose up -d --build
 ```
 
@@ -296,7 +293,7 @@ docker compose ps
 ```
 
 > [!NOTE]
-> The shared volume workflow remains required for the current local stack. With the introduction of `/v1/files`, SEG is preparing a future migration to an internal dedicated storage volume and gradual deprecation of shared-volume file workflow assumptions.
+> The compose stack includes an ephemeral `seg-init` service that prepares ownership and permissions on `SEG_ROOT_DIR` before the `seg` service starts.
 
 ## 5. Dependency Sets
 
@@ -426,42 +423,7 @@ The repository includes developer utilities in `scripts/`.
 
 That directory has its own reference document in [scripts/README.md](scripts/README.md).
 
-### 9.1 Shared Docker Volume Initialization
-
-Script:
-
-`scripts/init-shared-volume.sh`
-
-Purpose:
-
-Prepare the Docker volume used by SEG as its shared filesystem sandbox.
-
-Responsibilities:
-
-- create the Docker volume if missing
-- enforce group ownership and `setgid` permissions
-- create configured sandbox subdirectories when needed
-
-Required variables:
-
-| Variable | Purpose |
-| --- | --- |
-| `SHARED_VOLUME_NAME` | Docker volume name |
-| `NON_ROOT_GID` | group ID that must own the sandbox path |
-| `SEG_ALLOWED_SUBDIRS` | allowed sandbox root or subdirectories |
-
-Example usage:
-
-```bash
-scripts/init-shared-volume.sh --env-file .env
-```
-
-The initializer prepares the mounted volume at `/data` inside its temporary helper container. In the SEG container, the same volume is mounted at `SEG_SANDBOX_DIR`, which defaults to `/data` in `.env.example` and can be changed in `.env`.
-
-> [!NOTE]
-> This shared-volume initialization flow remains valid for current releases. As `/v1/files` adoption consolidates, SEG plans to deprecate shared-volume client workflows and move to an internal dedicated storage volume model.
-
-### 9.2 SEG Local Port Forwarding
+### 9.1 SEG Local Port Forwarding
 
 Script:
 
@@ -504,7 +466,7 @@ http://localhost:<PORT>/health
 
 `PORT` is auto-assigned by default or can be set with `--local-port`.
 
-More details for both scripts are available in [scripts/README.md](scripts/README.md) and through each script's `--help` output.
+More details are available in [scripts/README.md](scripts/README.md) and through the script's `--help` output.
 
 ## 10. Developer Tools Architecture
 
@@ -516,10 +478,7 @@ Developer --> DockerCompose
 DockerCompose --> SEGContainer
 
 Developer --> DevTools
-DevTools --> InitVolume
 DevTools --> SegForward
-
-InitVolume --> DockerVolume
 SegForward --> SEGContainer
 ```
 
@@ -595,7 +554,6 @@ This forces `pipx` to recreate the isolated environment used by the Semgrep CLI.
 ### Inspect helper script usage
 
 ```bash
-scripts/init-shared-volume.sh --help
 scripts/seg-forward.sh --help
 ```
 

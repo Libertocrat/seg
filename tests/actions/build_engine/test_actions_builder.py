@@ -39,7 +39,6 @@ def _test_settings(
     return Settings.model_validate(
         {
             "seg_root_dir": "/tmp/seg-test",  # noqa: S108 -- fixed path for testing purposes
-            "seg_allowed_subdirs": "tmp",
             "seg_blocked_binaries_extra": blocked_extra,
         }
     )
