@@ -1,9 +1,9 @@
 """Unit tests for the SEG DSL specs loader.
 
 These tests freeze loader-layer invariants:
-- deterministic discovery of core `.yml` files only
+- deterministic discovery across ordered spec directories
 - strict parse behavior for malformed or invalid module files
-- conversion to `ModuleSpec` through structural validation only
+- security validation before YAML parsing
 - fail-fast semantics for bulk loading
 """
 
@@ -20,9 +20,11 @@ from seg.actions.build_engine.loader import (
     discover_spec_files,
     load_module_spec,
     load_module_specs,
+    validate_yaml_file_safety,
 )
 from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.schemas import ModuleSpec
+from seg.core.config import Settings
 
 # ============================================================================
 # Local fixtures and helpers
@@ -30,9 +32,36 @@ from seg.actions.schemas import ModuleSpec
 
 
 @pytest.fixture
-def specs_dir(tmp_path: Path) -> Path:
-    """Return an isolated specs directory for loader tests."""
-    path = tmp_path / "specs"
+def settings(tmp_path: Path) -> Settings:
+    """Return deterministic Settings for loader tests.
+
+    Args:
+        tmp_path: Per-test temporary directory.
+
+    Returns:
+        Settings object with deterministic root directory.
+    """
+
+    return Settings.model_validate(
+        {
+            "seg_root_dir": str(tmp_path),
+            "seg_max_yml_bytes": 512,
+        }
+    )
+
+
+@pytest.fixture
+def core_specs_dir(tmp_path: Path) -> Path:
+    """Return an isolated core specs directory for loader tests."""
+    path = tmp_path / "core-specs"
+    path.mkdir()
+    return path
+
+
+@pytest.fixture
+def user_specs_dir(tmp_path: Path) -> Path:
+    """Return an isolated user specs directory for loader tests."""
+    path = tmp_path / "user-specs"
     path.mkdir()
     return path
 
@@ -242,66 +271,75 @@ actions:
 # ============================================================================
 
 
-def test_discover_spec_files_returns_sorted_yml_files(specs_dir: Path):
+def test_discover_spec_files_returns_sorted_files_per_directory_order(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
+):
     """
-    GIVEN a directory with `.yml` files, other extensions, and subdirectories
+    GIVEN ordered core and user directories with mixed valid YAML extensions
     WHEN discover_spec_files is called
-    THEN only `.yml` files are returned in deterministic alphabetical order
+    THEN files are sorted by filename while preserving directory order
     """
-    (specs_dir / "zeta.yml").write_text("version: 1\n", encoding="utf-8")
-    (specs_dir / "alpha.yml").write_text("version: 1\n", encoding="utf-8")
-    (specs_dir / "ignored.yaml").write_text("version: 1\n", encoding="utf-8")
-    (specs_dir / "ignored.txt").write_text("hello\n", encoding="utf-8")
-    (specs_dir / "nested").mkdir()
+    (core_specs_dir / "zeta.yml").write_text("version: 1\n", encoding="utf-8")
+    (core_specs_dir / "alpha.yaml").write_text("version: 1\n", encoding="utf-8")
+    (user_specs_dir / "beta.yml").write_text("version: 1\n", encoding="utf-8")
 
-    discovered = discover_spec_files(specs_dir)
+    discovered = discover_spec_files([core_specs_dir, user_specs_dir])
 
-    assert [path.name for path in discovered] == ["alpha.yml", "zeta.yml"]
+    assert [path.name for path in discovered] == ["alpha.yaml", "zeta.yml", "beta.yml"]
 
 
-def test_discover_spec_files_returns_empty_list_when_no_yml_exists(specs_dir: Path):
+def test_discover_spec_files_skips_missing_directories(tmp_path: Path):
     """
-    GIVEN an existing directory with no `.yml` files
+    GIVEN an ordered list with missing spec directories
     WHEN discover_spec_files is called
     THEN an empty list is returned
     """
-    (specs_dir / "file.yaml").write_text("version: 1\n", encoding="utf-8")
-    (specs_dir / "notes.txt").write_text("hello\n", encoding="utf-8")
+    missing_one = tmp_path / "missing-one"
+    missing_two = tmp_path / "missing-two"
 
-    discovered = discover_spec_files(specs_dir)
+    discovered = discover_spec_files([missing_one, missing_two])
 
     assert discovered == []
 
 
-def test_discover_spec_files_raises_when_directory_is_missing(tmp_path: Path):
-    """
-    GIVEN a missing specs directory path
-    WHEN discover_spec_files is called
-    THEN ActionSpecsParseError is raised
-    """
-    missing = tmp_path / "missing-specs"
-
-    with pytest.raises(
-        ActionSpecsParseError,
-        match="Failed to discover DSL spec files",
-    ):
-        discover_spec_files(missing)
-
-
 def test_discover_spec_files_raises_when_path_is_not_directory(tmp_path: Path):
     """
-    GIVEN a path that exists as a regular file
+    GIVEN an existing path that is a regular file
     WHEN discover_spec_files is called
     THEN ActionSpecsParseError is raised
     """
     file_path = tmp_path / "not_a_directory"
     file_path.write_text("not-a-dir\n", encoding="utf-8")
 
+    with pytest.raises(ActionSpecsParseError, match="not a directory"):
+        discover_spec_files([file_path])
+
+
+def test_discover_spec_files_raises_when_subdirectory_exists(core_specs_dir: Path):
+    """
+    GIVEN a specs directory containing a nested subdirectory
+    WHEN discover_spec_files is called
+    THEN ActionSpecsParseError is raised
+    """
+    (core_specs_dir / "nested").mkdir()
+
     with pytest.raises(
-        ActionSpecsParseError,
-        match="Failed to discover DSL spec files",
+        ActionSpecsParseError, match="Nested directories are not allowed"
     ):
-        discover_spec_files(file_path)
+        discover_spec_files([core_specs_dir])
+
+
+def test_discover_spec_files_raises_when_invalid_extension_exists(core_specs_dir: Path):
+    """
+    GIVEN a specs directory containing a non-YAML file
+    WHEN discover_spec_files is called
+    THEN ActionSpecsParseError is raised
+    """
+    (core_specs_dir / "module.txt").write_text("bad\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="Invalid SEG DSL spec extension"):
+        discover_spec_files([core_specs_dir])
 
 
 # ============================================================================
@@ -310,7 +348,7 @@ def test_discover_spec_files_raises_when_path_is_not_directory(tmp_path: Path):
 
 
 def test_load_module_spec_returns_modulespec_for_valid_yml(
-    specs_dir: Path,
+    core_specs_dir: Path,
     make_module_payload,
 ):
     """
@@ -318,7 +356,7 @@ def test_load_module_spec_returns_modulespec_for_valid_yml(
     WHEN load_module_spec is called
     THEN a validated ModuleSpec instance is returned
     """
-    spec_file = specs_dir / "valid.yml"
+    spec_file = core_specs_dir / "valid.yml"
     write_yaml(spec_file, make_module_payload("checksum"))
 
     module = load_module_spec(spec_file)
@@ -327,26 +365,26 @@ def test_load_module_spec_returns_modulespec_for_valid_yml(
     assert module.module == "checksum"
 
 
-def test_load_module_spec_raises_for_invalid_yaml(specs_dir: Path):
+def test_load_module_spec_raises_for_invalid_yaml(core_specs_dir: Path):
     """
     GIVEN a `.yml` file with invalid YAML syntax
     WHEN load_module_spec is called
     THEN ActionSpecsParseError is raised with a masked path message
     """
-    spec_file = specs_dir / "invalid_yaml.yml"
+    spec_file = core_specs_dir / "invalid_yaml.yml"
     spec_file.write_text("module: [broken\n", encoding="utf-8")
 
-    with pytest.raises(ActionSpecsParseError, match="CORE/invalid_yaml.yml"):
+    with pytest.raises(ActionSpecsParseError, match="invalid_yaml.yml"):
         load_module_spec(spec_file)
 
 
-def test_load_module_spec_raises_for_empty_yaml(specs_dir: Path):
+def test_load_module_spec_raises_for_empty_yaml(core_specs_dir: Path):
     """
     GIVEN an empty YAML document
     WHEN load_module_spec is called
     THEN ActionSpecsParseError is raised
     """
-    spec_file = specs_dir / "empty.yml"
+    spec_file = core_specs_dir / "empty.yml"
     spec_file.write_text("# comments only\n", encoding="utf-8")
 
     with pytest.raises(ActionSpecsParseError, match="YAML document is empty"):
@@ -367,7 +405,7 @@ def test_load_module_spec_raises_for_empty_yaml(specs_dir: Path):
     ],
 )
 def test_load_module_spec_raises_when_yaml_root_is_not_mapping(
-    specs_dir: Path,
+    core_specs_dir: Path,
     yaml_content: str,
 ):
     """
@@ -375,7 +413,7 @@ def test_load_module_spec_raises_when_yaml_root_is_not_mapping(
     WHEN load_module_spec is called
     THEN ActionSpecsParseError is raised
     """
-    spec_file = specs_dir / "bad_root.yml"
+    spec_file = core_specs_dir / "bad_root.yml"
     spec_file.write_text(yaml_content, encoding="utf-8")
 
     with pytest.raises(ActionSpecsParseError, match="YAML root must be a mapping"):
@@ -383,14 +421,14 @@ def test_load_module_spec_raises_when_yaml_root_is_not_mapping(
 
 
 def test_load_module_spec_raises_when_modulespec_validation_fails(
-    specs_dir: Path,
+    core_specs_dir: Path,
 ):
     """
     GIVEN a YAML mapping that fails ModuleSpec structural validation
     WHEN load_module_spec is called
     THEN ActionSpecsParseError is raised
     """
-    spec_file = specs_dir / "invalid_schema.yml"
+    spec_file = core_specs_dir / "invalid_schema.yml"
     write_yaml(
         spec_file,
         {
@@ -401,7 +439,7 @@ def test_load_module_spec_raises_when_modulespec_validation_fails(
 
     with pytest.raises(
         ActionSpecsParseError,
-        match="Failed to validate DSL module 'CORE/invalid_schema.yml'",
+        match="invalid_schema.yml",
     ):
         load_module_spec(spec_file)
 
@@ -412,7 +450,7 @@ def test_load_module_spec_raises_when_modulespec_validation_fails(
 
 
 def test_load_module_spec_parses_realistic_yaml(
-    specs_dir: Path,
+    core_specs_dir: Path,
     valid_yaml_module_str: str,
 ):
     """
@@ -420,7 +458,7 @@ def test_load_module_spec_parses_realistic_yaml(
     WHEN load_module_spec is called
     THEN a valid ModuleSpec is returned preserving structure
     """
-    spec_file = specs_dir / "realistic.yml"
+    spec_file = core_specs_dir / "realistic.yml"
     write_yaml_str(spec_file, valid_yaml_module_str)
 
     module = load_module_spec(spec_file)
@@ -456,7 +494,7 @@ def test_load_module_spec_parses_realistic_yaml(
     ],
 )
 def test_load_module_spec_fails_on_invalid_yaml_variants(
-    specs_dir: Path,
+    core_specs_dir: Path,
     make_invalid_yaml,
     error_case: str,
 ):
@@ -474,7 +512,7 @@ def test_load_module_spec_fails_on_invalid_yaml_variants(
         "empty": {"empty": True},
     }
 
-    spec_file = specs_dir / f"{error_case}.yml"
+    spec_file = core_specs_dir / f"{error_case}.yml"
     write_yaml_str(spec_file, make_invalid_yaml(**kwargs_map[error_case]))
 
     with pytest.raises(ActionSpecsParseError):
@@ -482,56 +520,167 @@ def test_load_module_spec_fails_on_invalid_yaml_variants(
 
 
 # ============================================================================
+# validate_yaml_file_safety
+# ============================================================================
+
+
+def test_validate_yaml_file_safety_rejects_large_file(
+    core_specs_dir: Path,
+    settings: Settings,
+):
+    """
+    GIVEN a YAML file larger than seg_max_yml_bytes
+    WHEN validate_yaml_file_safety is called
+    THEN ActionSpecsParseError is raised
+    """
+    oversized = core_specs_dir / "big.yml"
+    oversized.write_text("a" * (settings.seg_max_yml_bytes + 1), encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="exceeds maximum allowed size"):
+        validate_yaml_file_safety(oversized, settings)
+
+
+def test_validate_yaml_file_safety_rejects_disallowed_control_chars(
+    core_specs_dir: Path,
+    settings: Settings,
+):
+    """
+    GIVEN a YAML file containing disallowed control characters
+    WHEN validate_yaml_file_safety is called
+    THEN ActionSpecsParseError is raised
+    """
+    bad = core_specs_dir / "control.yml"
+    bad.write_text("version: 1\nmodule: control\x01\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="disallowed control characters"):
+        validate_yaml_file_safety(bad, settings)
+
+
+def test_validate_yaml_file_safety_rejects_disallowed_yaml_patterns(
+    core_specs_dir: Path,
+    settings: Settings,
+):
+    """
+    GIVEN a YAML file containing a disallowed YAML tag pattern
+    WHEN validate_yaml_file_safety is called
+    THEN ActionSpecsParseError is raised
+    """
+    bad = core_specs_dir / "unsafe.yml"
+    bad.write_text("value: !!python/object/new:os.system\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="disallowed YAML pattern"):
+        validate_yaml_file_safety(bad, settings)
+
+
+# ============================================================================
 # load_module_specs
 # ============================================================================
 
 
-def test_load_module_specs_returns_all_valid_modules(
-    specs_dir: Path,
+def test_load_module_specs_loads_from_core_and_user_dirs(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
     make_module_payload,
-):
-    """
-    GIVEN multiple valid `.yml` files in one directory
-    WHEN load_module_specs is called
-    THEN all ModuleSpec objects are returned in deterministic file order
-    """
-    write_yaml(specs_dir / "a_first.yml", make_module_payload("first_mod"))
-    write_yaml(specs_dir / "b_second.yml", make_module_payload("second_mod"))
-
-    modules = load_module_specs(specs_dir)
-
-    assert [module.module for module in modules] == ["first_mod", "second_mod"]
-    assert all(isinstance(module, ModuleSpec) for module in modules)
-
-
-def test_load_module_specs_returns_empty_list_when_directory_has_no_yml(
-    specs_dir: Path,
-):
-    """
-    GIVEN an existing directory with no `.yml` files
-    WHEN load_module_specs is called
-    THEN an empty list is returned
-    """
-    (specs_dir / "ignored.yaml").write_text("version: 1\n", encoding="utf-8")
-
-    modules = load_module_specs(specs_dir)
-
-    assert modules == []
-
-
-def test_load_module_specs_fails_fast_on_first_invalid_file(
-    specs_dir: Path,
-    make_module_payload,
+    settings: Settings,
     monkeypatch,
 ):
     """
-    GIVEN multiple `.yml` files where the first discovered one is invalid
+    GIVEN core and user specs directories with valid modules
+    WHEN load_module_specs is called
+    THEN both modules are present in deterministic order
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+    monkeypatch.setattr(loader_module, "USER_SPECS_DIR", user_specs_dir)
+
+    write_yaml(core_specs_dir / "coremod.yml", make_module_payload("coremod"))
+    write_yaml(user_specs_dir / "usermod.yaml", make_module_payload("usermod"))
+
+    modules = load_module_specs([core_specs_dir, user_specs_dir], settings)
+
+    assert [module.module for module in modules] == ["coremod", "usermod"]
+    assert all(isinstance(module, ModuleSpec) for module in modules)
+
+
+def test_load_module_specs_rejects_duplicate_module_names(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+):
+    """
+    GIVEN core and user files declaring the same module name
+    WHEN load_module_specs is called
+    THEN ActionSpecsParseError is raised
+    """
+    write_yaml(core_specs_dir / "dup.yml", make_module_payload("dup"))
+    write_yaml(user_specs_dir / "dup.yaml", make_module_payload("dup"))
+
+    with pytest.raises(ActionSpecsParseError, match="Duplicate module name"):
+        load_module_specs([core_specs_dir, user_specs_dir], settings)
+
+
+def test_load_module_specs_rejects_filename_module_mismatch(
+    core_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+):
+    """
+    GIVEN a file whose stem does not match `module` field
+    WHEN load_module_specs is called
+    THEN ActionSpecsParseError is raised
+    """
+    write_yaml(core_specs_dir / "crypto.yml", make_module_payload("hashing"))
+
+    with pytest.raises(ActionSpecsParseError, match="Module name mismatch"):
+        load_module_specs([core_specs_dir], settings)
+
+
+def test_load_module_specs_rejects_invalid_extension(
+    core_specs_dir: Path,
+    settings: Settings,
+):
+    """
+    GIVEN a `.txt` file in specs directory
+    WHEN load_module_specs is called
+    THEN ActionSpecsParseError is raised
+    """
+    (core_specs_dir / "invalid.txt").write_text("version: 1\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="Invalid SEG DSL spec extension"):
+        load_module_specs([core_specs_dir], settings)
+
+
+def test_load_module_specs_rejects_subdirectory(
+    core_specs_dir: Path,
+    settings: Settings,
+):
+    """
+    GIVEN a nested directory inside specs directory
+    WHEN load_module_specs is called
+    THEN ActionSpecsParseError is raised
+    """
+    (core_specs_dir / "nested").mkdir()
+
+    with pytest.raises(
+        ActionSpecsParseError, match="Nested directories are not allowed"
+    ):
+        load_module_specs([core_specs_dir], settings)
+
+
+def test_load_module_specs_fails_fast_on_first_invalid_file(
+    core_specs_dir: Path,
+    make_module_payload,
+    monkeypatch,
+    settings: Settings,
+):
+    """
+    GIVEN discovered files where the first one is invalid
     WHEN load_module_specs is called
     THEN ActionSpecsParseError is raised and loading stops immediately
     """
-    invalid_file = specs_dir / "a_invalid.yml"
+    invalid_file = core_specs_dir / "a_invalid.yml"
     invalid_file.write_text("module: [broken\n", encoding="utf-8")
-    write_yaml(specs_dir / "b_valid.yml", make_module_payload("valid_mod"))
+    write_yaml(core_specs_dir / "b_valid.yml", make_module_payload("b_valid"))
 
     real_load_module_spec = loader_module.load_module_spec
     calls: list[str] = []
@@ -543,7 +692,7 @@ def test_load_module_specs_fails_fast_on_first_invalid_file(
 
     monkeypatch.setattr(loader_module, "load_module_spec", _tracking_load)
 
-    with pytest.raises(ActionSpecsParseError, match="CORE/a_invalid.yml"):
-        load_module_specs(specs_dir)
+    with pytest.raises(ActionSpecsParseError):
+        load_module_specs([core_specs_dir], settings)
 
     assert calls == ["a_invalid.yml"]

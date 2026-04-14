@@ -130,7 +130,7 @@ def clean_action_registry():
 
 
 @pytest.fixture
-def valid_registry(tmp_path):
+def valid_registry(tmp_path, monkeypatch):
     """Build a deterministic DSL runtime registry for tests.
 
     The fixture writes a minimal but valid SEG DSL module to a temporary
@@ -143,7 +143,7 @@ def valid_registry(tmp_path):
             ActionRegistry: Immutable registry with `test_runtime.ping` and
                     `test_runtime.repeat` actions.
     """
-    from seg.actions.registry import build_registry_from_specs
+    import seg.actions.registry as registry_module
 
     specs_dir = tmp_path / "specs"
     specs_dir.mkdir(parents=True, exist_ok=True)
@@ -213,7 +213,9 @@ actions:
         }
     )
 
-    return build_registry_from_specs(specs_dir, settings)
+    monkeypatch.setattr(registry_module, "SPEC_DIRS", (specs_dir,))
+
+    return registry_module.build_registry_from_specs(settings)
 
 
 # ============================================================================

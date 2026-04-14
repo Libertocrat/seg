@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import pytest
 
+import seg.actions.registry as registry_module
 from seg.actions.exceptions import ActionNotFoundError
 from seg.actions.models import ActionSpec
 from seg.actions.registry import ActionRegistry, build_registry_from_specs
@@ -22,7 +23,7 @@ from seg.core.config import Settings
 # ============================================================================
 
 
-def test_build_registry_from_specs_success(tmp_path):
+def test_build_registry_from_specs_success(tmp_path, monkeypatch):
     """
     GIVEN a minimal valid DSL module under a temporary specs directory
     WHEN build_registry_from_specs is called
@@ -56,7 +57,9 @@ actions:
         }
     )
 
-    registry = build_registry_from_specs(specs_dir, settings)
+    monkeypatch.setattr(registry_module, "SPEC_DIRS", (specs_dir,))
+
+    registry = build_registry_from_specs(settings)
 
     assert isinstance(registry, ActionRegistry)
     assert registry.has("sample.ping") is True

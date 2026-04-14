@@ -108,13 +108,12 @@ def sanitize_rel_path(user_path: str) -> str:
     return "/".join(parts)
 
 
-def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
-    """Resolve a user-supplied relative path under a configured sandbox.
+def resolve_in_sandbox(sandbox_dir: Path, rel_path: str) -> Path:
+    """Resolve a relative path under a configured sandbox.
 
     Args:
         sandbox_dir: The configured sandbox root directory.
-        user_path: Client-supplied relative path to resolve under the
-            sandbox directory.
+        rel_path: Relative path to resolve under the sandbox directory.
 
     Returns:
         A canonical `Path` representing the candidate path within the
@@ -130,7 +129,7 @@ def resolve_in_sandbox(sandbox_dir: Path, user_path: str) -> Path:
         Resolving a path and opening it later can introduce TOCTOU
         windows. For sensitive operations prefer `safe_open_no_follow`.
     """
-    rel = sanitize_rel_path(user_path)
+    rel = sanitize_rel_path(rel_path)
 
     # Ensure sandbox exists and is canonical
     try:
@@ -259,7 +258,7 @@ def validate_path(
     )
 
     # Resolve and validate the path under sandbox policies
-    resolved_path = resolve_in_sandbox(sandbox_dir=sandbox, user_path=user_path)
+    resolved_path = resolve_in_sandbox(sandbox_dir=sandbox, rel_path=user_path)
 
     # ------------------------------------------------------------------
     # Atomic open mode (mitigates TOCTOU for final component)

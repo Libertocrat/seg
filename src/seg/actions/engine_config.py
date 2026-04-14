@@ -1,0 +1,51 @@
+"""Internal configuration for the SEG actions engine.
+
+This module defines fixed, non-user-configurable parameters that control
+how the actions DSL is discovered, validated, and processed.
+
+These values are part of the system design and must remain deterministic.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+# ------------------------------------------------------------------
+# DSL SPEC DIRECTORIES
+# ------------------------------------------------------------------
+
+# Core specs directory (resolved dynamically relative to this module)
+CORE_SPECS_DIR: Path = Path(__file__).resolve().parent / "specs"
+
+# User-provided specs directory (mounted via Docker volume)
+USER_SPECS_DIR: Path = Path("/etc/seg/actions.d")
+
+# Ordered list of spec directories (deterministic loading order)
+SPEC_DIRS: tuple[Path, ...] = (
+    CORE_SPECS_DIR,
+    USER_SPECS_DIR,
+)
+
+# ------------------------------------------------------------------
+# DSL FILE VALIDATION CONSTANTS
+# ------------------------------------------------------------------
+
+# Allowed YAML file extensions
+ALLOWED_SPEC_EXTENSIONS: tuple[str, ...] = (".yml", ".yaml")
+
+# Allowed control characters inside YAML files
+# (others below ASCII 32 are rejected)
+ALLOWED_CONTROL_CHARS: tuple[str, ...] = ("\n", "\r", "\t")
+
+# Disallowed YAML patterns (defense-in-depth)
+DISALLOWED_YAML_PATTERNS: tuple[str, ...] = (
+    "!!python",
+    "!!binary",
+)
+
+# ------------------------------------------------------------------
+# ERROR MASKING LABELS
+# ------------------------------------------------------------------
+
+CORE_MASK_PREFIX = "CORE"
+USER_MASK_PREFIX = "USER"

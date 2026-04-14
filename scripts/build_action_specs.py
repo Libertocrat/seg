@@ -13,9 +13,15 @@ def main() -> None:
     """Load core SEG DSL specs and print a readable summary."""
 
     specs_dir = Path("src/seg/actions/specs")
+    settings = Settings.model_validate(
+        {
+            "seg_root_dir": "/tmp/seg",  # noqa: S108 -- fixed path for testing purposes
+            "seg_max_yml_bytes": 100 * 1024,
+        }
+    )
 
     try:
-        modules = load_module_specs(specs_dir)
+        modules = load_module_specs([specs_dir], settings)
     except Exception as e:
         print(f"Failed to load module specs: {e}")
         return
@@ -44,11 +50,6 @@ def main() -> None:
         print("Module validation failed")
 
     try:
-        settings = Settings.model_validate(
-            {
-                "seg_root_dir": "/tmp/seg",  # noqa: S108 -- fixed path for testing purposes
-            }
-        )
         compiled_actions = build_actions(modules, settings)
         print("\n=== COMPILED ACTIONS ===\n")
         for action_name, action_spec in compiled_actions.items():

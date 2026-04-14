@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from pathlib import Path
 
 from seg.actions.build_engine.builder import build_actions
 from seg.actions.build_engine.loader import load_module_specs
 from seg.actions.build_engine.validator import validate_modules
+from seg.actions.engine_config import SPEC_DIRS
 from seg.actions.exceptions import ActionNotFoundError
 from seg.actions.models import ActionSpec
 from seg.core.config import Settings, get_settings
@@ -48,13 +48,12 @@ class ActionRegistry:
 
 
 def build_registry_from_specs(
-    specs_dir: Path,
     settings: Settings | None = None,
 ) -> ActionRegistry:
     """Build an immutable runtime registry from DSL YAML specs."""
 
-    modules = load_module_specs(specs_dir)
-    validate_modules(modules)
     resolved_settings = settings or get_settings()
+    modules = load_module_specs(list(SPEC_DIRS), resolved_settings)
+    validate_modules(modules)
     actions = build_actions(modules, resolved_settings)
     return ActionRegistry(actions)
