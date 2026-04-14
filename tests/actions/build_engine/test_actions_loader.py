@@ -45,7 +45,7 @@ def settings(tmp_path: Path) -> Settings:
     return Settings.model_validate(
         {
             "seg_root_dir": str(tmp_path),
-            "seg_max_yml_size_bytes": 512,
+            "seg_max_yml_bytes": 512,
         }
     )
 
@@ -529,12 +529,12 @@ def test_validate_yaml_file_safety_rejects_large_file(
     settings: Settings,
 ):
     """
-    GIVEN a YAML file larger than seg_max_yml_size_bytes
+    GIVEN a YAML file larger than seg_max_yml_bytes
     WHEN validate_yaml_file_safety is called
     THEN ActionSpecsParseError is raised
     """
     oversized = core_specs_dir / "big.yml"
-    oversized.write_text("a" * (settings.seg_max_yml_size_bytes + 1), encoding="utf-8")
+    oversized.write_text("a" * (settings.seg_max_yml_bytes + 1), encoding="utf-8")
 
     with pytest.raises(ActionSpecsParseError, match="exceeds maximum allowed size"):
         validate_yaml_file_safety(oversized, settings)

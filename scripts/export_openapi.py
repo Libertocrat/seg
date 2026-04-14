@@ -55,6 +55,7 @@ def build_docs_settings() -> Settings:
         seg_root_dir="/var/lib/seg",
         seg_enable_docs=True,
         seg_max_bytes=1048576,
+        seg_max_yml_bytes=100 * 1024,
         seg_max_stdout_bytes=None,
         seg_max_stderr_bytes=None,
         seg_timeout_ms=5000,

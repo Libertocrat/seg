@@ -143,7 +143,7 @@ def validate_yaml_file_safety(path: Path, settings: Settings) -> None:
             f"Failed to stat DSL module '{masked_path}'"
         ) from exc
 
-    max_yml_size_bytes = getattr(settings, "seg_max_yml_size_bytes", 100 * 1024)
+    max_yml_size_bytes = getattr(settings, "seg_max_yml_bytes", 100 * 1024)
 
     if file_size > max_yml_size_bytes:
         logger.error("DSL module '%s' exceeds max allowed size", masked_path)
@@ -191,7 +191,6 @@ def validate_yaml_file_safety(path: Path, settings: Settings) -> None:
 
 def load_module_spec(path: Path) -> ModuleSpec:
     """Load one SEG DSL module file as a validated `ModuleSpec`.
-
 
     Args:
         path: Path to a YAML module definition file.
