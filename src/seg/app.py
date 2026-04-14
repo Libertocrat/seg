@@ -7,7 +7,6 @@ exported as `app` for use by ASGI servers (for example, uvicorn).
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -136,8 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
 
     try:
-        specs_dir = Path(__file__).resolve().parent / "actions" / "specs"
-        app.state.action_registry = build_registry_from_specs(specs_dir, settings)
+        app.state.action_registry = build_registry_from_specs(settings)
     except Exception as exc:
         raise RuntimeError("Failed to build action registry") from exc
 

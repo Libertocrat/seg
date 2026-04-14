@@ -114,6 +114,7 @@ class Settings(BaseSettings):
         seg_api_token: API token required for Bearer authentication.
         seg_root_dir: Root directory acting as the single SEG filesystem sandbox.
         seg_max_bytes: Maximum allowed bytes for file operations.
+        seg_max_yml_size_bytes: Maximum allowed bytes per DSL YAML spec file.
         seg_timeout_ms: Per-request timeout (milliseconds).
         seg_rate_limit_rps: Rate limit in requests-per-second.
         seg_log_level: Logging verbosity.
@@ -126,6 +127,7 @@ class Settings(BaseSettings):
     seg_api_token: str = Field("")
     seg_root_dir: str = Field("/var/lib/seg")
     seg_max_bytes: int = Field(104857600)
+    seg_max_yml_size_bytes: int = Field(100 * 1024)
     seg_max_stdout_bytes: int | None = Field(None)
     seg_max_stderr_bytes: int | None = Field(None)
     seg_timeout_ms: int = Field(5000)

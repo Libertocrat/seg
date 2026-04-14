@@ -49,6 +49,7 @@ def test_settings_defaults_applied(minimal_safe_env):
     s = Settings.model_validate({})
 
     assert s.seg_max_bytes == 104857600
+    assert s.seg_max_yml_size_bytes == 102400
     assert s.seg_timeout_ms == 5000
     assert s.seg_rate_limit_rps == 10
     assert s.seg_log_level == "INFO"
@@ -143,11 +144,13 @@ def test_missing_required_env_raises(minimal_safe_env, monkeypatch, missing_var)
     "env_field",
     [
         "SEG_MAX_BYTES",
+        "SEG_MAX_YML_SIZE_BYTES",
         "SEG_TIMEOUT_MS",
         "SEG_RATE_LIMIT_RPS",
     ],
     ids=[
         "seg_max_bytes",
+        "seg_max_yml_size_bytes",
         "seg_timeout_ms",
         "seg_rate_limit_rps",
     ],
