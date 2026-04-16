@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from seg.actions.models.runtime import ActionExecutionResult
-from seg.actions.runtime.output import (
+from seg.actions.runtime.sanitzer import (
     PATH_REDACTION,
     TRUNCATION_MARKER,
-    postprocess_output,
     sanitize_output,
+    transform_output,
     truncate_output,
 )
 
@@ -120,7 +120,7 @@ def test_postprocess_output_sets_truncated_flag_when_any_stream_is_truncated():
 
     result = _make_result(stdout=b"X" * 128, stderr=b"ok")
 
-    safe = postprocess_output(result, max_stdout=32, max_stderr=32)
+    safe = transform_output(result, max_stdout=32, max_stderr=32)
 
     assert safe.truncated is True
 
@@ -133,7 +133,7 @@ def test_redacted_only_when_path_present():
 
     result = _make_result(stdout=b"\x1b[31mhello\x1b[0m\r\n", stderr=b"\x00warn")
 
-    safe = postprocess_output(result, max_stdout=1024, max_stderr=1024)
+    safe = transform_output(result, max_stdout=1024, max_stderr=1024)
 
     assert safe.redacted is False
 
@@ -146,7 +146,7 @@ def test_redacted_when_path_present():
 
     result = _make_result(stdout=b"\x1b[31m/tmp/seg/secret.txt\x1b[0m", stderr=b"")
 
-    safe = postprocess_output(result, max_stdout=1024, max_stderr=1024)
+    safe = transform_output(result, max_stdout=1024, max_stderr=1024)
 
     assert safe.redacted is True
     assert PATH_REDACTION.encode("utf-8") in safe.stdout
@@ -174,7 +174,7 @@ def test_postprocess_output_processes_stdout_and_stderr_and_aggregates_flags():
         stderr=b"\x1b[31mERR\x1b[0m\x00",
     )
 
-    safe = postprocess_output(result, max_stdout=48, max_stderr=16)
+    safe = transform_output(result, max_stdout=48, max_stderr=16)
 
     assert safe.truncated is True
     assert safe.redacted is True
@@ -204,4 +204,4 @@ def test_postprocess_rejects_zero_limit(
     result = _make_result(stdout=b"ok", stderr=b"ok")
 
     with pytest.raises(ValueError, match=error_field):
-        postprocess_output(result, max_stdout=max_stdout, max_stderr=max_stderr)
+        transform_output(result, max_stdout=max_stdout, max_stderr=max_stderr)

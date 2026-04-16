@@ -20,10 +20,10 @@ from seg.actions.exceptions import (
     ActionRuntimeRenderError,
 )
 from seg.actions.registry import ActionRegistry
-from seg.actions.runtime.output import (
+from seg.actions.runtime.sanitzer import (
     DEFAULT_MAX_STDERR_BYTES,
     DEFAULT_MAX_STDOUT_BYTES,
-    postprocess_output,
+    transform_output,
 )
 from seg.core.config import Settings, get_settings
 from seg.core.errors import (
@@ -130,7 +130,7 @@ async def execute_action_handler(
     max_stdout = getattr(cfg, "seg_max_stdout_bytes", None) or DEFAULT_MAX_STDOUT_BYTES
     max_stderr = getattr(cfg, "seg_max_stderr_bytes", None) or DEFAULT_MAX_STDERR_BYTES
 
-    safe = postprocess_output(
+    safe = transform_output(
         result,
         max_stdout=max_stdout,
         max_stderr=max_stderr,
