@@ -74,7 +74,7 @@ async def upload_file_handler(
 
     hasher = hashlib.sha256()
     size_bytes = 0
-    max_bytes = cfg.seg_max_bytes
+    max_bytes = cfg.seg_max_file_bytes
     moved_to_blob = False
 
     try:

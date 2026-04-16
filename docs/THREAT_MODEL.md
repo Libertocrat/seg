@@ -194,10 +194,10 @@ Authentication coverage is as follows:
 
 ### Denial of service mitigations
 
-- `RequestIntegrityMiddleware` enforces request body size limits using `seg_max_bytes`.
+- `RequestIntegrityMiddleware` enforces request body size limits using `seg_max_file_bytes`.
 - `RateLimitMiddleware` applies a process-local token bucket using `seg_rate_limit_rps`.
 - `TimeoutMiddleware` aborts long running requests using `seg_timeout_ms`.
-- File actions such as checksum and MIME detection also check file size against `seg_max_bytes` before reading content.
+- File actions such as checksum and MIME detection also check file size against `seg_max_file_bytes` before reading content.
 
 ### Request smuggling mitigations
 

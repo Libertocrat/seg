@@ -808,7 +808,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     post["x-seg-integrity"] = {
         "content_type_required": "application/json",
-        "body_limit_bytes": getattr(app.state.settings, "seg_max_bytes", None),
+        "body_limit_bytes": getattr(app.state.settings, "seg_max_file_bytes", None),
         "enforced_by": "RequestIntegrityMiddleware",
     }
 
