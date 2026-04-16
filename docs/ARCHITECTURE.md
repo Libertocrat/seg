@@ -277,7 +277,7 @@ Required settings include:
 
 Validated runtime controls include:
 
-- `SEG_MAX_BYTES`
+- `SEG_MAX_FILE_BYTES`
 - `SEG_TIMEOUT_MS`
 - `SEG_RATE_LIMIT_RPS`
 - `SEG_APP_VERSION`

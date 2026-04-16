@@ -437,7 +437,7 @@ def test_files_upload_enforces_max_size_limit(
     THEN the request is rejected with FILE_TOO_LARGE behavior.
     """
 
-    app = create_upload_app(max_bytes=32)
+    app = create_upload_app(max_file_bytes=32)
 
     with TestClient(app) as client:
         response = client.post(

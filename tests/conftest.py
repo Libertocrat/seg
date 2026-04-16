@@ -354,7 +354,7 @@ def create_upload_app(
 
     Returns:
         Callable that builds a configured FastAPI app. Supports an optional
-        keyword argument `max_bytes` to override `SEG_MAX_BYTES`.
+        keyword argument `max_file_bytes` to override `SEG_MAX_FILE_BYTES`.
     """
 
     del minimal_safe_env  # fixture ensures baseline SEG env values
@@ -362,20 +362,20 @@ def create_upload_app(
     root_dir = tmp_path
     monkeypatch.setenv("SEG_ROOT_DIR", str(root_dir))
 
-    def _create(*, max_bytes: int | None = None):
+    def _create(*, max_file_bytes: int | None = None):
         """Create an application instance configured for upload-route testing.
 
         Args:
-            max_bytes: Optional SEG_MAX_BYTES override.
+            max_file_bytes: Optional SEG_MAX_FILE_BYTES override.
 
         Returns:
             Configured FastAPI app instance.
         """
 
-        if max_bytes is not None:
-            monkeypatch.setenv("SEG_MAX_BYTES", str(max_bytes))
+        if max_file_bytes is not None:
+            monkeypatch.setenv("SEG_MAX_FILE_BYTES", str(max_file_bytes))
         else:
-            monkeypatch.delenv("SEG_MAX_BYTES", raising=False)
+            monkeypatch.delenv("SEG_MAX_FILE_BYTES", raising=False)
 
         from seg.app import create_app
 

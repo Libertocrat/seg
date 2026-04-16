@@ -74,14 +74,14 @@ def low_max_bytes_settings(api_token, seg_root_dir) -> Settings:
         {
             "seg_api_token": api_token,
             "seg_root_dir": str(seg_root_dir),
-            "seg_max_bytes": 16,
+            "seg_max_file_bytes": 16,
         }
     )
 
 
 @pytest.fixture
 def low_max_bytes_app(low_max_bytes_settings):
-    """Create app configured with a small `seg_max_bytes` value.
+    """Create app configured with a small `seg_max_file_bytes` value.
 
     Args:
         low_max_bytes_settings: Settings fixture with strict body-size limit.
@@ -293,7 +293,7 @@ def test_invalid_content_length_is_rejected(low_max_bytes_client, auth_headers):
 
 def test_content_length_exceeding_limit_is_rejected(low_max_bytes_client, auth_headers):
     """
-    GIVEN a strict seg_max_bytes limit
+    GIVEN a strict seg_max_file_bytes limit
     WHEN Content-Length declares a value above the limit
     THEN middleware rejects with FILE_TOO_LARGE
     AND the seg_request_integrity_rejections_total metric is incremented

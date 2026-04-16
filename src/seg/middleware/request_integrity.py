@@ -12,9 +12,9 @@ Responsibilities:
   - Header integrity via raw headers (duplicate Authorization, whitespace in name,
     control chars in name/value)
   - Content-Type for POST /v1/execute (application/json base type required)
-  - Body size enforcement using seg_max_bytes:
-      - strict Content-Length parsing when present
-      - streaming enforcement when Content-Length is absent
+  - Body size enforcement using seg_max_file_bytes:
+    - Strict Content-Length parsing when present
+    - Streaming enforcement when Content-Length is absent
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class RequestIntegrityMiddleware:
     Args:
         app: The ASGI application to wrap.
         max_body_bytes: Optional explicit body size limit (falls back to
-            `seg_max_bytes`).
+            `seg_max_file_bytes`).
         content_type_policies: Optional collection of policies that restrict
             the allowed content types per method/path.
     """
@@ -423,7 +423,7 @@ class RequestIntegrityMiddleware:
         """Determine the allowed body size limit.
 
         Args:
-            app: ASGI application whose settings may contain `seg_max_bytes`.
+            app: ASGI application whose settings may contain `seg_max_file_bytes`.
             override: Optional explicit override.
 
         Returns:
@@ -434,7 +434,7 @@ class RequestIntegrityMiddleware:
             return override
 
         settings = getattr(getattr(app, "state", None), "settings", None)
-        configured = getattr(settings, "seg_max_bytes", None)
+        configured = getattr(settings, "seg_max_file_bytes", None)
         if isinstance(configured, int) and configured > 0:
             return configured
 

@@ -298,7 +298,7 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `SEG_MAX_BYTES` | Maximum allowed file size for file-based operations. | `104857600` |
+| `SEG_MAX_FILE_BYTES` | Maximum allowed file size for file-based operations. | `104857600` |
 | `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
 | `SEG_RATE_LIMIT_RPS` | Process-local request rate limit per client. | `10` |
 | `SEG_LOG_LEVEL` | Application log verbosity. | `INFO` |

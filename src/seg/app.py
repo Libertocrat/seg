@@ -146,7 +146,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(AuthMiddleware, api_token=settings.seg_api_token)
     app.add_middleware(
         RequestIntegrityMiddleware,
-        max_body_bytes=settings.seg_max_bytes,
+        max_body_bytes=settings.seg_max_file_bytes,
         content_type_policies=[
             ContentTypePolicy(
                 method="POST",
