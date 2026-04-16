@@ -70,7 +70,7 @@ def truncate_output(data: bytes, limit: int) -> tuple[bytes, bool]:
     return data[:keep] + TRUNCATION_MARKER, True
 
 
-def postprocess_output(
+def transform_output(
     result: ActionExecutionResult,
     *,
     max_stdout: int,
