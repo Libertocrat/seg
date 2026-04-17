@@ -770,27 +770,58 @@ def test_validate_modules_rejects_invalid_file_id_default(
 
 
 # ============================================================================
-# constraints
+# constraints: happy paths
 # ============================================================================
 
 
-def test_validate_modules_rejects_min_max_on_non_numeric_types(
+def test_validate_modules_accepts_valid_numeric_constraints(
     make_module_payload,
     make_action_payload,
     make_module_spec,
 ):
     """
-    GIVEN a non-numeric arg that defines min/max constraints
+    GIVEN a numeric arg with valid min/max constraints block
     WHEN validate_modules is called
-    THEN ActionSpecsParseError is raised
+    THEN validation succeeds
+    """
+    action = make_action_payload(
+        args={
+            "count": {
+                "type": "int",
+                "required": False,
+                "default": 2,
+                "constraints": {"min": 1, "max": 5},
+                "description": "count",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "count"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    validate_modules([module])
+
+
+def test_validate_modules_accepts_valid_string_constraints(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a string arg with valid constraints block
+    WHEN validate_modules is called
+    THEN validation succeeds
     """
     action = make_action_payload(
         args={
             "value": {
                 "type": "string",
                 "required": False,
-                "default": "abc",
-                "min": 1,
+                "default": "alpha",
+                "constraints": {
+                    "min_length": 1,
+                    "max_length": 10,
+                    "allowed_values": ["alpha", "beta"],
+                },
                 "description": "value",
             }
         },
@@ -798,20 +829,51 @@ def test_validate_modules_rejects_min_max_on_non_numeric_types(
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
-    with pytest.raises(
-        ActionSpecsParseError,
-        match="defines min/max but type 'string' is not numeric",
-    ):
-        validate_modules([module])
+    validate_modules([module])
 
 
-def test_validate_modules_rejects_max_size_on_non_file_id(
+def test_validate_modules_accepts_valid_file_constraints(
     make_module_payload,
     make_action_payload,
     make_module_spec,
 ):
     """
-    GIVEN a non-file_id arg that defines max_size
+    GIVEN a file_id arg with valid constraints block
+    WHEN validate_modules is called
+    THEN validation succeeds
+    """
+    action = make_action_payload(
+        args={
+            "file": {
+                "type": "file_id",
+                "required": True,
+                "constraints": {
+                    "max_size": 1024,
+                    "allowed_extensions": ["txt", "csv"],
+                    "allowed_mime_types": ["text/plain", "text/csv"],
+                },
+                "description": "file",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    validate_modules([module])
+
+
+# ============================================================================
+# constraints: rejection cases
+# ============================================================================
+
+
+def test_validate_modules_rejects_unknown_constraint_key(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an arg constraints block with an unsupported key
     WHEN validate_modules is called
     THEN ActionSpecsParseError is raised
     """
@@ -820,8 +882,8 @@ def test_validate_modules_rejects_max_size_on_non_file_id(
             "count": {
                 "type": "int",
                 "required": False,
-                "default": 1,
-                "max_size": 10,
+                "default": 2,
+                "constraints": {"max_length": 4},
                 "description": "count",
             }
         },
@@ -829,20 +891,17 @@ def test_validate_modules_rejects_max_size_on_non_file_id(
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
-    with pytest.raises(
-        ActionSpecsParseError,
-        match="defines max_size but type 'int' is not file_id",
-    ):
+    with pytest.raises(ActionSpecsParseError, match="unsupported constraint key"):
         validate_modules([module])
 
 
-def test_validate_modules_rejects_min_greater_than_max(
+def test_validate_modules_rejects_numeric_min_greater_than_max(
     make_module_payload,
     make_action_payload,
     make_module_spec,
 ):
     """
-    GIVEN a numeric arg whose min is greater than max
+    GIVEN a numeric arg whose constraints min is greater than max
     WHEN validate_modules is called
     THEN ActionSpecsParseError is raised
     """
@@ -852,8 +911,7 @@ def test_validate_modules_rejects_min_greater_than_max(
                 "type": "int",
                 "required": False,
                 "default": 5,
-                "min": 10,
-                "max": 1,
+                "constraints": {"min": 10, "max": 1},
                 "description": "count",
             }
         },
@@ -890,8 +948,8 @@ def test_validate_modules_rejects_non_integer_min_max_for_int(
         "required": False,
         "default": 5,
         "description": "count",
+        "constraints": constraints,
     }
-    arg_payload.update(constraints)
 
     action = make_action_payload(
         args={"count": arg_payload},
@@ -924,7 +982,7 @@ def test_validate_modules_rejects_non_positive_max_size(
             "file": {
                 "type": "file_id",
                 "required": True,
-                "max_size": max_size,
+                "constraints": {"max_size": max_size},
                 "description": "file id",
             }
         },
@@ -933,6 +991,113 @@ def test_validate_modules_rejects_non_positive_max_size(
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
     with pytest.raises(ActionSpecsParseError, match="max_size must be greater than 0"):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "constraints,error_message",
+    [
+        ({"allowed_values": []}, "allowed_values must be a non-empty list of strings"),
+        ({"allowed_values": ["a", "a"]}, "allowed_values must be unique"),
+    ],
+    ids=["empty_allowed_values", "duplicate_allowed_values"],
+)
+def test_validate_modules_rejects_invalid_string_allowed_values(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    constraints,
+    error_message: str,
+):
+    """
+    GIVEN a string arg with invalid allowed_values constraint
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "value": {
+                "type": "string",
+                "required": False,
+                "default": "a",
+                "constraints": constraints,
+                "description": "value",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "value"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match=error_message):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_invalid_file_allowed_mime_types(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a file_id arg with invalid mime-like constraints
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "file": {
+                "type": "file_id",
+                "required": True,
+                "constraints": {"allowed_mime_types": ["plain"]},
+                "description": "file",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(
+        ActionSpecsParseError,
+        match="allowed_mime_types must contain valid mime-like strings",
+    ):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "constraints,error_message",
+    [
+        ({"min_items": -1}, "min_items must be >= 0"),
+        ({"min_items": 5, "max_items": 2}, "max_items must be >= min_items"),
+        ({"max_items": -1}, "max_items must be > 0"),
+    ],
+    ids=["negative_min_items", "max_items_below_min_items", "negative_max_items"],
+)
+def test_validate_modules_rejects_invalid_list_constraints(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    constraints,
+    error_message: str,
+):
+    """
+    GIVEN a list arg with invalid min_items/max_items constraints
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "items": {
+                "type": "list",
+                "required": False,
+                "default": ["a"],
+                "constraints": constraints,
+                "description": "items",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "items"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match=error_message):
         validate_modules([module])
 
 

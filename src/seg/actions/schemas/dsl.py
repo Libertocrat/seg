@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from seg.actions.models import ParamType
 
@@ -12,14 +12,12 @@ from seg.actions.models import ParamType
 class ArgSpec(BaseModel):
     """Definition of an argument in the SEG DSL."""
 
+    model_config = ConfigDict(extra="forbid")
+
     type: ParamType
     required: Optional[bool] = False
     default: Optional[Any] = None
-
-    min: Optional[float] = None
-    max: Optional[float] = None
-
-    max_size: Optional[int] = None
+    constraints: Optional[dict[str, Any]] = None
 
     description: str
 

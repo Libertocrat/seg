@@ -201,8 +201,7 @@ def test_arg_defs_compiled_correctly(
                 "type": "int",
                 "required": False,
                 "default": 16,
-                "min": 1,
-                "max": 64,
+                "constraints": {"min": 1, "max": 64},
                 "description": "bytes count",
             }
         },
@@ -216,8 +215,7 @@ def test_arg_defs_compiled_correctly(
     assert arg_def.type == ParamType.INT
     assert arg_def.required is False
     assert arg_def.default == 16
-    assert arg_def.min == 1
-    assert arg_def.max == 64
+    assert arg_def.constraints == {"min": 1, "max": 64}
 
 
 # ============================================================================

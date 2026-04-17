@@ -23,7 +23,8 @@ actions:
         required: true
         description: "ID of the file to compute the checksum for"
 
-        max_size: 1048576 # 1 MB
+        constraints:
+          max_size: 1048576 # 1 MB
 
     flags:
       binary_output:
@@ -46,7 +47,8 @@ actions:
         required: true
         description: "ID of the file to compute the checksum for"
 
-        max_size: 1048576 # 1 MB
+        constraints:
+          max_size: 1048576 # 1 MB
 
     flags:
       binary_output:
@@ -70,7 +72,8 @@ actions:
         required: true
         description: "ID of the file to compute the checksum for"
 
-        max_size: 1048576 # 1 MB
+        constraints:
+          max_size: 1048576 # 1 MB
 
     flags:
       binary_output:

@@ -20,7 +20,7 @@ import csv
 import logging
 import re
 import unicodedata
-from typing import NoReturn
+from typing import Any, NoReturn, cast
 from uuid import UUID
 
 from seg.actions.exceptions import ActionSpecsParseError
@@ -33,16 +33,19 @@ from seg.actions.security.policy import DEFAULT_BLOCKED_BINARIES, is_simple_bina
 logger = logging.getLogger("seg.actions.build_engine.validator")
 
 _NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+_MIME_LIKE_PATTERN = re.compile(
+    r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+)
 
 
 def validate_modules(modules: list[ModuleSpec]) -> None:
     """Validate parsed SEG DSL modules for semantic correctness.
 
     Args:
-            modules: Parsed and structurally validated module specifications.
+        modules: Parsed and structurally validated module specifications.
 
     Raises:
-            ActionSpecsParseError: If any semantic validation rule is violated.
+        ActionSpecsParseError: If any semantic validation rule is violated.
     """
 
     _validate_unique_module_names(modules)
@@ -55,10 +58,10 @@ def _validate_unique_module_names(modules: list[ModuleSpec]) -> None:
     """Ensure module names are unique across the input collection.
 
     Args:
-            modules: Parsed module specifications.
+        modules: Parsed module specifications.
 
     Raises:
-            ActionSpecsParseError: If the same module name appears more than once.
+        ActionSpecsParseError: If the same module name appears more than once.
     """
 
     seen: set[str] = set()
@@ -76,10 +79,10 @@ def _validate_module(module: ModuleSpec) -> None:
     """Validate one SEG DSL module.
 
     Args:
-            module: Parsed module specification.
+        module: Parsed module specification.
 
     Raises:
-            ActionSpecsParseError: If any module-level or action-level rule fails.
+        ActionSpecsParseError: If any module-level or action-level rule fails.
     """
 
     _validate_module_version(module)
@@ -100,10 +103,10 @@ def _validate_module_has_actions(module: ModuleSpec) -> None:
     """Ensure a module declares at least one action.
 
     Args:
-            module: Module specification to validate.
+        module: Module specification to validate.
 
     Raises:
-            ActionSpecsParseError: If the module action mapping is empty.
+        ActionSpecsParseError: If the module action mapping is empty.
     """
 
     if not module.actions:
@@ -131,10 +134,10 @@ def _validate_module_binaries(module: ModuleSpec) -> None:
     """Ensure module-level binary declarations are unique.
 
     Args:
-            module: Module specification to validate.
+        module: Module specification to validate.
 
     Raises:
-            ActionSpecsParseError: If duplicate binaries are declared.
+        ActionSpecsParseError: If duplicate binaries are declared.
     """
 
     if not module.binaries:
@@ -171,11 +174,11 @@ def _validate_module_tags(module: ModuleSpec) -> None:
     """Validate optional module tags as a non-empty CSV string.
 
     Args:
-            module: Module specification to validate.
+        module: Module specification to validate.
 
     Raises:
-            ActionSpecsParseError: If the tags field is blank or contains empty
-                    CSV tokens.
+        ActionSpecsParseError: If the tags field is blank or contains empty
+                CSV tokens.
     """
 
     if module.tags is None:
@@ -211,12 +214,12 @@ def _validate_action(
     """Validate one action definition inside a module.
 
     Args:
-            module: Parent module specification.
-            action_name: Action name as declared in the module mapping.
-            action: Parsed action specification.
+        module: Parent module specification.
+        action_name: Action name as declared in the module mapping.
+        action: Parsed action specification.
 
     Raises:
-            ActionSpecsParseError: If the action is semantically invalid.
+        ActionSpecsParseError: If the action is semantically invalid.
     """
 
     _validate_identifier(
@@ -244,12 +247,12 @@ def _validate_command_exists(
     """Ensure the action command list is not empty.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If the command list is empty.
+        ActionSpecsParseError: If the command list is empty.
     """
 
     if not action.command:
@@ -264,12 +267,12 @@ def _validate_name_collisions(
     """Ensure action arg and flag names do not overlap.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If an arg name collides with a flag name.
+        ActionSpecsParseError: If an arg name collides with a flag name.
     """
 
     arg_names = set((action.args or {}).keys())
@@ -293,12 +296,12 @@ def _validate_argument_names(
     """Validate all argument names for one action.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If an arg name violates identifier rules.
+        ActionSpecsParseError: If an arg name violates identifier rules.
     """
 
     for arg_name in (action.args or {}).keys():
@@ -318,12 +321,12 @@ def _validate_flag_names(
     """Validate all flag names for one action.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If a flag name violates identifier rules.
+        ActionSpecsParseError: If a flag name violates identifier rules.
     """
 
     for flag_name in (action.flags or {}).keys():
@@ -343,12 +346,12 @@ def _validate_binary_rules(
     """Validate binary token presence, position, and module allowlist.
 
     Args:
-            module: Parent module specification.
-            action_name: Action name.
-            action: Action specification.
+        module: Parent module specification.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If the command violates binary token rules.
+        ActionSpecsParseError: If the command violates binary token rules.
     """
 
     binary_positions = [
@@ -402,13 +405,13 @@ def _validate_command_elements(
     """Validate the types and literal values of command elements.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If a command element is unsupported or an
-                    inline string literal is unsafe.
+        ActionSpecsParseError: If a command element is unsupported or an
+                inline string literal is unsafe.
     """
 
     for element in action.command:
@@ -434,13 +437,13 @@ def _validate_command_literal(
     """Validate one inline string literal inside a command template.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            literal: Literal command token.
+        module_name: Parent module name.
+        action_name: Action name.
+        literal: Literal command token.
 
     Raises:
-            ActionSpecsParseError: If the literal is empty, blank, or contains
-                    control characters.
+        ActionSpecsParseError: If the literal is empty, blank, or contains
+                control characters.
     """
 
     if literal == "":
@@ -480,13 +483,13 @@ def _validate_command_references(
     """Ensure all command arg/flag references resolve to declared definitions.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If a command references an undefined arg or
-                    flag.
+        ActionSpecsParseError: If a command references an undefined arg or
+                flag.
     """
 
     args = action.args or {}
@@ -516,12 +519,12 @@ def _validate_unused_definitions(
     """Ensure all declared args and flags are used by the command template.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If any declared arg or flag is unused.
+        ActionSpecsParseError: If any declared arg or flag is unused.
     """
 
     used_args = {
@@ -556,12 +559,12 @@ def _validate_args(
     """Validate semantic rules for all action arguments.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If any argument rule is violated.
+        ActionSpecsParseError: If any argument rule is violated.
     """
 
     for arg_name, arg_spec in (action.args or {}).items():
@@ -584,14 +587,14 @@ def _validate_arg_required_default_rules(
     """Validate the relationship between `required` and `default`.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            arg_name: Argument name.
-            arg_spec: Argument definition.
+        module_name: Parent module name.
+        action_name: Action name.
+        arg_name: Argument name.
+        arg_spec: Argument definition.
 
     Raises:
-            ActionSpecsParseError: If `required` is invalid, if a required arg also
-                    defines a default, or if an optional arg omits its default.
+        ActionSpecsParseError: If `required` is invalid, if a required arg also
+                defines a default, or if an optional arg omits its default.
     """
 
     required = arg_spec.required
@@ -621,14 +624,14 @@ def _validate_arg_default(
     """Validate an argument default against its declared DSL type.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            arg_name: Argument name.
-            arg_spec: Argument definition.
+        module_name: Parent module name.
+        action_name: Action name.
+        arg_name: Argument name.
+        arg_spec: Argument definition.
 
     Raises:
-            ActionSpecsParseError: If a provided default value is incompatible with
-                    the declared parameter type.
+        ActionSpecsParseError: If a provided default value is incompatible with
+                the declared parameter type.
     """
 
     if "default" not in arg_spec.model_fields_set:
@@ -648,6 +651,8 @@ def _validate_arg_default(
         is_valid = isinstance(default, str)
     elif param_type == ParamType.FILE_ID:
         is_valid = isinstance(default, str) and _is_uuid4(default)
+    elif param_type == ParamType.LIST:
+        is_valid = isinstance(default, list)
 
     if not is_valid:
         _raise_action_error(
@@ -664,104 +669,302 @@ def _validate_arg_constraints(
     arg_name: str,
     arg_spec: ArgSpec,
 ) -> None:
-    """Validate type-specific argument constraint fields.
+    """Validate the `constraints` block for one argument.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            arg_name: Argument name.
-            arg_spec: Argument definition.
+        module_name: Parent module name.
+        action_name: Action name.
+        arg_name: Argument name.
+        arg_spec: Argument definition.
 
     Raises:
-            ActionSpecsParseError: If type-restricted constraints are misused or
-                    numeric constraint values are invalid.
+        ActionSpecsParseError: If constraints are invalid for the declared
+                argument type.
     """
 
-    has_min = "min" in arg_spec.model_fields_set
-    has_max = "max" in arg_spec.model_fields_set
-    has_max_size = "max_size" in arg_spec.model_fields_set
+    try:
+        validate_constraints(
+            arg_name=arg_name,
+            arg_type=arg_spec.type,
+            constraints=arg_spec.constraints,
+        )
+    except ValueError as exc:
+        _raise_action_error(module_name, action_name, str(exc))
 
-    if arg_spec.type not in {ParamType.INT, ParamType.FLOAT} and (has_min or has_max):
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' defines min/max but type '{arg_spec.type.value}' "
-            "is not numeric",
+
+def validate_constraints(
+    arg_name: str,
+    arg_type: ParamType,
+    constraints: dict[str, Any] | None,
+) -> None:
+    """Validate one argument constraints block by parameter type.
+
+    Args:
+        arg_name: Argument name.
+        arg_type: Declared argument type.
+        constraints: Raw constraints mapping, if provided.
+
+    Raises:
+        ValueError: If any constraint rule is invalid.
+    """
+
+    if constraints is None:
+        return
+
+    if not isinstance(constraints, dict):
+        raise ValueError(f"arg '{arg_name}' constraints must be a mapping")
+
+    allowed_keys = _allowed_constraint_keys(arg_type)
+    unknown_keys = sorted(key for key in constraints if key not in allowed_keys)
+    if unknown_keys:
+        unknown_display = ", ".join(unknown_keys)
+        raise ValueError(
+            f"arg '{arg_name}' has unsupported constraint key(s): {unknown_display} "
+            f"for type '{arg_type.value}'"
         )
 
-    if arg_spec.type != ParamType.FILE_ID and has_max_size:
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' defines max_size but type "
-            f"'{arg_spec.type.value}' is not file_id",
+    if arg_type == ParamType.INT:
+        _validate_numeric_constraints(
+            arg_name,
+            constraints,
+            require_integer_bounds=True,
+        )
+        return
+
+    if arg_type == ParamType.FLOAT:
+        _validate_numeric_constraints(
+            arg_name,
+            constraints,
+            require_integer_bounds=False,
+        )
+        return
+
+    if arg_type == ParamType.STRING:
+        _validate_string_constraints(arg_name, constraints)
+        return
+
+    if arg_type == ParamType.FILE_ID:
+        _validate_file_constraints(arg_name, constraints)
+        return
+
+    if arg_type == ParamType.LIST:
+        _validate_list_constraints(arg_name, constraints)
+        return
+
+    if constraints:
+        raise ValueError(
+            f"arg '{arg_name}' constraints are not supported for type "
+            f"'{arg_type.value}'"
         )
 
-    if has_min and arg_spec.min is None:
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' min constraint must be a number",
-        )
 
-    if has_max and arg_spec.max is None:
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' max constraint must be a number",
-        )
+def _allowed_constraint_keys(arg_type: ParamType) -> set[str]:
+    """Return the allowed constraint keys for one parameter type.
 
-    if has_max_size and arg_spec.max_size is None:
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' max_size constraint must be an integer",
-        )
+    Args:
+        arg_type: Declared argument type.
 
-    if arg_spec.type == ParamType.FILE_ID and has_max_size:
-        max_size = arg_spec.max_size
-        if max_size is not None and max_size <= 0:
-            _raise_action_error(
-                module_name,
-                action_name,
-                f"arg '{arg_name}' max_size must be greater than 0",
-            )
+    Returns:
+        Set of valid constraint keys.
+    """
 
-    if arg_spec.type == ParamType.INT:
-        if (
-            has_min
-            and arg_spec.min is not None
-            and not float(arg_spec.min).is_integer()
-        ):
-            _raise_action_error(
-                module_name,
-                action_name,
-                f"arg '{arg_name}' min must be an integer value",
-            )
+    if arg_type in {ParamType.INT, ParamType.FLOAT}:
+        return {"min", "max"}
+    if arg_type == ParamType.STRING:
+        return {"min_length", "max_length", "allowed_values"}
+    if arg_type == ParamType.FILE_ID:
+        return {"max_size", "allowed_extensions", "allowed_mime_types"}
+    if arg_type == ParamType.LIST:
+        return {"min_items", "max_items"}
+    return set()
 
-        if (
-            has_max
-            and arg_spec.max is not None
-            and not float(arg_spec.max).is_integer()
-        ):
-            _raise_action_error(
-                module_name,
-                action_name,
-                f"arg '{arg_name}' max must be an integer value",
-            )
+
+def _validate_numeric_constraints(
+    arg_name: str,
+    constraints: dict[str, Any],
+    *,
+    require_integer_bounds: bool,
+) -> None:
+    """Validate numeric constraints.
+
+    Args:
+        arg_name: Argument name.
+        constraints: Constraints dictionary.
+        require_integer_bounds: Whether constraints must be integer-valued.
+
+    Raises:
+        ValueError: If constraints are not valid numeric bounds.
+    """
+
+    min_value = constraints.get("min")
+    max_value = constraints.get("max")
+    numeric_min: float | None = None
+    numeric_max: float | None = None
+
+    if "min" in constraints:
+        if not _is_numeric(min_value):
+            raise ValueError(f"arg '{arg_name}' min constraint must be a number")
+        numeric_min = float(cast(float, min_value))
+
+    if "max" in constraints:
+        if not _is_numeric(max_value):
+            raise ValueError(f"arg '{arg_name}' max constraint must be a number")
+        numeric_max = float(cast(float, max_value))
 
     if (
-        has_min
-        and has_max
-        and arg_spec.min is not None
-        and arg_spec.max is not None
-        and arg_spec.min > arg_spec.max
+        require_integer_bounds
+        and numeric_min is not None
+        and not numeric_min.is_integer()
     ):
-        _raise_action_error(
-            module_name,
-            action_name,
-            f"arg '{arg_name}' has min greater than max",
-        )
+        raise ValueError(f"arg '{arg_name}' min must be an integer value")
+
+    if (
+        require_integer_bounds
+        and numeric_max is not None
+        and not numeric_max.is_integer()
+    ):
+        raise ValueError(f"arg '{arg_name}' max must be an integer value")
+
+    if (
+        numeric_min is not None
+        and numeric_max is not None
+        and numeric_min > numeric_max
+    ):
+        raise ValueError(f"arg '{arg_name}' has min greater than max")
+
+
+def _validate_string_constraints(arg_name: str, constraints: dict[str, Any]) -> None:
+    """Validate string-specific constraints.
+
+    Args:
+        arg_name: Argument name.
+        constraints: Constraints dictionary.
+
+    Raises:
+        ValueError: If constraints are invalid.
+    """
+
+    min_length = constraints.get("min_length")
+    max_length = constraints.get("max_length")
+    allowed_values = constraints.get("allowed_values")
+    validated_min_length: int | None = None
+
+    if "min_length" in constraints:
+        if type(min_length) is not int:
+            raise ValueError(f"arg '{arg_name}' min_length must be an integer")
+        validated_min_length = min_length
+        if min_length < 0:
+            raise ValueError(f"arg '{arg_name}' min_length must be >= 0")
+
+    if "max_length" in constraints:
+        if type(max_length) is not int:
+            raise ValueError(f"arg '{arg_name}' max_length must be an integer")
+        if max_length <= 0:
+            raise ValueError(f"arg '{arg_name}' max_length must be > 0")
+        if validated_min_length is not None and max_length < validated_min_length:
+            raise ValueError(f"arg '{arg_name}' max_length must be >= min_length")
+
+    if "allowed_values" in constraints:
+        if not isinstance(allowed_values, list) or len(allowed_values) == 0:
+            raise ValueError(
+                f"arg '{arg_name}' allowed_values must be a non-empty list of strings"
+            )
+        if not all(isinstance(item, str) for item in allowed_values):
+            raise ValueError(
+                f"arg '{arg_name}' allowed_values must be a non-empty list of strings"
+            )
+        if len(set(allowed_values)) != len(allowed_values):
+            raise ValueError(f"arg '{arg_name}' allowed_values must be unique")
+
+
+def _validate_file_constraints(arg_name: str, constraints: dict[str, Any]) -> None:
+    """Validate file-specific constraints.
+
+    Args:
+        arg_name: Argument name.
+        constraints: Constraints dictionary.
+
+    Raises:
+        ValueError: If constraints are invalid.
+    """
+
+    max_size = constraints.get("max_size")
+    allowed_extensions = constraints.get("allowed_extensions")
+    allowed_mime_types = constraints.get("allowed_mime_types")
+
+    if "max_size" in constraints:
+        if type(max_size) is not int:
+            raise ValueError(f"arg '{arg_name}' max_size constraint must be an integer")
+        if max_size <= 0:
+            raise ValueError(f"arg '{arg_name}' max_size must be greater than 0")
+
+    if "allowed_extensions" in constraints:
+        if not isinstance(allowed_extensions, list) or not all(
+            isinstance(item, str) for item in allowed_extensions
+        ):
+            raise ValueError(
+                f"arg '{arg_name}' allowed_extensions must be a list of strings"
+            )
+
+    if "allowed_mime_types" in constraints:
+        if not isinstance(allowed_mime_types, list) or not all(
+            isinstance(item, str) for item in allowed_mime_types
+        ):
+            raise ValueError(
+                f"arg '{arg_name}' allowed_mime_types must be a list of strings"
+            )
+        if not all(
+            _MIME_LIKE_PATTERN.fullmatch(item.strip().lower())
+            for item in allowed_mime_types
+        ):
+            raise ValueError(
+                f"arg '{arg_name}' allowed_mime_types must contain valid "
+                "mime-like strings"
+            )
+
+
+def _validate_list_constraints(arg_name: str, constraints: dict[str, Any]) -> None:
+    """Validate list-specific constraints.
+
+    Args:
+        arg_name: Argument name.
+        constraints: Constraints dictionary.
+
+    Raises:
+        ValueError: If constraints are invalid.
+    """
+
+    min_items = constraints.get("min_items")
+    max_items = constraints.get("max_items")
+    validated_min_items: int | None = None
+
+    if "min_items" in constraints:
+        if type(min_items) is not int:
+            raise ValueError(f"arg '{arg_name}' min_items must be an integer")
+        validated_min_items = min_items
+        if min_items < 0:
+            raise ValueError(f"arg '{arg_name}' min_items must be >= 0")
+
+    if "max_items" in constraints:
+        if type(max_items) is not int:
+            raise ValueError(f"arg '{arg_name}' max_items must be an integer")
+        if max_items <= 0:
+            raise ValueError(f"arg '{arg_name}' max_items must be > 0")
+        if validated_min_items is not None and max_items < validated_min_items:
+            raise ValueError(f"arg '{arg_name}' max_items must be >= min_items")
+
+
+def _is_numeric(value: Any) -> bool:
+    """Return whether a value is numeric while excluding booleans.
+
+    Args:
+        value: Value to inspect.
+
+    Returns:
+        True when value is `int` or `float` and not `bool`.
+    """
+
+    return type(value) in {int, float}
 
 
 def _validate_flags(
@@ -772,12 +975,12 @@ def _validate_flags(
     """Validate semantic rules for all action flags.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            action: Action specification.
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
 
     Raises:
-            ActionSpecsParseError: If any flag rule is violated.
+        ActionSpecsParseError: If any flag rule is violated.
     """
 
     for flag_name, flag_spec in (action.flags or {}).items():
@@ -793,13 +996,13 @@ def _validate_flag_value(
     """Validate the literal command value associated with one flag.
 
     Args:
-            module_name: Parent module name.
-            action_name: Action name.
-            flag_name: Flag name.
-            flag_spec: Flag definition.
+        module_name: Parent module name.
+        action_name: Action name.
+        flag_name: Flag name.
+        flag_spec: Flag definition.
 
     Raises:
-            ActionSpecsParseError: If the flag literal value is empty or blank.
+        ActionSpecsParseError: If the flag literal value is empty or blank.
     """
 
     if flag_spec.value == "":
@@ -840,15 +1043,15 @@ def _validate_identifier(
     """Validate an identifier against the SEG DSL naming regex.
 
     Args:
-            module_name: Current module name.
-            identifier_kind: Human-readable identifier kind such as `module`,
-                    `action`, `arg`, or `flag`.
-            identifier_value: Identifier value to validate.
-            action_name: Optional action context for arg/flag validation.
+        module_name: Current module name.
+        identifier_kind: Human-readable identifier kind such as `module`,
+                `action`, `arg`, or `flag`.
+        identifier_value: Identifier value to validate.
+        action_name: Optional action context for arg/flag validation.
 
     Raises:
-            ActionSpecsParseError: If the identifier does not match the naming
-                    pattern `^[a-z][a-z0-9_]*$`.
+        ActionSpecsParseError: If the identifier does not match the naming
+                pattern `^[a-z][a-z0-9_]*$`.
     """
 
     if _NAME_PATTERN.fullmatch(identifier_value):
@@ -868,10 +1071,10 @@ def _contains_control_characters(value: str) -> bool:
     """Return whether a string contains Unicode control characters.
 
     Args:
-            value: String to inspect.
+        value: String to inspect.
 
     Returns:
-            True if the string contains any control character, otherwise False.
+        True if the string contains any control character, otherwise False.
     """
 
     return any(unicodedata.category(char).startswith("C") for char in value)
@@ -881,11 +1084,11 @@ def _is_int_compatible(value: object) -> bool:
     """Return whether a value is valid for an `int` DSL default.
 
     Args:
-            value: Value to inspect.
+        value: Value to inspect.
 
     Returns:
-            True when the value is an `int` or an integer-valued `float`, while
-            excluding `bool`.
+        True when the value is an `int` or an integer-valued `float`, while
+        excluding `bool`.
     """
 
     return type(value) is int or (type(value) is float and value.is_integer())
@@ -895,10 +1098,10 @@ def _is_float_compatible(value: object) -> bool:
     """Return whether a value is valid for a `float` DSL default.
 
     Args:
-            value: Value to inspect.
+        value: Value to inspect.
 
     Returns:
-            True when the value is an `int` or `float`, while excluding `bool`.
+        True when the value is an `int` or `float`, while excluding `bool`.
     """
 
     return type(value) in {int, float}
@@ -908,10 +1111,10 @@ def _is_uuid4(value: str) -> bool:
     """Return whether a string is a valid UUID version 4.
 
     Args:
-            value: Candidate UUID string.
+        value: Candidate UUID string.
 
     Returns:
-            True if the value parses as a UUID v4, otherwise False.
+        True if the value parses as a UUID v4, otherwise False.
     """
 
     try:
@@ -925,11 +1128,11 @@ def _raise_module_error(module_name: str, message: str) -> NoReturn:
     """Raise a module-scoped semantic validation error.
 
     Args:
-            module_name: Module name to include in the error.
-            message: Human-readable failure detail.
+        module_name: Module name to include in the error.
+        message: Human-readable failure detail.
 
     Raises:
-            ActionSpecsParseError: Always.
+        ActionSpecsParseError: Always.
     """
 
     full_message = f"Invalid DSL module '{module_name}': {message}"
@@ -941,12 +1144,12 @@ def _raise_action_error(module_name: str, action_name: str, message: str) -> NoR
     """Raise an action-scoped semantic validation error.
 
     Args:
-            module_name: Module name to include in the error.
-            action_name: Action name to include in the error.
-            message: Human-readable failure detail.
+        module_name: Module name to include in the error.
+        action_name: Action name to include in the error.
+        message: Human-readable failure detail.
 
     Raises:
-            ActionSpecsParseError: Always.
+        ActionSpecsParseError: Always.
     """
 
     _raise_module_error(module_name, f"{message} in action '{action_name}'")

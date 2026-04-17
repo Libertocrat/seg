@@ -305,6 +305,50 @@ def test_render_command__accepts_valid_string():
     assert render_command(spec, {"value": "hello-world"}) == ["echo", "hello-world"]
 
 
+def test_render_command__enforces_string_min_length():
+    """
+    GIVEN a string argument with min_length constraint
+    WHEN value length is below min_length
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "value": ArgDef(
+                type=ParamType.STRING,
+                required=True,
+                constraints={"min_length": 3},
+                description="value",
+            )
+        }
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="length >= 3"):
+        render_command(spec, {"value": "ab"})
+
+
+def test_render_command__enforces_string_allowed_values():
+    """
+    GIVEN a string argument with allowed_values constraint
+    WHEN value is not in allowed_values
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "value": ArgDef(
+                type=ParamType.STRING,
+                required=True,
+                constraints={"allowed_values": ["alpha", "beta"]},
+                description="value",
+            )
+        }
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="must be one of"):
+        render_command(spec, {"value": "gamma"})
+
+
 # ============================================================================
 # NUMERIC VALIDATION
 # ============================================================================
@@ -339,7 +383,7 @@ def test_render_command__enforces_numeric_min():
             "count": ArgDef(
                 type=ParamType.INT,
                 required=True,
-                min=5,
+                constraints={"min": 5},
                 description="count",
             )
         }
@@ -364,7 +408,7 @@ def test_render_command__enforces_numeric_max():
             "count": ArgDef(
                 type=ParamType.FLOAT,
                 required=True,
-                max=2.5,
+                constraints={"max": 2.5},
                 description="count",
             )
         }
@@ -386,8 +430,7 @@ def test_render_command__accepts_valid_float_value():
             "value": ArgDef(
                 type=ParamType.FLOAT,
                 required=True,
-                min=1.0,
-                max=5.0,
+                constraints={"min": 1.0, "max": 5.0},
                 description="value",
             )
         },
@@ -526,7 +569,7 @@ def test_render_command__fails_when_file_size_exceeds_max_size(
             "file": ArgDef(
                 type=ParamType.FILE_ID,
                 required=True,
-                max_size=100,
+                constraints={"max_size": 100},
                 description="file",
             )
         },
@@ -538,6 +581,134 @@ def test_render_command__fails_when_file_size_exceeds_max_size(
 
     with pytest.raises(ActionInvalidArgError, match="file size must be"):
         render_command(spec, {"file": file_id})
+
+
+def test_render_command__fails_when_file_extension_not_allowed(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """
+    GIVEN a file_id argument with allowed_extensions constraint
+    WHEN metadata extension is not allowed
+    THEN ActionInvalidArgError is raised
+    """
+
+    file_id = uuid4()
+    blob_path = tmp_path / f"file_{file_id}.bin"
+    blob_path.write_bytes(b"ok")
+
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.load_file_metadata",
+        lambda _: _make_metadata(file_id, size_bytes=10),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.get_blob_path",
+        lambda _: blob_path,
+    )
+
+    spec = _make_spec(
+        arg_defs={
+            "file": ArgDef(
+                type=ParamType.FILE_ID,
+                required=True,
+                constraints={"allowed_extensions": ["csv", "json"]},
+                description="file",
+            )
+        }
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="extension"):
+        render_command(spec, {"file": file_id})
+
+
+def test_render_command__fails_when_file_mime_type_not_allowed(
+    monkeypatch,
+    tmp_path: Path,
+):
+    """
+    GIVEN a file_id argument with allowed_mime_types constraint
+    WHEN metadata mime_type is not allowed
+    THEN ActionInvalidArgError is raised
+    """
+
+    file_id = uuid4()
+    blob_path = tmp_path / f"file_{file_id}.bin"
+    blob_path.write_bytes(b"ok")
+
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.load_file_metadata",
+        lambda _: _make_metadata(file_id, size_bytes=10),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.get_blob_path",
+        lambda _: blob_path,
+    )
+
+    spec = _make_spec(
+        arg_defs={
+            "file": ArgDef(
+                type=ParamType.FILE_ID,
+                required=True,
+                constraints={"allowed_mime_types": ["application/pdf"]},
+                description="file",
+            )
+        }
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="mime type"):
+        render_command(spec, {"file": file_id})
+
+
+def test_render_command__enforces_list_min_items():
+    """
+    GIVEN a list argument with min_items constraint
+    WHEN list value has fewer items than min_items
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "items": ArgDef(
+                type=ParamType.LIST,
+                required=True,
+                constraints={"min_items": 2},
+                description="items",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "arg", "name": "items"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="at least 2"):
+        render_command(spec, {"items": ["one"]})
+
+
+def test_render_command__enforces_list_max_items():
+    """
+    GIVEN a list argument with max_items constraint
+    WHEN list value has more items than max_items
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "items": ArgDef(
+                type=ParamType.LIST,
+                required=True,
+                constraints={"max_items": 2},
+                description="items",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "arg", "name": "items"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="at most 2"):
+        render_command(spec, {"items": ["one", "two", "three"]})
 
 
 def test_render_command__fails_when_file_id_is_invalid_uuid():
