@@ -185,8 +185,9 @@ actions:
             value:
                 type: int
                 required: true
-                min: 1
-                max: 10
+                constraints:
+                    min: 1
+                    max: 10
                 description: "Value in range"
         command:
             - binary: echo

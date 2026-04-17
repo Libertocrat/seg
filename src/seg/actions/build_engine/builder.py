@@ -178,9 +178,7 @@ def _build_arg_defs(action: ActionSpecInput) -> dict[str, ArgDef]:
             type=arg_spec.type,
             required=bool(arg_spec.required),
             default=arg_spec.default,
-            min=arg_spec.min,
-            max=arg_spec.max,
-            max_size=arg_spec.max_size,
+            constraints=arg_spec.constraints,
             description=arg_spec.description,
         )
 
@@ -435,6 +433,8 @@ def _map_param_type_to_python(param_type: ParamType) -> type[Any]:
     if param_type == ParamType.FILE_ID:
         # NOTE: Use UUID4 to enforce strict UUID v4 validation at request level.
         return cast(type[Any], UUID4)
+    if param_type == ParamType.LIST:
+        return list[Any]
 
     raise ActionSpecsBuildError(
         f"Unsupported parameter type during build: {param_type}"

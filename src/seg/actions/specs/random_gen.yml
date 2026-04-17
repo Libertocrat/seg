@@ -32,8 +32,9 @@ actions:
         type: int
         required: false
         default: 16
-        min: 1
-        max: 64
+        constraints:
+          min: 1
+          max: 64
         description: "Number of random bytes to generate"
 
     command:
@@ -52,8 +53,9 @@ actions:
         type: int
         required: false
         default: 16
-        min: 1
-        max: 64
+        constraints:
+          min: 1
+          max: 64
         description: "Number of random bytes to generate"
 
     command:

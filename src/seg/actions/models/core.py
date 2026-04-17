@@ -52,6 +52,7 @@ class ParamType(str, Enum):
     STRING = "string"
     BOOL = "bool"
     FILE_ID = "file_id"
+    LIST = "list"
 
 
 class BinaryCmd(TypedDict):
@@ -121,11 +122,7 @@ class ArgDef:
     type: ParamType
     required: bool = False
     default: Any | None = None
-
-    min: float | None = None
-    max: float | None = None
-
-    max_size: int | None = None
+    constraints: dict[str, Any] | None = None
 
     description: str = ""
 

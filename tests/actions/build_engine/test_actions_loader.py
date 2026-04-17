@@ -153,14 +153,16 @@ actions:
                 type: int
                 required: false
                 default: 5
-                min: 1
-                max: 10
+                constraints:
+                    min: 1
+                    max: 10
                 description: "Repeat count"
 
             file:
                 type: file_id
                 required: false
-                max_size: 1024
+                constraints:
+                    max_size: 1024
                 description: "Optional file reference"
 
         flags:
@@ -441,6 +443,44 @@ def test_load_module_spec_raises_when_modulespec_validation_fails(
         ActionSpecsParseError,
         match="invalid_schema.yml",
     ):
+        load_module_spec(spec_file)
+
+
+def test_load_module_spec_rejects_flat_arg_constraints(
+    core_specs_dir: Path,
+):
+    """
+    GIVEN an arg using flat constraint fields
+    WHEN load_module_spec is called
+    THEN ActionSpecsParseError is raised due to unknown fields
+    """
+    spec_file = core_specs_dir / "flat_constraints.yml"
+    write_yaml_str(
+        spec_file,
+        """
+version: 1
+module: flat_constraints
+description: "flat constraints test yml"
+binaries:
+    - echo
+actions:
+    ping:
+        description: "ping"
+        args:
+            value:
+                type: int
+                required: false
+                default: 1
+                min: 1
+                max: 10
+                description: "value"
+        command:
+            - binary: echo
+            - arg: value
+""".strip(),
+    )
+
+    with pytest.raises(ActionSpecsParseError, match="flat_constraints.yml"):
         load_module_spec(spec_file)
 
 
