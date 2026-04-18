@@ -670,6 +670,7 @@ def test_render_command__enforces_list_min_items():
         arg_defs={
             "items": ArgDef(
                 type=ParamType.LIST,
+                items=ParamType.STRING,
                 required=True,
                 constraints={"min_items": 2},
                 description="items",
@@ -696,6 +697,7 @@ def test_render_command__enforces_list_max_items():
         arg_defs={
             "items": ArgDef(
                 type=ParamType.LIST,
+                items=ParamType.STRING,
                 required=True,
                 constraints={"max_items": 2},
                 description="items",
@@ -709,6 +711,171 @@ def test_render_command__enforces_list_max_items():
 
     with pytest.raises(ActionInvalidArgError, match="at most 2"):
         render_command(spec, {"items": ["one", "two", "three"]})
+
+
+def test_render_command_list_string_expands():
+    """
+    GIVEN a list[string] argument
+    WHEN render_command is called
+    THEN argv contains all elements expanded in order
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "items": ArgDef(
+                type=ParamType.LIST,
+                items=ParamType.STRING,
+                required=True,
+                description="items",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "arg", "name": "items"},
+        ),
+    )
+
+    assert render_command(spec, {"items": ["one", "two", "three"]}) == [
+        "echo",
+        "one",
+        "two",
+        "three",
+    ]
+
+
+def test_render_command_list_file_id_resolves_paths(monkeypatch, tmp_path: Path):
+    """
+    GIVEN a list[file_id] argument
+    WHEN render_command is called
+    THEN argv contains resolved file paths
+    """
+
+    first_id = uuid4()
+    second_id = uuid4()
+    first_blob = tmp_path / f"file_{first_id}.bin"
+    second_blob = tmp_path / f"file_{second_id}.bin"
+    first_blob.write_bytes(b"a")
+    second_blob.write_bytes(b"b")
+
+    blobs = {first_id: first_blob, second_id: second_blob}
+
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.load_file_metadata",
+        lambda file_id: _make_metadata(file_id),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.get_blob_path",
+        lambda file_id: blobs[file_id],
+    )
+
+    spec = _make_spec(
+        arg_defs={
+            "files": ArgDef(
+                type=ParamType.LIST,
+                items=ParamType.FILE_ID,
+                required=True,
+                description="files",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "cat"},
+            {"kind": "arg", "name": "files"},
+        ),
+    )
+
+    assert render_command(spec, {"files": [first_id, second_id]}) == [
+        "cat",
+        str(first_blob),
+        str(second_blob),
+    ]
+
+
+def test_render_command_list_preserves_order():
+    """
+    GIVEN a list argument
+    WHEN render_command is called
+    THEN element order is preserved in argv
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "items": ArgDef(
+                type=ParamType.LIST,
+                items=ParamType.STRING,
+                required=True,
+                description="items",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "arg", "name": "items"},
+        ),
+    )
+
+    assert render_command(spec, {"items": ["b", "a", "c"]}) == ["echo", "b", "a", "c"]
+
+
+def test_render_command_list_invalid_uuid():
+    """
+    GIVEN a list[file_id] with invalid UUID
+    WHEN render_command is called
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "files": ArgDef(
+                type=ParamType.LIST,
+                items=ParamType.FILE_ID,
+                required=True,
+                description="files",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "cat"},
+            {"kind": "arg", "name": "files"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="valid file_id"):
+        render_command(spec, {"files": ["not-a-uuid"]})
+
+
+def test_render_command_list_missing_file(monkeypatch):
+    """
+    GIVEN a list[file_id] with missing metadata
+    WHEN render_command is called
+    THEN ActionInvalidArgError is raised
+    """
+
+    file_id = uuid4()
+
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.load_file_metadata",
+        lambda _: None,
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.get_blob_path",
+        lambda _: Path("/unused"),
+    )
+
+    spec = _make_spec(
+        arg_defs={
+            "files": ArgDef(
+                type=ParamType.LIST,
+                items=ParamType.FILE_ID,
+                required=True,
+                description="files",
+            )
+        },
+        command_template=(
+            {"kind": "binary", "value": "cat"},
+            {"kind": "arg", "name": "files"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="was not found"):
+        render_command(spec, {"files": [file_id]})
 
 
 def test_render_command__fails_when_file_id_is_invalid_uuid():
@@ -878,7 +1045,7 @@ def test_render_command__wraps_unexpected_errors(monkeypatch):
         """Raise a deterministic runtime failure for error-wrapping tests."""
         raise RuntimeError("boom")
 
-    monkeypatch.setattr("seg.actions.runtime.renderer._validate_arg", _explode)
+    monkeypatch.setattr("seg.actions.runtime.renderer._resolve_arg", _explode)
 
     with pytest.raises(ActionRuntimeRenderError, match="Unexpected failure"):
         render_command(spec, {"name": "safe"})

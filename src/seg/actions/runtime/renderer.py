@@ -13,6 +13,8 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID
 
+from pydantic import UUID4
+
 from seg.actions.exceptions import (
     ActionInvalidArgError,
     ActionRuntimeError,
@@ -60,20 +62,14 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
             if value is None:
                 raise ActionInvalidArgError(f"Param '{name}' cannot be None")
 
-        file_metadata_by_arg: dict[str, FileMetadata] = {}
-
+        resolved_arg_values: dict[str, list[str]] = {}
         for name, arg_def in spec.arg_defs.items():
-            value = resolved[name]
-
-            if arg_def.type == ParamType.FILE_ID:
-                file_uuid = _coerce_file_id(name, value)
-                blob_path, metadata = _resolve_file_id_to_path(file_uuid, arg_def)
-                resolved[name] = blob_path
-                file_metadata_by_arg[name] = metadata
-
-        for name, arg_def in spec.arg_defs.items():
-            file_meta: FileMetadata | None = file_metadata_by_arg.get(name)
-            _validate_arg(name, resolved[name], arg_def, file_meta)
+            try:
+                resolved_arg_values[name] = _resolve_arg(arg_def, resolved[name])
+            except ActionInvalidArgError as exc:
+                raise ActionInvalidArgError(
+                    f"Param '{name}' is invalid: {exc}"
+                ) from exc
 
         argv: list[str] = []
         for token in spec.command_template:
@@ -92,7 +88,7 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
             if kind == "arg":
                 arg_token = cast(ArgCmd, token)
                 name = arg_token["name"]
-                argv.append(str(resolved[name]))
+                argv.extend(resolved_arg_values[name])
                 continue
 
             if kind == "flag":
@@ -112,6 +108,85 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
         raise ActionRuntimeRenderError(
             "Unexpected failure while rendering command"
         ) from exc
+
+
+def _resolve_arg(arg_def: ArgDef, value: Any) -> list[str]:
+    """Resolve and validate one argument into argv-safe tokens.
+
+    Args:
+        arg_def: Runtime argument definition.
+        value: User-provided value.
+
+    Returns:
+        List of string tokens to be appended to argv.
+
+    Raises:
+        ActionInvalidArgError: If value is invalid.
+    """
+
+    constraints = arg_def.constraints or {}
+
+    if arg_def.type == ParamType.INT or arg_def.type == ParamType.FLOAT:
+        _validate_numeric_constraints("value", value, constraints)
+        return [str(value)]
+
+    if arg_def.type == ParamType.STRING:
+        _validate_string_constraints("value", value, constraints)
+        return [value]
+
+    if arg_def.type == ParamType.FILE_ID:
+        file_uuid = _coerce_file_id("value", value)
+        blob_path, metadata = _resolve_file_id_to_path(file_uuid, arg_def)
+        _validate_file_constraints("value", metadata, constraints)
+        return [blob_path]
+
+    if arg_def.type == ParamType.BOOL:
+        if type(value) is not bool:
+            raise ActionInvalidArgError("must be a boolean")
+        return [str(value)]
+
+    if arg_def.type == ParamType.LIST:
+        _validate_list_constraints("value", value, constraints)
+        resolved_values: list[str] = []
+
+        if arg_def.items == ParamType.STRING:
+            for item in value:
+                _validate_string_constraints("value", item, {})
+                resolved_values.append(item)
+            return resolved_values
+
+        elif arg_def.items == ParamType.FILE_ID:
+            for item in value:
+                file_uuid = _coerce_file_id("value", item)
+                resolved_values.append(_resolve_single_file_id(file_uuid))
+            return resolved_values
+
+        items_type = (
+            arg_def.items if arg_def.items is not None else "unknown items type"
+        )
+        raise ActionInvalidArgError(f"unsupported list item type '{items_type}'")
+
+    raise ActionInvalidArgError(f"unsupported argument type '{arg_def.type.value}'")
+
+
+def _resolve_single_file_id(file_id: UUID4) -> str:
+    """Resolve a single file_id into a safe filesystem path.
+
+    Args:
+        file_id: UUID of the file.
+
+    Returns:
+        Absolute path to the file blob.
+
+    Raises:
+        ActionInvalidArgError: If metadata or blob is missing.
+    """
+
+    blob_path, _ = _resolve_file_id_to_path(
+        cast(UUID, file_id),
+        ArgDef(type=ParamType.FILE_ID, required=True, description="file_id"),
+    )
+    return blob_path
 
 
 def _resolve_file_id_to_path(

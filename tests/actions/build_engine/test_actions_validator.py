@@ -667,6 +667,86 @@ def test_validate_modules_rejects_optional_arg_without_default(
         validate_modules([module])
 
 
+def test_validate_modules_rejects_list_without_items(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a list arg without items
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "files": {
+                "type": "list",
+                "required": True,
+                "description": "files",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "files"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must define 'items'"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_items_on_non_list(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a non-list arg with items defined
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "value": {
+                "type": "string",
+                "required": True,
+                "items": "string",
+                "description": "value",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "value"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="cannot define 'items'"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_invalid_items_type(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a list arg with unsupported items type
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "values": {
+                "type": "list",
+                "items": "int",
+                "required": True,
+                "description": "values",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "values"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must be 'string' or 'file_id'"):
+        validate_modules([module])
+
+
 @pytest.mark.parametrize(
     ("arg_type", "default"),
     [("string", 123), ("bool", "true"), ("float", "3.14")],
@@ -1087,8 +1167,8 @@ def test_validate_modules_rejects_invalid_list_constraints(
         args={
             "items": {
                 "type": "list",
-                "required": False,
-                "default": ["a"],
+                "items": "string",
+                "required": True,
                 "constraints": constraints,
                 "description": "items",
             }

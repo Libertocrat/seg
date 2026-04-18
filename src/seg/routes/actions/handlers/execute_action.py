@@ -20,7 +20,7 @@ from seg.actions.exceptions import (
     ActionRuntimeRenderError,
 )
 from seg.actions.registry import ActionRegistry
-from seg.actions.runtime.sanitzer import (
+from seg.actions.runtime.sanitizer import (
     DEFAULT_MAX_STDERR_BYTES,
     DEFAULT_MAX_STDOUT_BYTES,
     transform_output,
