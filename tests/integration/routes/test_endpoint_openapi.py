@@ -10,7 +10,12 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 from openapi_spec_validator import validate
 
+from seg.actions.models.core import ParamType
 from seg.app import create_app
+from seg.core.openapi import (
+    _build_required_arg_example_value,
+    _format_arg_type_for_docs,
+)
 
 # ============================================================================
 # Helpers
@@ -192,6 +197,33 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     assert "- _No args_" in uuid_description
     assert "- _No flags_" in uuid_description
     assert uuid_params == {}
+
+
+def test_openapi_helpers_support_list_arg_docs_and_examples():
+    """Validate OpenAPI helper behavior for list-based action args.
+
+    GIVEN required list argument metadata
+    WHEN helper values are generated for docs/examples
+    THEN list docs labels and example payloads match supported list item types.
+    """
+
+    assert _format_arg_type_for_docs(ParamType.LIST, ParamType.STRING) == "list[str]"
+    assert (
+        _format_arg_type_for_docs(ParamType.LIST, ParamType.FILE_ID) == "list[file_id]"
+    )
+
+    assert _build_required_arg_example_value(
+        "inputs", ParamType.LIST, ParamType.STRING
+    ) == [
+        "inputs_item_1",
+        "inputs_item_2",
+    ]
+    assert _build_required_arg_example_value(
+        "files", ParamType.LIST, ParamType.FILE_ID
+    ) == [
+        "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "98e56387-3364-4ce2-9c66-44d23ec4e23a",
+    ]
 
 
 # ============================================================================

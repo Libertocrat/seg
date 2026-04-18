@@ -174,10 +174,11 @@ def _build_arg_defs(action: ActionSpecInput) -> dict[str, ArgDef]:
     compiled: dict[str, ArgDef] = {}
 
     for arg_name, arg_spec in (action.args or {}).items():
+        required = True if arg_spec.type == ParamType.LIST else bool(arg_spec.required)
         compiled[arg_name] = ArgDef(
             type=arg_spec.type,
             items=arg_spec.items,
-            required=bool(arg_spec.required),
+            required=required,
             default=arg_spec.default,
             constraints=arg_spec.constraints,
             description=arg_spec.description,
