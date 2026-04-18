@@ -499,7 +499,8 @@ def _build_execute_action_markdown(spec: ActionSpec) -> str:
 
     if spec.arg_defs:
         for arg_name, arg_def in spec.arg_defs.items():
-            arg_line = f"- `{arg_name}` (`{arg_def.type.value}`): "
+            arg_type_display = _format_arg_type_for_docs(arg_def.type, arg_def.items)
+            arg_line = f"- `{arg_name}` (`{arg_type_display}`): "
             details: list[str] = []
 
             if arg_def.description:
@@ -556,6 +557,7 @@ def _build_execute_params_example(spec: ActionSpec) -> dict[str, Any]:
             params_example[arg_name] = _build_required_arg_example_value(
                 arg_name,
                 arg_def.type,
+                arg_def.items,
             )
             continue
 
@@ -568,7 +570,11 @@ def _build_execute_params_example(spec: ActionSpec) -> dict[str, Any]:
     return params_example
 
 
-def _build_required_arg_example_value(arg_name: str, param_type: ParamType) -> Any:
+def _build_required_arg_example_value(
+    arg_name: str,
+    param_type: ParamType,
+    item_type: ParamType | None = None,
+) -> Any:
     """Build a deterministic example value for a required action argument.
 
     Args:
@@ -594,7 +600,42 @@ def _build_required_arg_example_value(arg_name: str, param_type: ParamType) -> A
     if param_type == ParamType.FILE_ID:
         return "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 
+    if param_type == ParamType.LIST:
+        if item_type == ParamType.STRING:
+            return [f"{arg_name}_item_1", f"{arg_name}_item_2"]
+        if item_type == ParamType.FILE_ID:
+            return [
+                "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+                "98e56387-3364-4ce2-9c66-44d23ec4e23a",
+            ]
+        return []
+
     return None
+
+
+def _format_arg_type_for_docs(
+    param_type: ParamType,
+    item_type: ParamType | None = None,
+) -> str:
+    """Format argument type for OpenAPI markdown documentation.
+
+    Args:
+        param_type: Argument logical type.
+        item_type: List item type when `param_type` is `list`.
+
+    Returns:
+        Human-readable type label for docs.
+    """
+
+    if param_type != ParamType.LIST:
+        return param_type.value
+
+    if item_type == ParamType.STRING:
+        return "list[str]"
+    if item_type == ParamType.FILE_ID:
+        return "list[file_id]"
+
+    return "list"
 
 
 def _format_openapi_markdown_value(value: Any) -> str:

@@ -498,6 +498,34 @@ def test_builder_list_file_id_annotation(
     assert spec.arg_defs["files"].items == ParamType.FILE_ID
 
 
+def test_builder_forces_list_required_true_when_omitted(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a list argument without explicit required declaration
+    WHEN build_actions is called
+    THEN runtime arg_def.required is forced to True
+    """
+    action = make_action_spec_input(
+        args={
+            "items": {
+                "type": "list",
+                "items": "string",
+                "description": "items",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "items"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.arg_defs["items"].required is True
+    assert "items" not in spec.defaults
+
+
 # ============================================================================
 # params_model naming
 # ============================================================================
