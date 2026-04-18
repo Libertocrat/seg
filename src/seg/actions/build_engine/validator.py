@@ -568,6 +568,12 @@ def _validate_args(
     """
 
     for arg_name, arg_spec in (action.args or {}).items():
+        _validate_arg_list_items_rules(
+            module_name=module_name,
+            action_name=action_name,
+            arg_name=arg_name,
+            arg_spec=arg_spec,
+        )
         _validate_arg_required_default_rules(
             module_name=module_name,
             action_name=action_name,
@@ -576,6 +582,49 @@ def _validate_args(
         )
         _validate_arg_default(module_name, action_name, arg_name, arg_spec)
         _validate_arg_constraints(module_name, action_name, arg_name, arg_spec)
+
+
+def _validate_arg_list_items_rules(
+    module_name: str,
+    action_name: str,
+    arg_name: str,
+    arg_spec: ArgSpec,
+) -> None:
+    """Validate `list` + `items` structural compatibility rules.
+
+    Args:
+        module_name: Parent module name.
+        action_name: Action name.
+        arg_name: Argument name.
+        arg_spec: Argument definition.
+
+    Raises:
+        ActionSpecsParseError: If `items` is incompatible with declared `type`.
+    """
+
+    is_list_type = arg_spec.type == ParamType.LIST
+    has_items = "items" in arg_spec.model_fields_set
+
+    if is_list_type and not has_items:
+        _raise_action_error(
+            module_name,
+            action_name,
+            f"arg '{arg_name}' with type 'list' must define 'items'",
+        )
+
+    if not is_list_type and has_items:
+        _raise_action_error(
+            module_name,
+            action_name,
+            f"arg '{arg_name}' with type '{arg_spec.type.value}' cannot define 'items'",
+        )
+
+    if is_list_type and arg_spec.items not in {ParamType.STRING, ParamType.FILE_ID}:
+        _raise_action_error(
+            module_name,
+            action_name,
+            f"arg '{arg_name}' list 'items' must be 'string' or 'file_id'",
+        )
 
 
 def _validate_arg_required_default_rules(
@@ -599,6 +648,23 @@ def _validate_arg_required_default_rules(
 
     required = arg_spec.required
     has_default = "default" in arg_spec.model_fields_set
+    has_required = "required" in arg_spec.model_fields_set
+
+    if arg_spec.type == ParamType.LIST:
+        if has_default:
+            _raise_action_error(
+                module_name,
+                action_name,
+                f"arg '{arg_name}' with type 'list' cannot define a default",
+            )
+
+        if has_required and required is False:
+            _raise_action_error(
+                module_name,
+                action_name,
+                f"arg '{arg_name}' with type 'list' cannot set required to False",
+            )
+        return
 
     if required and has_default:
         _raise_action_error(

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from seg.actions.models.runtime import ActionExecutionResult
-from seg.actions.runtime.sanitzer import (
+from seg.actions.runtime.sanitizer import (
     PATH_REDACTION,
     TRUNCATION_MARKER,
     sanitize_output,

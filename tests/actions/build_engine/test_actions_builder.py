@@ -11,7 +11,7 @@ from __future__ import annotations
 from uuid import uuid4
 
 import pytest
-from pydantic import ValidationError
+from pydantic import UUID4, ValidationError
 
 from seg.actions.build_engine.builder import build_actions
 from seg.actions.exceptions import ActionSpecsBuildError
@@ -438,6 +438,64 @@ def test_file_id_validates_uuid4(
 
     valid = model.model_validate({"file": str(uuid4())})
     assert valid.file is not None
+
+
+def test_builder_list_string_annotation(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a list[string] argument
+    WHEN build_actions is called
+    THEN params_model field type is list[str]
+    """
+    action = make_action_spec_input(
+        args={
+            "files": {
+                "type": "list",
+                "items": "string",
+                "required": True,
+                "description": "files",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "files"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.params_model.model_fields["files"].annotation == list[str]
+    assert spec.arg_defs["files"].items == ParamType.STRING
+
+
+def test_builder_list_file_id_annotation(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a list[file_id] argument
+    WHEN build_actions is called
+    THEN params_model field type is list[UUID4]
+    """
+    action = make_action_spec_input(
+        args={
+            "files": {
+                "type": "list",
+                "items": "file_id",
+                "required": True,
+                "description": "files",
+            }
+        },
+        command=[{"binary": "echo"}, {"arg": "files"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.params_model.model_fields["files"].annotation == list[UUID4]
+    assert spec.arg_defs["files"].items == ParamType.FILE_ID
 
 
 # ============================================================================

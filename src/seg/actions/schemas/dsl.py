@@ -15,6 +15,7 @@ class ArgSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: ParamType
+    items: ParamType | None = None
     required: Optional[bool] = False
     default: Optional[Any] = None
     constraints: Optional[dict[str, Any]] = None

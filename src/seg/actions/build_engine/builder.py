@@ -50,14 +50,14 @@ def build_actions(
     """Compile validated modules into a flat runtime action mapping.
 
     Args:
-            modules: Validated SEG DSL modules.
+        modules: Validated SEG DSL modules.
 
     Returns:
-            Flat dictionary keyed by fully qualified action name.
+        Flat dictionary keyed by fully qualified action name.
 
     Raises:
-            ActionSpecsBuildError: If validated specs cannot be compiled into
-                    runtime `ActionSpec` objects.
+        ActionSpecsBuildError: If validated specs cannot be compiled into
+                runtime `ActionSpec` objects.
     """
 
     logger.info("Building runtime action specs from %d module(s)", len(modules))
@@ -105,15 +105,15 @@ def _build_action(
     """Compile one validated DSL action into a runtime `ActionSpec`.
 
     Args:
-            module: Parent validated module.
-            action_name: Action name inside the module.
-            action: Validated action definition.
+        module: Parent validated module.
+        action_name: Action name inside the module.
+        action: Validated action definition.
 
     Returns:
-            Immutable runtime `ActionSpec`.
+        Immutable runtime `ActionSpec`.
 
     Raises:
-            ActionSpecsBuildError: If the action cannot be compiled.
+        ActionSpecsBuildError: If the action cannot be compiled.
     """
 
     action_fqdn = f"{module.module}.{action_name}"
@@ -165,10 +165,10 @@ def _build_arg_defs(action: ActionSpecInput) -> dict[str, ArgDef]:
     """Compile validated DSL args into runtime `ArgDef` objects.
 
     Args:
-            action: Validated action definition.
+        action: Validated action definition.
 
     Returns:
-            Runtime arg definitions keyed by argument name.
+        Runtime arg definitions keyed by argument name.
     """
 
     compiled: dict[str, ArgDef] = {}
@@ -176,6 +176,7 @@ def _build_arg_defs(action: ActionSpecInput) -> dict[str, ArgDef]:
     for arg_name, arg_spec in (action.args or {}).items():
         compiled[arg_name] = ArgDef(
             type=arg_spec.type,
+            items=arg_spec.items,
             required=bool(arg_spec.required),
             default=arg_spec.default,
             constraints=arg_spec.constraints,
@@ -189,10 +190,10 @@ def _build_flag_defs(action: ActionSpecInput) -> dict[str, FlagDef]:
     """Compile validated DSL flags into runtime `FlagDef` objects.
 
     Args:
-            action: Validated action definition.
+        action: Validated action definition.
 
     Returns:
-            Runtime flag definitions keyed by flag name.
+        Runtime flag definitions keyed by flag name.
     """
 
     compiled: dict[str, FlagDef] = {}
@@ -214,11 +215,11 @@ def _build_defaults(
     """Build the flattened runtime defaults mapping for one action.
 
     Args:
-            arg_defs: Runtime arg definitions.
-            flag_defs: Runtime flag definitions.
+        arg_defs: Runtime arg definitions.
+        flag_defs: Runtime flag definitions.
 
     Returns:
-            Flat defaults dictionary containing all optional args and all flags.
+        Flat defaults dictionary containing all optional args and all flags.
     """
 
     defaults: dict[str, Any] = {}
@@ -237,10 +238,10 @@ def _build_command_template(action: ActionSpecInput) -> tuple[CommandElement, ..
     """Normalize DSL command tokens into runtime command template elements.
 
     Args:
-            action: Validated action definition.
+        action: Validated action definition.
 
     Returns:
-            Tuple of runtime command elements.
+        Tuple of runtime command elements.
     """
 
     compiled: list[CommandElement] = []
@@ -287,13 +288,13 @@ def _extract_primary_binary(command_template: tuple[CommandElement, ...]) -> str
     """Extract the first binary token from a compiled command template.
 
     Args:
-            command_template: Normalized runtime command template.
+        command_template: Normalized runtime command template.
 
     Returns:
-            Binary string from the first binary token.
+        Binary string from the first binary token.
 
     Raises:
-            ActionSpecsBuildError: If no binary token is present.
+        ActionSpecsBuildError: If no binary token is present.
     """
 
     for element in command_template:
@@ -314,18 +315,18 @@ def _build_params_model(
     """Generate the dynamic Pydantic params model for one action.
 
     Args:
-            action_fqdn: Fully qualified action name.
-            arg_defs: Runtime arg definitions.
-            flag_defs: Runtime flag definitions.
+        action_fqdn: Fully qualified action name.
+        arg_defs: Runtime arg definitions.
+        flag_defs: Runtime flag definitions.
 
     Returns:
-            Dynamically generated Pydantic model class.
+        Dynamically generated Pydantic model class.
     """
 
     field_definitions: dict[str, tuple[Any, Any]] = {}
 
     for arg_name, arg_def in arg_defs.items():
-        annotation = _map_param_type_to_python(arg_def.type)
+        annotation = _map_param_type_to_python(arg_def)
         if arg_def.required:
             field_definitions[arg_name] = (
                 annotation,
@@ -354,10 +355,10 @@ def _build_model_name(action_fqdn: str) -> str:
     """Build a readable dynamic params model name from an action FQDN.
 
     Args:
-            action_fqdn: Fully qualified action name.
+        action_fqdn: Fully qualified action name.
 
     Returns:
-            CamelCase model name with `Params` suffix.
+        CamelCase model name with `Params` suffix.
     """
 
     parts = [part for part in re.split(r"[._]", action_fqdn) if part]
@@ -368,10 +369,10 @@ def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
     """Normalize module tags from CSV text into a deduplicated tuple.
 
     Args:
-            tags_csv: Raw CSV tag string or `None`.
+        tags_csv: Raw CSV tag string or `None`.
 
     Returns:
-            Lowercased, stripped, deduplicated tags preserving first appearance.
+        Lowercased, stripped, deduplicated tags preserving first appearance.
     """
 
     if tags_csv is None:
@@ -397,10 +398,10 @@ def _parse_authors(authors: list[str] | None) -> tuple[str, ...] | None:
     """Normalize module authors into a runtime tuple.
 
     Args:
-            authors: Raw author list or `None`.
+        authors: Raw author list or `None`.
 
     Returns:
-            Tuple of author strings, or `None` when absent.
+        Tuple of author strings, or `None` when absent.
     """
 
     if authors is None:
@@ -409,18 +410,20 @@ def _parse_authors(authors: list[str] | None) -> tuple[str, ...] | None:
     return tuple(authors)
 
 
-def _map_param_type_to_python(param_type: ParamType) -> type[Any]:
+def _map_param_type_to_python(arg_def: ArgDef) -> type[Any]:
     """Map a DSL `ParamType` to a Python/Pydantic field type.
 
     Args:
-            param_type: DSL parameter type.
+        arg_def: Runtime argument definition.
 
     Returns:
-            Python or Pydantic-compatible type used in the dynamic params model.
+        Python or Pydantic-compatible type used in the dynamic params model.
 
     Raises:
-            ActionSpecsBuildError: If the parameter type is unsupported.
+        ActionSpecsBuildError: If the parameter type is unsupported.
     """
+
+    param_type = arg_def.type
 
     if param_type == ParamType.INT:
         return int
@@ -434,7 +437,14 @@ def _map_param_type_to_python(param_type: ParamType) -> type[Any]:
         # NOTE: Use UUID4 to enforce strict UUID v4 validation at request level.
         return cast(type[Any], UUID4)
     if param_type == ParamType.LIST:
-        return list[Any]
+        if arg_def.items == ParamType.STRING:
+            return cast(type[Any], list[str])
+        if arg_def.items == ParamType.FILE_ID:
+            return cast(type[Any], list[UUID4])
+        raise ActionSpecsBuildError(
+            "Unsupported list item type during build: "
+            f"{arg_def.items.value if arg_def.items is not None else 'None'}"
+        )
 
     raise ActionSpecsBuildError(
         f"Unsupported parameter type during build: {param_type}"

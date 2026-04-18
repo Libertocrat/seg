@@ -120,6 +120,7 @@ class ArgDef:
     """
 
     type: ParamType
+    items: ParamType | None = None
     required: bool = False
     default: Any | None = None
     constraints: dict[str, Any] | None = None
