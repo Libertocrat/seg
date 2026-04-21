@@ -30,12 +30,16 @@ from seg.actions.models.core import (
     ArgDef,
     CommandElement,
     FlagDef,
+    OutputDef,
+    OutputSource,
+    OutputType,
     ParamType,
 )
 from seg.actions.schemas.action import ActionSpecInput
 from seg.actions.schemas.dsl import ArgCmd as SchemaArgCmd
 from seg.actions.schemas.dsl import BinaryCmd as SchemaBinaryCmd
 from seg.actions.schemas.dsl import FlagCmd as SchemaFlagCmd
+from seg.actions.schemas.dsl import OutputCmd as SchemaOutputCmd
 from seg.actions.schemas.module import ModuleSpec
 from seg.actions.security.policy import build_binary_policy, is_binary_allowed
 from seg.core.config import Settings
@@ -121,6 +125,7 @@ def _build_action(
     try:
         arg_defs = _build_arg_defs(action)
         flag_defs = _build_flag_defs(action)
+        output_defs = _build_output_defs(action)
         defaults = _build_defaults(arg_defs, flag_defs)
         command_template = _build_command_template(action)
         binary = _extract_primary_binary(command_template)
@@ -144,6 +149,7 @@ def _build_action(
             arg_defs=arg_defs,
             flag_defs=flag_defs,
             defaults=defaults,
+            outputs=output_defs,
             authors=_parse_authors(module.authors),
             tags=_parse_tags(module.tags),
             summary=action.summary or action.description,
@@ -235,6 +241,27 @@ def _build_defaults(
     return defaults
 
 
+def _build_output_defs(action: ActionSpecInput) -> dict[str, OutputDef]:
+    """Compile validated DSL outputs into runtime `OutputDef` objects.
+
+    Args:
+        action: Validated action definition.
+
+    Returns:
+        Runtime output definitions keyed by output name.
+    """
+
+    compiled: dict[str, OutputDef] = {}
+
+    for output_name, output_spec in (action.outputs or {}).items():
+        compiled[output_name] = OutputDef(
+            type=OutputType(output_spec.type),
+            source=OutputSource(output_spec.source),
+        )
+
+    return compiled
+
+
 def _build_command_template(action: ActionSpecInput) -> tuple[CommandElement, ...]:
     """Normalize DSL command tokens into runtime command template elements.
 
@@ -254,7 +281,7 @@ def _build_command_template(action: ActionSpecInput) -> tuple[CommandElement, ..
 
 
 def _normalize_command_element(
-    element: str | SchemaBinaryCmd | SchemaArgCmd | SchemaFlagCmd,
+    element: str | SchemaBinaryCmd | SchemaArgCmd | SchemaFlagCmd | SchemaOutputCmd,
 ) -> CommandElement:
     """Convert one DSL command element into the runtime token shape.
 
@@ -279,6 +306,9 @@ def _normalize_command_element(
 
     if isinstance(element, SchemaFlagCmd):
         return {"kind": "flag", "name": element.flag}
+
+    if isinstance(element, SchemaOutputCmd):
+        return {"kind": "output", "name": element.output}
 
     raise ActionSpecsBuildError(
         f"Failed to build command template: unsupported type {type(element)}"

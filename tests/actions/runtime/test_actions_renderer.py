@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 from uuid import uuid4
 
 import pytest
@@ -20,10 +20,16 @@ from seg.actions.models.core import (
     ArgDef,
     CommandElement,
     FlagDef,
+    OutputDef,
+    OutputSource,
+    OutputType,
     ParamType,
 )
 from seg.actions.models.security import BinaryPolicy
+from seg.actions.runtime import file_manager
 from seg.actions.runtime.renderer import render_command
+from seg.core.config import Settings
+from seg.core.utils.file_storage import get_blob_path, load_file_metadata
 from seg.routes.files.schemas import FileMetadata
 
 
@@ -53,23 +59,75 @@ def _make_metadata(file_id, *, size_bytes: int = 10) -> FileMetadata:
     )
 
 
+def _make_metadata_with_status(
+    file_id,
+    *,
+    status: Literal["pending", "unverified", "ready"],
+    size_bytes: int = 10,
+) -> FileMetadata:
+    """Build file metadata object with configurable lifecycle status.
+
+    Args:
+        file_id: File UUID associated with metadata.
+        status: File lifecycle status.
+        size_bytes: Reported file size in bytes.
+
+    Returns:
+        Validated `FileMetadata` instance.
+    """
+
+    now = datetime.now(tz=UTC)
+    return FileMetadata(
+        id=file_id,
+        original_filename="input.txt",
+        stored_filename=f"file_{file_id}.bin",
+        mime_type="text/plain",
+        extension=".txt",
+        size_bytes=size_bytes,
+        sha256="a" * 64,
+        created_at=now,
+        updated_at=now,
+        status=status,
+    )
+
+
+def _make_settings(tmp_path: Path) -> Settings:
+    """Build deterministic settings for renderer output tests.
+
+    Args:
+        tmp_path: Per-test temporary path.
+
+    Returns:
+        Validated Settings instance.
+    """
+
+    return Settings.model_validate(
+        {
+            "seg_api_token": "a" * 64,
+            "seg_root_dir": str(tmp_path),
+        }
+    )
+
+
 def _make_spec(
     *,
     arg_defs: dict[str, ArgDef] | None = None,
     flag_defs: dict[str, FlagDef] | None = None,
     defaults: dict[str, object] | None = None,
+    outputs: dict[str, OutputDef] | None = None,
     command_template: tuple[CommandElement, ...] | None = None,
 ) -> ActionSpec:
     """Build a minimal valid `ActionSpec` with optional overrides.
 
     Args:
-            arg_defs: Optional runtime argument definitions.
-            flag_defs: Optional runtime flag definitions.
-            defaults: Optional default params mapping.
-            command_template: Optional command token sequence.
+        arg_defs: Optional runtime argument definitions.
+        flag_defs: Optional runtime flag definitions.
+        defaults: Optional default params mapping.
+        outputs: Optional runtime output definitions.
+        command_template: Optional command token sequence.
 
     Returns:
-            Minimal valid `ActionSpec` ready for renderer tests.
+        Minimal valid `ActionSpec` ready for renderer tests.
     """
 
     template = (
@@ -90,6 +148,7 @@ def _make_spec(
         arg_defs={} if arg_defs is None else arg_defs,
         flag_defs={} if flag_defs is None else flag_defs,
         defaults={} if defaults is None else defaults,
+        outputs={} if outputs is None else outputs,
         authors=None,
         tags=(),
         summary=None,
@@ -509,6 +568,40 @@ def test_render_command__fails_when_file_metadata_is_missing(monkeypatch):
     )
 
     with pytest.raises(ActionInvalidArgError, match="was not found"):
+        render_command(spec, {"file": file_id})
+
+
+def test_renderer__rejects_non_ready_file_input(monkeypatch, tmp_path: Path):
+    """
+    GIVEN file_id with status != ready
+    WHEN render_command runs
+    THEN ActionInvalidArgError is raised
+    """
+
+    file_id = uuid4()
+    blob_path = tmp_path / f"file_{file_id}.bin"
+    blob_path.write_bytes(b"ok")
+
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.load_file_metadata",
+        lambda _: _make_metadata_with_status(file_id, status="pending"),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.get_blob_path",
+        lambda _: blob_path,
+    )
+
+    spec = _make_spec(
+        arg_defs={
+            "file": ArgDef(type=ParamType.FILE_ID, required=True, description="file")
+        },
+        command_template=(
+            {"kind": "binary", "value": "cat"},
+            {"kind": "arg", "name": "file"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="not ready for use"):
         render_command(spec, {"file": file_id})
 
 
@@ -1017,6 +1110,146 @@ def test_render_command__supports_multiple_args_and_flags():
         spec,
         {"first": "abc", "second": 7, "verbose": True, "debug": False},
     ) == ["echo", "-v", "abc", "7"]
+
+
+# ============================================================================
+# OUTPUT FILE HANDLING
+# ============================================================================
+
+
+def test_renderer__file_command_creates_placeholder_metadata(tmp_path, monkeypatch):
+    """
+    GIVEN file+command output
+    WHEN render_command runs
+    THEN metadata is created with status "pending"
+    """
+
+    cfg = _make_settings(tmp_path)
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.create_command_output_placeholders",
+        lambda spec, settings=None: file_manager.create_command_output_placeholders(
+            spec, settings=cfg
+        ),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.resolve_output_blob_path",
+        lambda file_id, settings=None: file_manager.resolve_output_blob_path(
+            file_id, settings=cfg
+        ),
+    )
+
+    spec = _make_spec(
+        outputs={
+            "cmd_out": OutputDef(type=OutputType.FILE, source=OutputSource.COMMAND)
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "output", "name": "cmd_out"},
+        ),
+    )
+
+    rendered = render_command(spec, {})
+    file_id = rendered.output_files["cmd_out"]
+    metadata = load_file_metadata(file_id, cfg)
+
+    assert metadata is not None
+    assert metadata.status == "pending"
+
+
+def test_renderer__file_command_injects_blob_path(tmp_path, monkeypatch):
+    """
+    GIVEN output token in command
+    WHEN render_command runs
+    THEN argv includes blob path
+    """
+
+    cfg = _make_settings(tmp_path)
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.create_command_output_placeholders",
+        lambda spec, settings=None: file_manager.create_command_output_placeholders(
+            spec, settings=cfg
+        ),
+    )
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.resolve_output_blob_path",
+        lambda file_id, settings=None: file_manager.resolve_output_blob_path(
+            file_id, settings=cfg
+        ),
+    )
+
+    spec = _make_spec(
+        outputs={
+            "cmd_out": OutputDef(type=OutputType.FILE, source=OutputSource.COMMAND)
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "output", "name": "cmd_out"},
+        ),
+    )
+
+    rendered = render_command(spec, {})
+    file_id = rendered.output_files["cmd_out"]
+    assert rendered.argv == ["echo", str(get_blob_path(file_id, cfg).resolve())]
+
+
+def test_renderer__file_stdout_does_not_create_metadata(tmp_path, monkeypatch):
+    """
+    GIVEN file+stdout
+    WHEN render_command runs
+    THEN no metadata is created
+    """
+
+    cfg = _make_settings(tmp_path)
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.create_command_output_placeholders",
+        lambda spec, settings=None: file_manager.create_command_output_placeholders(
+            spec, settings=cfg
+        ),
+    )
+
+    spec = _make_spec(
+        outputs={
+            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "hello"},
+        ),
+    )
+
+    rendered = render_command(spec, {})
+
+    assert rendered.output_files == {}
+
+
+def test_renderer__file_stdout_does_not_modify_argv(tmp_path, monkeypatch):
+    """
+    GIVEN file+stdout
+    WHEN render_command runs
+    THEN argv unchanged
+    """
+
+    cfg = _make_settings(tmp_path)
+    monkeypatch.setattr(
+        "seg.actions.runtime.renderer.create_command_output_placeholders",
+        lambda spec, settings=None: file_manager.create_command_output_placeholders(
+            spec, settings=cfg
+        ),
+    )
+
+    spec = _make_spec(
+        outputs={
+            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "hello"},
+        ),
+    )
+
+    rendered = render_command(spec, {})
+
+    assert rendered.argv == ["echo", "hello"]
 
 
 # ============================================================================

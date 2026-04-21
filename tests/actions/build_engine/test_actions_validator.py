@@ -12,7 +12,7 @@ import pytest
 
 from seg.actions.build_engine.validator import validate_modules
 from seg.actions.exceptions import ActionSpecsParseError
-from seg.actions.schemas.dsl import ArgCmd, BinaryCmd, FlagCmd
+from seg.actions.schemas.dsl import ArgCmd, BinaryCmd, FlagCmd, OutputCmd
 
 # ============================================================================
 # validate_modules: happy path
@@ -335,6 +335,238 @@ def test_validate_modules_rejects_binary_not_declared_in_module(
     with pytest.raises(
         ActionSpecsParseError,
         match="is not declared in module binaries",
+    ):
+        validate_modules([module])
+
+
+# ============================================================================
+# outputs validation
+# ============================================================================
+
+
+def test_validate_modules_accepts_file_command_output_reference(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action with `file + command` output declaration
+    WHEN command references the output exactly once
+    THEN validation succeeds
+    """
+    action = make_action_payload(
+        outputs={"out_file": {"type": "file", "source": "command"}},
+        command=[{"binary": "echo"}, {"output": "out_file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    validate_modules([module])
+
+
+def test_validate_modules_rejects_missing_file_command_output_reference(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action declaring `file + command` output
+    WHEN command does not reference that output
+    THEN validation fails deterministically
+    """
+    action = make_action_payload(
+        outputs={"out_file": {"type": "file", "source": "command"}},
+        command=[{"binary": "echo"}, "ok"],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must be referenced exactly once"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_stderr_output_source(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an output declaration using stderr source
+    WHEN semantic validation runs
+    THEN validation rejects the unsupported type/source combination
+    """
+    action = make_action_payload(
+        outputs={"err_file": {"type": "file", "source": "stderr"}},
+        command=[{"binary": "echo"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="unsupported type/source"):
+        validate_modules([module])
+
+
+def test_validator__rejects_unknown_output_type(make_valid_module):
+    """
+    GIVEN an output definition with unknown output type
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+
+    class _UnknownOutput:
+        """Lightweight output-like object for validator negative tests."""
+
+        type = "unknown"
+        source = "stdout"
+
+    module = make_valid_module()
+    module.actions["ping"].outputs = {"bad_output": _UnknownOutput()}
+
+    with pytest.raises(ActionSpecsParseError, match="unsupported type/source"):
+        validate_modules([module])
+
+
+def test_validator__rejects_unknown_output_source(make_valid_module):
+    """
+    GIVEN an output definition with unknown output source
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+
+    class _UnknownOutput:
+        """Lightweight output-like object for validator negative tests."""
+
+        type = "file"
+        source = "unknown"
+
+    module = make_valid_module()
+    module.actions["ping"].outputs = {"bad_output": _UnknownOutput()}
+
+    with pytest.raises(ActionSpecsParseError, match="unsupported type/source"):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "output_type,output_source",
+    [
+        ("file", "stderr"),
+        ("data", "command"),
+    ],
+    ids=["file_stderr", "data_command"],
+)
+def test_validator__rejects_invalid_type_source_combination(
+    make_valid_module,
+    output_type: str,
+    output_source: str,
+):
+    """
+    GIVEN an output definition with invalid type/source combination
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+
+    class _InvalidOutput:
+        """Lightweight output-like object for validator negative tests."""
+
+        def __init__(self, output_type: str, output_source: str):
+            """Initialize output type/source pair for testing.
+
+            Args:
+                output_type: Output type value.
+                output_source: Output source value.
+            """
+
+            self.type = output_type
+            self.source = output_source
+
+    module = make_valid_module()
+    module.actions["ping"].outputs = {
+        "bad_output": _InvalidOutput(output_type, output_source)
+    }
+
+    with pytest.raises(ActionSpecsParseError, match="unsupported type/source"):
+        validate_modules([module])
+
+
+def test_validator__file_command_requires_reference(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action with file+command output declaration
+    WHEN command does not reference the output
+    THEN ActionSpecsParseError is raised
+    """
+
+    action = make_action_payload(
+        outputs={"cmd_out": {"type": "file", "source": "command"}},
+        command=[{"binary": "echo"}, "ok"],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must be referenced exactly once"):
+        validate_modules([module])
+
+
+def test_validator__file_command_rejects_multiple_references(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action with file+command output declaration
+    WHEN command references the same output multiple times
+    THEN ActionSpecsParseError is raised
+    """
+
+    action = make_action_payload(
+        outputs={"cmd_out": {"type": "file", "source": "command"}},
+        command=[
+            {"binary": "echo"},
+            {"output": "cmd_out"},
+            {"output": "cmd_out"},
+        ],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must be referenced exactly once"):
+        validate_modules([module])
+
+
+def test_validator__file_stdout_rejects_reference(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action with file+stdout output declaration
+    WHEN command references that output
+    THEN ActionSpecsParseError is raised
+    """
+
+    action = make_action_payload(
+        outputs={"stdout_file": {"type": "file", "source": "stdout"}},
+        command=[{"binary": "echo"}, {"output": "stdout_file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="must not be referenced"):
+        validate_modules([module])
+
+
+def test_validator__rejects_undeclared_output_reference(make_valid_module):
+    """
+    GIVEN a command containing an output token
+    WHEN referenced output is not declared
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_valid_module()
+    module.actions["ping"].command = [
+        BinaryCmd(binary="echo"),
+        OutputCmd(output="missing_output"),
+    ]
+
+    with pytest.raises(
+        ActionSpecsParseError,
+        match="output 'missing_output' referenced in command but not defined",
     ):
         validate_modules([module])
 

@@ -19,7 +19,7 @@ Design principles:
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, field, fields, is_dataclass
 from enum import Enum
 from typing import Any, Literal, Optional, Tuple, Type, TypedDict, Union
 from uuid import UUID
@@ -53,6 +53,21 @@ class ParamType(str, Enum):
     BOOL = "bool"
     FILE_ID = "file_id"
     LIST = "list"
+
+
+class OutputType(str, Enum):
+    """Supported logical output types for SEG action outputs."""
+
+    FILE = "file"
+    DATA = "data"
+
+
+class OutputSource(str, Enum):
+    """Supported logical output sources for SEG action outputs."""
+
+    COMMAND = "command"
+    STDOUT = "stdout"
+    STDERR = "stderr"
 
 
 class BinaryCmd(TypedDict):
@@ -91,6 +106,18 @@ class FlagCmd(TypedDict):
     name: str
 
 
+class OutputCmd(TypedDict):
+    """Runtime command token referencing a declared output placeholder.
+
+    Attributes:
+        kind: Discriminator value fixed to `output`.
+        name: Output key resolved from action output definitions.
+    """
+
+    kind: Literal["output"]
+    name: str
+
+
 class ConstCmd(TypedDict):
     """Runtime command token containing a literal command value.
 
@@ -103,7 +130,7 @@ class ConstCmd(TypedDict):
     value: str
 
 
-CommandElement = Union[BinaryCmd, ArgCmd, FlagCmd, ConstCmd]
+CommandElement = Union[BinaryCmd, ArgCmd, FlagCmd, OutputCmd, ConstCmd]
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +162,14 @@ class FlagDef:
     value: str
     default: bool
     description: str
+
+
+@dataclass(frozen=True, slots=True)
+class OutputDef:
+    """Typed internal definition of an action output."""
+
+    type: OutputType
+    source: OutputSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +210,7 @@ class ActionSpec:
     arg_defs: dict[str, ArgDef]
     flag_defs: dict[str, FlagDef]
     defaults: dict[str, Any]
+    outputs: dict[str, OutputDef] = field(default_factory=dict)
 
     authors: tuple[str, ...] | None = None
     tags: tuple[str, ...] = ()
@@ -205,6 +241,11 @@ class ActionSpec:
         """Return whether the action defines any default runtime params."""
         return bool(self.defaults)
 
+    @property
+    def has_outputs(self) -> bool:
+        """Return whether the action defines runtime outputs."""
+        return bool(self.outputs)
+
     def model_dump(self) -> dict[str, Any]:
         """Serialize ActionSpec into a JSON-compatible dictionary.
 
@@ -222,6 +263,7 @@ class ActionSpec:
             "execution_policy": self.execution_policy,
             "arg_defs": self.arg_defs,
             "flag_defs": self.flag_defs,
+            "outputs": self.outputs,
             "defaults": self.defaults,
             "authors": self.authors,
             "tags": self.tags,

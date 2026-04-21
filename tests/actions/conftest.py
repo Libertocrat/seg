@@ -32,6 +32,7 @@ def make_action_spec_input():
         summary: str | None = None,
         args: dict[str, Any] | None = None,
         flags: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
         command: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Build a raw action payload dictionary for tests.
@@ -41,6 +42,7 @@ def make_action_spec_input():
             summary: Optional short action summary.
             args: Optional argument definitions payload.
             flags: Optional flag definitions payload.
+            outputs: Optional outputs definitions payload.
             command: Optional command token payload.
 
         Returns:
@@ -52,6 +54,7 @@ def make_action_spec_input():
             "summary": summary,
             "args": args,
             "flags": flags,
+            "outputs": outputs,
             "command": [{"binary": "echo"}] if command is None else command,
         }
 
@@ -72,6 +75,7 @@ def make_action_payload(make_action_spec_input):
         *,
         args: dict[str, Any] | None = None,
         flags: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
         command: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Build a minimal valid action payload.
@@ -79,6 +83,7 @@ def make_action_payload(make_action_spec_input):
         Args:
             args: Optional argument definitions payload.
             flags: Optional flag definitions payload.
+            outputs: Optional outputs definitions payload.
             command: Optional command token payload.
 
         Returns:
@@ -89,6 +94,7 @@ def make_action_payload(make_action_spec_input):
             description="test",
             args=args,
             flags=flags,
+            outputs=outputs,
             command=command,
         )
 

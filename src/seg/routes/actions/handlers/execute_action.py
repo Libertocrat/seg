@@ -17,9 +17,11 @@ from seg.actions.exceptions import (
     ActionInvalidArgError,
     ActionNotFoundError,
     ActionRuntimeExecError,
+    ActionRuntimeOutputError,
     ActionRuntimeRenderError,
 )
 from seg.actions.registry import ActionRegistry
+from seg.actions.runtime.outputs_builder import build_outputs
 from seg.actions.runtime.sanitizer import (
     DEFAULT_MAX_STDERR_BYTES,
     DEFAULT_MAX_STDOUT_BYTES,
@@ -75,9 +77,16 @@ async def execute_action_handler(
     """Execute one DSL action and map runtime exceptions to `SegError`."""
 
     registry = _get_action_registry(request)
+    settings = getattr(request.app.state, "settings", None)
+    cfg = settings if isinstance(settings, Settings) else get_settings()
 
     try:
-        result = await dispatch_action(registry, payload.action, payload.params)
+        result = await dispatch_action(
+            registry,
+            payload.action,
+            payload.params,
+            settings=cfg,
+        )
     except ActionNotFoundError as exc:
         raise SegError(
             ACTION_NOT_FOUND,
@@ -116,6 +125,8 @@ async def execute_action_handler(
         ) from exc
     except ActionExecutionTimeoutError as exc:
         raise SegError(TIMEOUT) from exc
+    except ActionRuntimeOutputError as exc:
+        raise SegError(INTERNAL_ERROR, details={"reason": str(exc)}) from exc
     except ActionRuntimeExecError as exc:
         raise SegError(INTERNAL_ERROR, details={"reason": str(exc)}) from exc
     except Exception as exc:
@@ -124,16 +135,21 @@ async def execute_action_handler(
             details={"reason": "unexpected error"},
         ) from exc
 
-    settings = getattr(request.app.state, "settings", None)
-    cfg = settings if isinstance(settings, Settings) else get_settings()
-
     max_stdout = getattr(cfg, "seg_max_stdout_bytes", None) or DEFAULT_MAX_STDOUT_BYTES
     max_stderr = getattr(cfg, "seg_max_stderr_bytes", None) or DEFAULT_MAX_STDERR_BYTES
 
     safe = transform_output(
-        result,
+        result.execution,
         max_stdout=max_stdout,
         max_stderr=max_stderr,
+    )
+
+    outputs_payload = build_outputs(
+        result.spec,
+        result.rendered,
+        result.execution,
+        safe,
+        settings=cfg,
     )
 
     stdout, stdout_encoding = _encode_output(safe.stdout)
@@ -149,4 +165,5 @@ async def execute_action_handler(
         pid=safe.pid,
         truncated=safe.truncated,
         redacted=safe.redacted,
+        outputs=outputs_payload if outputs_payload else None,
     )
