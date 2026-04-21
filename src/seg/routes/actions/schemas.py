@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from seg.routes.files.schemas import FileMetadata
+
 
 class ExecuteRequest(BaseModel):
     """Client request body for executing a registered SEG action."""
@@ -28,3 +30,4 @@ class ExecuteActionData(BaseModel):
     pid: int | None = None
     truncated: bool
     redacted: bool
+    outputs: dict[str, FileMetadata | None] | None = None

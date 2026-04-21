@@ -1,11 +1,7 @@
 """Runtime command renderer for SEG DSL actions.
 
 This module transforms a validated `ActionSpec` plus validated runtime params
-into a fully resolved `argv` list for subprocess-safe execution.
-
-The renderer is pure and deterministic: it performs no subprocess calls and no
-registry lookups, and only reads file metadata/blob presence when resolving
-`file_id` args.
+into a fully resolved `RenderedAction` for subprocess-safe execution.
 """
 
 from __future__ import annotations
@@ -27,14 +23,26 @@ from seg.actions.models.core import (
     BinaryCmd,
     ConstCmd,
     FlagCmd,
+    OutputCmd,
     ParamType,
 )
+from seg.actions.models.runtime import RenderedAction
+from seg.actions.runtime.file_manager import (
+    cleanup_output_placeholders,
+    create_command_output_placeholders,
+    resolve_output_blob_path,
+)
+from seg.core.config import Settings
 from seg.core.utils.file_storage import get_blob_path, load_file_metadata
 from seg.routes.files.schemas import FileMetadata
 
 
-def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
-    """Render a validated action invocation into a final argv list.
+def render_command(
+    spec: ActionSpec,
+    params: dict[str, Any],
+    settings: Settings | None = None,
+) -> RenderedAction:
+    """Render a validated action invocation into final runtime render state.
 
     Pipeline (strict order):
         1. Merge defaults + params.
@@ -48,7 +56,7 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
         params: Already-validated params payload for the action.
 
     Returns:
-        Final argv list ready for direct subprocess execution.
+        RenderedAction containing final argv and output placeholder file ids.
 
     Raises:
         ActionInvalidArgError: If any runtime value is invalid.
@@ -70,6 +78,8 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
                 raise ActionInvalidArgError(
                     f"Param '{name}' is invalid: {exc}"
                 ) from exc
+
+        output_files = create_command_output_placeholders(spec, settings=settings)
 
         argv: list[str] = []
         for token in spec.command_template:
@@ -98,13 +108,28 @@ def render_command(spec: ActionSpec, params: dict[str, Any]) -> list[str]:
                     argv.append(spec.flag_defs[name].value)
                 continue
 
+            if kind == "output":
+                output_token = cast(OutputCmd, token)
+                output_name = output_token["name"]
+                file_id = output_files.get(output_name)
+                if file_id is None:
+                    raise ActionRuntimeRenderError(
+                        f"Output '{output_name}' has no command placeholder"
+                    )
+                argv.append(resolve_output_blob_path(file_id, settings=settings))
+                continue
+
             raise ActionRuntimeRenderError(f"Unsupported command token kind: {kind}")
 
-        return argv
+        return RenderedAction(argv=argv, output_files=output_files)
 
     except ActionRuntimeError:
+        if "output_files" in locals() and output_files:
+            cleanup_output_placeholders(output_files, settings=settings)
         raise
     except Exception as exc:
+        if "output_files" in locals() and output_files:
+            cleanup_output_placeholders(output_files, settings=settings)
         raise ActionRuntimeRenderError(
             "Unexpected failure while rendering command"
         ) from exc
@@ -211,6 +236,9 @@ def _resolve_file_id_to_path(
     metadata = load_file_metadata(file_id)
     if metadata is None:
         raise ActionInvalidArgError(f"File '{file_id}' was not found")
+
+    if metadata.status != "ready":
+        raise ActionInvalidArgError(f"File '{file_id}' is not ready for use")
 
     blob_path = get_blob_path(file_id)
     if not blob_path.exists():

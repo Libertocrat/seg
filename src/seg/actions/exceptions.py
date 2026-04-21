@@ -50,3 +50,7 @@ class ActionBinaryPathForbiddenError(ActionRuntimeExecError):
 
 class ActionExecutionTimeoutError(ActionRuntimeExecError):
     """Raised when execution exceeds the allowed timeout."""
+
+
+class ActionRuntimeOutputError(ActionRuntimeError):
+    """Raised when runtime output materialization fails unexpectedly."""

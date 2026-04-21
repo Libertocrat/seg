@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel
 
-from .dsl import ArgSpec, CommandElement, FlagSpec
+from .dsl import ArgSpec, CommandElement, FlagSpec, OutputSpec
 
 
 class ActionSpecInput(BaseModel):
@@ -17,5 +17,6 @@ class ActionSpecInput(BaseModel):
 
     args: Optional[Dict[str, ArgSpec]] = None
     flags: Optional[Dict[str, FlagSpec]] = None
+    outputs: Optional[Dict[str, OutputSpec]] = None
 
     command: List[CommandElement]

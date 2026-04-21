@@ -7,9 +7,12 @@ JSON persistence.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterator
 from uuid import UUID
@@ -22,6 +25,7 @@ from seg.routes.files.schemas import FileMetadata
 
 logger = logging.getLogger("seg.core.file_storage")
 _MAGIC = magic.Magic(mime=True)
+EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 _DISALLOWED_EXECUTABLE_EXTENSIONS = frozenset(
     {
@@ -242,6 +246,75 @@ def load_file_metadata(
 
     payload = json.loads(meta_path.read_text(encoding="utf-8"))
     return FileMetadata.model_validate(payload)
+
+
+def compute_sha256_for_file(path: Path) -> str:
+    """Compute SHA-256 digest for a file path.
+
+    Args:
+        path: Path to the file.
+
+    Returns:
+        Lowercase SHA-256 hex digest.
+    """
+
+    hasher = hashlib.sha256()
+    with path.open("rb") as file_obj:
+        while True:
+            chunk = file_obj.read(65536)
+            if not chunk:
+                break
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def detect_mime_for_file(path: Path) -> str:
+    """Detect MIME type for a persisted blob file.
+
+    Args:
+        path: Path to the file.
+
+    Returns:
+        Lowercased MIME type string.
+    """
+
+    return _detect_mime(path)
+
+
+def create_placeholder_file_metadata(
+    *,
+    original_filename: str,
+    settings: Settings | None = None,
+) -> FileMetadata:
+    """Create and persist placeholder metadata for command output files.
+
+    Args:
+        original_filename: Public original filename to store in metadata.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Persisted placeholder metadata in `pending` state.
+    """
+
+    cfg = settings or get_settings()
+    ensure_storage_dirs(cfg)
+
+    file_id = uuid.uuid4()
+    now_utc = datetime.now(UTC)
+    metadata = FileMetadata(
+        id=file_id,
+        original_filename=original_filename,
+        stored_filename=f"file_{file_id}.bin",
+        mime_type="application/octet-stream",
+        extension=".bin",
+        size_bytes=0,
+        sha256=EMPTY_SHA256,
+        created_at=now_utc,
+        updated_at=now_utc,
+        status="pending",
+    )
+    save_file_metadata(metadata, cfg)
+    return metadata
 
 
 def delete_blob_file(

@@ -2,19 +2,39 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
-from seg.actions.models import ActionExecutionResult
+from seg.actions.exceptions import ActionRuntimeExecError
+from seg.actions.models import ActionExecutionResult, ActionSpec, RenderedAction
 from seg.actions.registry import ActionRegistry
 from seg.actions.runtime import executor as runtime_executor
+from seg.actions.runtime.file_manager import cleanup_output_placeholders
 from seg.actions.runtime.renderer import render_command
+from seg.core.config import Settings
+
+
+@dataclass(frozen=True, slots=True)
+class DispatchedActionResult:
+    """Runtime dispatch result preserving rendered and executed state.
+
+    Attributes:
+        rendered: Rendered command state used for subprocess execution.
+        execution: Completed subprocess result.
+        spec: Action specification resolved for this dispatch.
+    """
+
+    rendered: RenderedAction
+    execution: ActionExecutionResult
+    spec: ActionSpec
 
 
 async def dispatch_action(
     registry: ActionRegistry,
     action_name: str,
     params: dict[str, Any],
-) -> ActionExecutionResult:
+    settings: Settings | None = None,
+) -> DispatchedActionResult:
     """Resolve, validate, render and execute an action.
 
     This function is intentionally HTTP-agnostic and lets runtime exceptions
@@ -24,5 +44,13 @@ async def dispatch_action(
     action_spec = registry.get(action_name)
     validated = action_spec.params_model.model_validate(params)
     params_dict = validated.model_dump(mode="python")
-    argv = render_command(action_spec, params_dict)
-    return await runtime_executor.execute_command(argv, action_spec)
+    rendered = render_command(action_spec, params_dict, settings=settings)
+    try:
+        execution = await runtime_executor.execute_command(rendered.argv, action_spec)
+    except ActionRuntimeExecError:
+        cleanup_output_placeholders(rendered.output_files, settings=settings)
+        raise
+
+    return DispatchedActionResult(
+        rendered=rendered, execution=execution, spec=action_spec
+    )

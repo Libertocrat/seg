@@ -1,8 +1,8 @@
-"""Pydantic DSL schemas for arguments, flags, and command tokens."""
+"""Pydantic DSL schemas for arguments, flags, command tokens, and outputs."""
 
 from __future__ import annotations
 
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict
 
@@ -26,6 +26,8 @@ class ArgSpec(BaseModel):
 class FlagSpec(BaseModel):
     """Definition of a flag in the SEG DSL."""
 
+    model_config = ConfigDict(extra="forbid")
+
     value: str
     default: bool
     description: str
@@ -34,11 +36,15 @@ class FlagSpec(BaseModel):
 class BinaryCmd(BaseModel):
     """DSL token representing the selected binary."""
 
+    model_config = ConfigDict(extra="forbid")
+
     binary: str
 
 
 class ArgCmd(BaseModel):
     """DSL token referencing a defined argument."""
+
+    model_config = ConfigDict(extra="forbid")
 
     arg: str
 
@@ -46,7 +52,26 @@ class ArgCmd(BaseModel):
 class FlagCmd(BaseModel):
     """DSL token referencing a defined flag."""
 
+    model_config = ConfigDict(extra="forbid")
+
     flag: str
 
 
-CommandElement = Union[str, BinaryCmd, ArgCmd, FlagCmd]
+class OutputCmd(BaseModel):
+    """DSL token referencing a defined output."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    output: str
+
+
+class OutputSpec(BaseModel):
+    """Definition of one output in the SEG DSL."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["file", "data"]
+    source: Literal["command", "stdout", "stderr"]
+
+
+CommandElement = Union[str, BinaryCmd, ArgCmd, FlagCmd, OutputCmd]

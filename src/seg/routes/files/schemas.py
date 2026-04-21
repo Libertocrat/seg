@@ -38,7 +38,7 @@ class FileMetadata(BaseModel):
     sha256: str = Field(..., min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$")
     created_at: datetime
     updated_at: datetime
-    status: Literal["ready"] = "ready"
+    status: Literal["pending", "unverified", "ready"] = "ready"
 
 
 class UploadFileData(BaseModel):

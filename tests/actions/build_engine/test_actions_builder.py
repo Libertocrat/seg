@@ -155,6 +155,56 @@ def test_command_template_normalizes_literal_as_const_token(
     assert spec.command_template[1] == {"kind": "const", "value": "-hex"}
 
 
+def test_command_template_normalizes_output_token(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN an action command containing an output token
+    WHEN build_actions is called
+    THEN the output token is compiled as `kind='output'`
+    """
+    action = make_action_spec_input(
+        outputs={"out_file": {"type": "file", "source": "command"}},
+        command=[{"binary": "echo"}, {"output": "out_file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.command_template[1] == {"kind": "output", "name": "out_file"}
+
+
+def test_build_actions_compiles_output_definitions(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN an action with declared outputs
+    WHEN build_actions is called
+    THEN ActionSpec outputs are compiled into runtime output definitions
+    """
+    action = make_action_spec_input(
+        outputs={
+            "cmd_file": {"type": "file", "source": "command"},
+            "stdout_file": {"type": "file", "source": "stdout"},
+            "data_out": {"type": "data", "source": "stdout"},
+        },
+        command=[{"binary": "echo"}, {"output": "cmd_file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert set(spec.outputs.keys()) == {"cmd_file", "stdout_file", "data_out"}
+    assert spec.outputs["cmd_file"].type.value == "file"
+    assert spec.outputs["cmd_file"].source.value == "command"
+    assert spec.outputs["stdout_file"].source.value == "stdout"
+    assert spec.outputs["data_out"].type.value == "data"
+
+
 # ============================================================================
 # binary extraction
 # ============================================================================

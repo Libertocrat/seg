@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
@@ -250,11 +250,12 @@ get_content_description = (
         }
     },
 )
-async def get_file_content(id: UUID):
+async def get_file_content(id: UUID, request: Request):
     """Stream file content by UUID."""
 
     try:
-        descriptor = await get_file_content_handler(file_id=id)
+        settings = getattr(request.app.state, "settings", None)
+        descriptor = await get_file_content_handler(file_id=id, settings=settings)
 
         headers = {
             "Content-Disposition": f'attachment; filename="{descriptor.filename}"',

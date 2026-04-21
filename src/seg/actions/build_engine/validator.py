@@ -26,7 +26,15 @@ from uuid import UUID
 from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.models.core import ParamType
 from seg.actions.schemas.action import ActionSpecInput
-from seg.actions.schemas.dsl import ArgCmd, ArgSpec, BinaryCmd, FlagCmd, FlagSpec
+from seg.actions.schemas.dsl import (
+    ArgCmd,
+    ArgSpec,
+    BinaryCmd,
+    FlagCmd,
+    FlagSpec,
+    OutputCmd,
+    OutputSpec,
+)
 from seg.actions.schemas.module import ModuleSpec
 from seg.actions.security.policy import DEFAULT_BLOCKED_BINARIES, is_simple_binary_name
 
@@ -231,6 +239,8 @@ def _validate_action(
     _validate_name_collisions(module.module, action_name, action)
     _validate_argument_names(module.module, action_name, action)
     _validate_flag_names(module.module, action_name, action)
+    _validate_output_names(module.module, action_name, action)
+    _validate_output_definitions(module.module, action_name, action)
     _validate_binary_rules(module, action_name, action)
     _validate_command_elements(module.module, action_name, action)
     _validate_command_references(module.module, action_name, action)
@@ -338,6 +348,89 @@ def _validate_flag_names(
         )
 
 
+def _validate_output_names(
+    module_name: str,
+    action_name: str,
+    action: ActionSpecInput,
+) -> None:
+    """Validate all output names and outputs block shape for one action.
+
+    Args:
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
+
+    Raises:
+        ActionSpecsParseError: If outputs are empty when provided or any output
+            name violates identifier rules.
+    """
+
+    outputs = action.outputs
+    if outputs is None:
+        return
+
+    if "outputs" in action.model_fields_set and not outputs:
+        _raise_action_error(
+            module_name,
+            action_name,
+            "outputs must be a non-empty mapping when provided",
+        )
+
+    for output_name in outputs.keys():
+        _validate_identifier(
+            module_name=module_name,
+            identifier_kind="output",
+            identifier_value=output_name,
+            action_name=action_name,
+        )
+
+
+def _validate_output_definitions(
+    module_name: str,
+    action_name: str,
+    action: ActionSpecInput,
+) -> None:
+    """Validate output type/source combinations for one action.
+
+    Args:
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification.
+
+    Raises:
+        ActionSpecsParseError: If an output definition uses an unsupported
+            combination for this DSL version.
+    """
+
+    for output_name, output_spec in (action.outputs or {}).items():
+        if not _is_supported_output_combination(output_spec):
+            _raise_action_error(
+                module_name,
+                action_name,
+                "output "
+                f"'{output_name}' has unsupported type/source combination "
+                f"'{output_spec.type}+{output_spec.source}'",
+            )
+
+
+def _is_supported_output_combination(output_spec: OutputSpec) -> bool:
+    """Return whether one output type/source combination is valid.
+
+    Args:
+        output_spec: Output definition to validate.
+
+    Returns:
+        True when the combination is allowed for this iteration.
+    """
+
+    valid_combinations = {
+        ("file", "command"),
+        ("file", "stdout"),
+        ("data", "stdout"),
+    }
+    return (output_spec.type, output_spec.source) in valid_combinations
+
+
 def _validate_binary_rules(
     module: ModuleSpec,
     action_name: str,
@@ -419,7 +512,7 @@ def _validate_command_elements(
             _validate_command_literal(module_name, action_name, element)
             continue
 
-        if isinstance(element, (BinaryCmd, ArgCmd, FlagCmd)):
+        if isinstance(element, (BinaryCmd, ArgCmd, FlagCmd, OutputCmd)):
             continue
 
         _raise_action_error(
@@ -480,7 +573,7 @@ def _validate_command_references(
     action_name: str,
     action: ActionSpecInput,
 ) -> None:
-    """Ensure all command arg/flag references resolve to declared definitions.
+    """Ensure all command arg/flag/output references resolve to definitions.
 
     Args:
         module_name: Parent module name.
@@ -488,12 +581,13 @@ def _validate_command_references(
         action: Action specification.
 
     Raises:
-        ActionSpecsParseError: If a command references an undefined arg or
-                flag.
+        ActionSpecsParseError: If a command references an undefined arg, flag,
+            or output.
     """
 
     args = action.args or {}
     flags = action.flags or {}
+    outputs = action.outputs or {}
 
     for element in action.command:
         if isinstance(element, ArgCmd) and element.arg not in args:
@@ -510,13 +604,20 @@ def _validate_command_references(
                 f"flag '{element.flag}' referenced in command but not defined",
             )
 
+        if isinstance(element, OutputCmd) and element.output not in outputs:
+            _raise_action_error(
+                module_name,
+                action_name,
+                f"output '{element.output}' referenced in command but not defined",
+            )
+
 
 def _validate_unused_definitions(
     module_name: str,
     action_name: str,
     action: ActionSpecInput,
 ) -> None:
-    """Ensure all declared args and flags are used by the command template.
+    """Ensure declared args/flags/outputs follow command usage rules.
 
     Args:
         module_name: Parent module name.
@@ -524,7 +625,7 @@ def _validate_unused_definitions(
         action: Action specification.
 
     Raises:
-        ActionSpecsParseError: If any declared arg or flag is unused.
+        ActionSpecsParseError: If any declared definition violates usage rules.
     """
 
     used_args = {
@@ -533,6 +634,15 @@ def _validate_unused_definitions(
     used_flags = {
         element.flag for element in action.command if isinstance(element, FlagCmd)
     }
+    used_outputs = {
+        element.output for element in action.command if isinstance(element, OutputCmd)
+    }
+    output_reference_counts: dict[str, int] = {}
+    for element in action.command:
+        if isinstance(element, OutputCmd):
+            output_reference_counts[element.output] = (
+                output_reference_counts.get(element.output, 0) + 1
+            )
 
     for arg_name in (action.args or {}).keys():
         if arg_name not in used_args:
@@ -549,6 +659,35 @@ def _validate_unused_definitions(
                 action_name,
                 f"flag '{flag_name}' is defined but not used in command",
             )
+
+    for output_name, output_spec in (action.outputs or {}).items():
+        references = output_reference_counts.get(output_name, 0)
+        if output_spec.type == "file" and output_spec.source == "command":
+            if references == 0:
+                _raise_action_error(
+                    module_name,
+                    action_name,
+                    f"output '{output_name}' with type 'file' and source 'command' "
+                    "must be referenced exactly once in command",
+                )
+            if references > 1:
+                _raise_action_error(
+                    module_name,
+                    action_name,
+                    f"output '{output_name}' with type 'file' and source 'command' "
+                    "must be referenced exactly once in command",
+                )
+
+        if (output_spec.type == "file" and output_spec.source == "stdout") or (
+            output_spec.type == "data" and output_spec.source == "stdout"
+        ):
+            if output_name in used_outputs:
+                _raise_action_error(
+                    module_name,
+                    action_name,
+                    f"output '{output_name}' with source 'stdout' must not be "
+                    "referenced in command",
+                )
 
 
 def _validate_args(
