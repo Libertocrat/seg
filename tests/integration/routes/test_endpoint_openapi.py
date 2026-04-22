@@ -16,6 +16,7 @@ from seg.core.openapi import (
     _build_required_arg_example_value,
     _format_arg_type_for_docs,
 )
+from tests.integration.routes.test_endpoint_execute import _build_outputs_registry
 
 # ============================================================================
 # Helpers
@@ -174,6 +175,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
 
     assert "#### Args" in sha256_description
     assert "#### Flags" in sha256_description
+    assert "#### Outputs" not in sha256_description
     assert "`file` (`file_id`)" in sha256_description
     assert "required" in sha256_description
     assert "`binary_output`" in sha256_description
@@ -197,6 +199,62 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     assert "- _No args_" in uuid_description
     assert "- _No flags_" in uuid_description
     assert uuid_params == {}
+
+
+def test_openapi_execute_response_examples_include_outputs_when_declared(
+    minimal_safe_env,
+    monkeypatch,
+    settings,
+    tmp_path,
+):
+    """Validate response examples document declared action outputs.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN response examples for actions with outputs include `data.outputs`
+    AND actions without outputs do not advertise synthetic outputs.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+        settings: Application settings fixture.
+        tmp_path: Temporary directory used to build a test DSL registry.
+    """
+
+    del minimal_safe_env
+
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
+    app = create_app()
+    app.state.action_registry = _build_outputs_registry(
+        specs_root=tmp_path,
+        monkeypatch=monkeypatch,
+        settings=app.state.settings,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+
+    post = response.json()["paths"]["/v1/execute"]["post"]
+    examples = post["responses"]["200"]["content"]["application/json"]["examples"]
+
+    outputs_description = examples["outputs_runtime.copy_cmd_output"]["description"]
+    assert "#### Outputs" in outputs_description
+    assert "File produced by command output placeholder" in outputs_description
+
+    outputs_example = examples["outputs_runtime.copy_cmd_output"]["value"]["data"]
+    assert "outputs" in outputs_example
+
+    copied_file = outputs_example["outputs"]["cmd_out_file"]
+    assert copied_file["original_filename"] == "action.cmd_out_file.bin"
+    assert copied_file["mime_type"] == "application/octet-stream"
+    assert copied_file["status"] == "ready"
+
+    stdout_example = examples["outputs_runtime.stdout_to_output"]["value"]["data"]
+    stdout_file = stdout_example["outputs"]["stdout_file"]
+    assert stdout_file["original_filename"] == "action.stdout_file.txt"
+    assert stdout_file["mime_type"] == "text/plain"
 
 
 def test_openapi_helpers_support_list_arg_docs_and_examples():

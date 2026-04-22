@@ -72,6 +72,7 @@ class OutputSpec(BaseModel):
 
     type: Literal["file", "data"]
     source: Literal["command", "stdout", "stderr"]
+    description: str
 
 
 CommandElement = Union[str, BinaryCmd, ArgCmd, FlagCmd, OutputCmd]

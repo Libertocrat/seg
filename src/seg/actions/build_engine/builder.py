@@ -257,6 +257,7 @@ def _build_output_defs(action: ActionSpecInput) -> dict[str, OutputDef]:
         compiled[output_name] = OutputDef(
             type=OutputType(output_spec.type),
             source=OutputSource(output_spec.source),
+            description=output_spec.description,
         )
 
     return compiled

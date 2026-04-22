@@ -477,8 +477,8 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------
 
 
-def _build_execute_action_markdown(spec: ActionSpec) -> str:
-    """Build a rich markdown description block for one action example.
+def _build_execute_action_request_markdown(spec: ActionSpec) -> str:
+    """Build a markdown description block for one action request example.
 
     Args:
         spec: Runtime action specification.
@@ -533,6 +533,34 @@ def _build_execute_action_markdown(spec: ActionSpec) -> str:
 
     if spec.deprecated:
         lines.extend(["", "⚠️ Deprecated action."])
+
+    return "\n".join(lines)
+
+
+def _build_execute_action_response_markdown(spec: ActionSpec) -> str:
+    """Build a markdown description block for one action response example.
+
+    Args:
+        spec: Runtime action specification.
+
+    Returns:
+        Markdown description including output definitions only.
+    """
+
+    lines = [
+        "",
+        "#### Outputs",
+        "",
+    ]
+
+    if spec.outputs:
+        for output_name, output_def in spec.outputs.items():
+            lines.append(
+                f"- `{output_name}` (`{output_def.type.value}`): "
+                f"{output_def.description}; source: `{output_def.source.value}`"
+            )
+    else:
+        lines.append("- _No outputs_")
 
     return "\n".join(lines)
 
@@ -657,6 +685,78 @@ def _format_openapi_markdown_value(value: Any) -> str:
     return str(value)
 
 
+def _build_file_metadata_example(
+    *,
+    original_filename: str,
+    mime_type: str,
+    extension: str,
+    size_bytes: int,
+) -> dict[str, Any]:
+    """Build a deterministic `FileMetadata` example payload for docs.
+
+    Args:
+        original_filename: Client-facing filename to expose in the example.
+        mime_type: MIME type advertised by the example metadata.
+        extension: File extension including leading dot.
+        size_bytes: Example file size.
+
+    Returns:
+        JSON-serializable dictionary matching `FileMetadata`.
+    """
+
+    return {
+        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "original_filename": original_filename,
+        "stored_filename": "file_3fa85f64-5717-4562-b3fc-2c963f66afa6.bin",
+        "mime_type": mime_type,
+        "extension": extension,
+        "size_bytes": size_bytes,
+        "sha256": "8e9aa02fb68dfb526d787f6b66adda7b651dd3f9f3b4a03e266d466161f4c39e",
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z",
+        "status": "ready",
+    }
+
+
+def _build_execute_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
+    """Build a representative `outputs` example for one action.
+
+    Args:
+        spec: Runtime action specification.
+
+    Returns:
+        Example outputs mapping or `None` if the action declares no outputs.
+    """
+
+    if not spec.outputs:
+        return None
+
+    outputs_example: dict[str, Any] = {}
+
+    for output_name, output_def in spec.outputs.items():
+        if output_def.type.value != "file":
+            outputs_example[output_name] = None
+            continue
+
+        if output_def.source.value == "stdout":
+            outputs_example[output_name] = _build_file_metadata_example(
+                original_filename=f"action.{output_name}.txt",
+                mime_type="text/plain",
+                extension=".txt",
+                size_bytes=16,
+            )
+            continue
+
+        outputs_example[output_name] = _build_file_metadata_example(
+            original_filename=f"action.{output_name}.bin",
+            mime_type="application/octet-stream",
+            extension=".bin",
+            size_bytes=1024,
+        )
+
+    return outputs_example
+
+
 def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     """Patch `/v1/execute` to reflect action-driven runtime contracts.
 
@@ -704,12 +804,12 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     for name in registry.list_names():
         spec = registry.get(name)
-        action_markdown = _build_execute_action_markdown(spec)
+        request_markdown = _build_execute_action_request_markdown(spec)
         action_summary = spec.summary or spec.description or "Execute action"
 
         variant: dict[str, Any] = {
             "type": "object",
-            "description": action_markdown,
+            "description": request_markdown,
             "properties": {
                 "action": {"type": "string", "const": name},
                 "params": {
@@ -729,7 +829,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
         # Build request example
         request_examples[name] = {
             "summary": f"{name}: {action_summary}",
-            "description": action_markdown,
+            "description": request_markdown,
             "value": {
                 "action": name,
                 "params": params_example,
@@ -763,22 +863,33 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     response_examples = {}
 
     for name in registry.list_names():
+        spec = registry.get(name)
+        outputs_example = _build_execute_outputs_example(spec)
+        response_markdown = _build_execute_action_response_markdown(spec)
+
+        response_data = {
+            "exit_code": 0,
+            "stdout": "",
+            "stdout_encoding": "utf-8",
+            "stderr": "",
+            "stderr_encoding": "utf-8",
+            "exec_time": 0.01,
+            "pid": 12345,
+            "truncated": False,
+            "redacted": False,
+            "outputs": None,
+        }
+
+        if outputs_example is not None:
+            response_data["outputs"] = outputs_example
+
         response_examples[name] = {
-            "summary": f"Response for action: {name}",
+            "summary": f"Response for: {name}",
+            "description": response_markdown,
             "value": {
                 "success": True,
                 "error": None,
-                "data": {
-                    "exit_code": 0,
-                    "stdout": "",
-                    "stdout_encoding": "utf-8",
-                    "stderr": "",
-                    "stderr_encoding": "utf-8",
-                    "exec_time": 0.01,
-                    "pid": 12345,
-                    "truncated": False,
-                    "redacted": False,
-                },
+                "data": response_data,
             },
         }
 

@@ -355,7 +355,13 @@ def test_validate_modules_accepts_file_command_output_reference(
     THEN validation succeeds
     """
     action = make_action_payload(
-        outputs={"out_file": {"type": "file", "source": "command"}},
+        outputs={
+            "out_file": {
+                "type": "file",
+                "source": "command",
+                "description": "Command output file",
+            }
+        },
         command=[{"binary": "echo"}, {"output": "out_file"}],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
@@ -374,7 +380,13 @@ def test_validate_modules_rejects_missing_file_command_output_reference(
     THEN validation fails deterministically
     """
     action = make_action_payload(
-        outputs={"out_file": {"type": "file", "source": "command"}},
+        outputs={
+            "out_file": {
+                "type": "file",
+                "source": "command",
+                "description": "Command output file",
+            }
+        },
         command=[{"binary": "echo"}, "ok"],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
@@ -394,7 +406,13 @@ def test_validate_modules_rejects_stderr_output_source(
     THEN validation rejects the unsupported type/source combination
     """
     action = make_action_payload(
-        outputs={"err_file": {"type": "file", "source": "stderr"}},
+        outputs={
+            "err_file": {
+                "type": "file",
+                "source": "stderr",
+                "description": "Unsupported stderr file output",
+            }
+        },
         command=[{"binary": "echo"}],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
@@ -497,7 +515,13 @@ def test_validator__file_command_requires_reference(
     """
 
     action = make_action_payload(
-        outputs={"cmd_out": {"type": "file", "source": "command"}},
+        outputs={
+            "cmd_out": {
+                "type": "file",
+                "source": "command",
+                "description": "Command output placeholder",
+            }
+        },
         command=[{"binary": "echo"}, "ok"],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
@@ -518,7 +542,13 @@ def test_validator__file_command_rejects_multiple_references(
     """
 
     action = make_action_payload(
-        outputs={"cmd_out": {"type": "file", "source": "command"}},
+        outputs={
+            "cmd_out": {
+                "type": "file",
+                "source": "command",
+                "description": "Command output placeholder",
+            }
+        },
         command=[
             {"binary": "echo"},
             {"output": "cmd_out"},
@@ -543,7 +573,13 @@ def test_validator__file_stdout_rejects_reference(
     """
 
     action = make_action_payload(
-        outputs={"stdout_file": {"type": "file", "source": "stdout"}},
+        outputs={
+            "stdout_file": {
+                "type": "file",
+                "source": "stdout",
+                "description": "Stdout materialized file",
+            }
+        },
         command=[{"binary": "echo"}, {"output": "stdout_file"}],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
