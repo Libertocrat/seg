@@ -414,6 +414,7 @@ actions:
             cmd_out_file:
                 type: file
                 source: command
+                description: "File produced by command output placeholder"
         command:
             - binary: echo
             - "CMD_OUTPUT"
@@ -425,6 +426,7 @@ actions:
             stdout_file:
                 type: file
                 source: stdout
+                description: "File materialized from stdout bytes"
         command:
             - binary: echo
             - "HELLO_STDOUT"
@@ -435,6 +437,7 @@ actions:
             cmd_out_file:
                 type: file
                 source: command
+                description: "Command output placeholder cleaned on failure"
         command:
             - binary: "false"
             - output: cmd_out_file
@@ -445,9 +448,11 @@ actions:
             cmd_out_file:
                 type: file
                 source: command
+                description: "Primary command output file"
             stdout_file:
                 type: file
                 source: stdout
+                description: "Secondary stdout-derived output file"
         command:
             - binary: echo
             - "MULTI_OUTPUT"

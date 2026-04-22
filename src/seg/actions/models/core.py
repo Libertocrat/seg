@@ -170,6 +170,7 @@ class OutputDef:
 
     type: OutputType
     source: OutputSource
+    description: str = ""
 
 
 @dataclass(frozen=True, slots=True)

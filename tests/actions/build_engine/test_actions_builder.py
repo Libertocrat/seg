@@ -166,7 +166,13 @@ def test_command_template_normalizes_output_token(
     THEN the output token is compiled as `kind='output'`
     """
     action = make_action_spec_input(
-        outputs={"out_file": {"type": "file", "source": "command"}},
+        outputs={
+            "out_file": {
+                "type": "file",
+                "source": "command",
+                "description": "Command materialized file output",
+            }
+        },
         command=[{"binary": "echo"}, {"output": "out_file"}],
     )
     module = make_module_spec(make_module_payload(actions={"test_action": action}))
@@ -188,9 +194,21 @@ def test_build_actions_compiles_output_definitions(
     """
     action = make_action_spec_input(
         outputs={
-            "cmd_file": {"type": "file", "source": "command"},
-            "stdout_file": {"type": "file", "source": "stdout"},
-            "data_out": {"type": "data", "source": "stdout"},
+            "cmd_file": {
+                "type": "file",
+                "source": "command",
+                "description": "Command output file",
+            },
+            "stdout_file": {
+                "type": "file",
+                "source": "stdout",
+                "description": "Stdout materialized file",
+            },
+            "data_out": {
+                "type": "data",
+                "source": "stdout",
+                "description": "Structured stdout payload",
+            },
         },
         command=[{"binary": "echo"}, {"output": "cmd_file"}],
     )
@@ -201,6 +219,7 @@ def test_build_actions_compiles_output_definitions(
     assert set(spec.outputs.keys()) == {"cmd_file", "stdout_file", "data_out"}
     assert spec.outputs["cmd_file"].type.value == "file"
     assert spec.outputs["cmd_file"].source.value == "command"
+    assert spec.outputs["cmd_file"].description == "Command output file"
     assert spec.outputs["stdout_file"].source.value == "stdout"
     assert spec.outputs["data_out"].type.value == "data"
 
