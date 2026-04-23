@@ -20,6 +20,8 @@ RUN apt-get update \
         ca-certificates \
         curl \
         libmagic1 \
+        zip \
+        unzip \
     && apt-get purge -y --auto-remove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
