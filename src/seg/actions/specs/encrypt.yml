@@ -1,0 +1,81 @@
+version: 1
+
+module: encrypt
+description: "File encryption and decryption utilities"
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+tags: "crypto, encryption, decryption, openssl, aes, aes-256, aes-256-cbc"
+
+binaries:
+  - openssl
+
+actions:
+
+  encrypt_aes_256:
+    description: "Encrypt a file using AES encryption with a 256-bit key"
+    summary: "AES file encryption (256-bit key)"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "UUID of the file to be encrypted"
+
+      passphrase:
+        type: string
+        required: true
+        description: "Passphrase for encryption with this format: `pass:your_passphrase_here`"
+
+    outputs:
+      encrypted_file:
+        type: file
+        source: command
+        description: "The resulting encrypted file metadata, including the file ID and other relevant information"
+
+    command:
+      - binary: openssl
+      - "enc"
+      - "-aes-256-cbc"
+      - "-salt"
+      - "-pbkdf2"
+      - "-in"
+      - arg: input_file
+      - "-out"
+      - output: encrypted_file
+      - "-pass"
+      - arg: passphrase
+
+
+  decrypt_aes_256:
+    description: "Decrypt a file using AES encryption with a 256-bit key"
+    summary: "AES file decryption (256-bit key)"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "UUID of the file to be decrypted"
+
+      passphrase:
+        type: string
+        required: true
+        description: "Passphrase for decryption with this format: `pass:your_passphrase_here`"
+
+    outputs:
+      decrypted_file:
+        type: file
+        source: command
+        description: "The resulting decrypted file metadata, including the file ID and other relevant information"
+
+    command:
+      - binary: openssl
+      - "enc"
+      - "-d"
+      - "-aes-256-cbc"
+      - "-pbkdf2"
+      - "-in"
+      - arg: input_file
+      - "-out"
+      - output: decrypted_file
+      - "-pass"
+      - arg: passphrase
