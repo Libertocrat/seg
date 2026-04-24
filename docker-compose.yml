@@ -3,9 +3,12 @@ services:
     image: busybox:latest
     command: >
       sh -c "
+        set -e &&
+        umask 022 &&
         mkdir -p ${SEG_ROOT_DIR} &&
         chown -R ${NON_ROOT_UID}:${NON_ROOT_GID} ${SEG_ROOT_DIR} &&
-        chmod -R 775 ${SEG_ROOT_DIR}
+        find ${SEG_ROOT_DIR} -type d -print0 | xargs -0 -r chmod 755 &&
+        find ${SEG_ROOT_DIR} -type f -print0 | xargs -0 -r chmod 644
       "
     volumes:
       - seg_data:${SEG_ROOT_DIR}

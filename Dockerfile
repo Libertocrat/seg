@@ -49,6 +49,9 @@ RUN python -m pip install --no-cache-dir -r requirements/runtime.txt
 # Non-root ownership is ensured at copy time to avoid needing a separate chown layer.
 COPY --chown=${NON_ROOT_USER}:${NON_ROOT_GROUP} src/ .
 
+# Remove group/other write permissions from /app to enforce least-privilege and normalize modes after COPY
+RUN chmod -R go-w /app
+
 # Switch to non-root
 USER ${NON_ROOT_USER}
 

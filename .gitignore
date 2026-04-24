@@ -4,8 +4,12 @@
 .venv*/
 
 # Local configuration files
+docker-compose.override.yml
+docker-compose.*.override.yml
 docker-compose.local.yml
 docker-compose.*.local.yml
+docker-compose.dev.yml
+docker-compose.*.dev.yml
 
 # Docker secrets
 secrets/*
