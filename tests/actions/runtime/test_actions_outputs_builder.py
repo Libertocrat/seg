@@ -73,6 +73,7 @@ def _make_spec(
 
     return ActionSpec(
         name=f"test.{action}",
+        namespace=(),
         module="test",
         action=action,
         version=1,

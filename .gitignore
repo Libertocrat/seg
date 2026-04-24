@@ -3,6 +3,10 @@
 # Virtual environments
 .venv*/
 
+# Local configuration files
+docker-compose.local.yml
+docker-compose.*.local.yml
+
 # Docker secrets
 secrets/*
 # Allow example docker secrets
@@ -39,7 +43,6 @@ private/
 datasets/
 
 # Outputs & sessions
-data/
 output/
 sessions/
 

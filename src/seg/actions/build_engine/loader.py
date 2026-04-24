@@ -7,6 +7,8 @@ DSL YAML module specification files into `ModuleSpec` objects.
 from __future__ import annotations
 
 import logging
+import os
+import re
 from pathlib import Path
 from typing import Any
 
@@ -17,9 +19,12 @@ from seg.actions.engine_config import (
     ALLOWED_CONTROL_CHARS,
     ALLOWED_SPEC_EXTENSIONS,
     CORE_MASK_PREFIX,
+    CORE_SPEC_SOURCE,
     CORE_SPECS_DIR,
     DISALLOWED_YAML_PATTERNS,
     USER_MASK_PREFIX,
+    USER_NAMESPACE_PREFIX,
+    USER_SPEC_SOURCE,
     USER_SPECS_DIR,
 )
 from seg.actions.exceptions import ActionSpecsParseError
@@ -27,6 +32,8 @@ from seg.actions.schemas.module import ModuleSpec
 from seg.core.config import Settings
 
 logger = logging.getLogger("seg.actions.build_engine.loader")
+
+_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def discover_spec_files(spec_dirs: list[Path]) -> list[Path]:
@@ -39,9 +46,9 @@ def discover_spec_files(spec_dirs: list[Path]) -> list[Path]:
         Deterministically ordered list of discovered spec files.
 
     Raises:
-        ActionSpecsParseError: If an existing path is not a directory, if
-            a subdirectory is present, if an invalid extension is present,
-            or if discovery fails.
+        ActionSpecsParseError: If an existing path is not a directory, if an
+            invalid namespace directory is present, if an invalid extension is
+            present, or if discovery fails.
     """
 
     discovered: list[Path] = []
@@ -80,15 +87,15 @@ def _discover_spec_files_in_dir(spec_dir: Path) -> list[Path]:
         Sorted list of valid YAML spec files.
 
     Raises:
-        ActionSpecsParseError: If listing fails, if nested directories are
-            present, or if files with invalid extension are present.
+        ActionSpecsParseError: If listing fails, if namespace directories are
+            invalid, or if files with invalid extension are present.
     """
 
     masked_dir = _mask_path(spec_dir)
     logger.info("Scanning SEG DSL specs directory: %s", masked_dir)
 
     try:
-        entries = sorted(spec_dir.iterdir(), key=lambda path: path.name)
+        walk_iter = os.walk(spec_dir, topdown=True)
     except OSError as exc:
         logger.error("Failed to discover SEG DSL spec files in '%s'", masked_dir)
         raise ActionSpecsParseError(
@@ -96,30 +103,47 @@ def _discover_spec_files_in_dir(spec_dir: Path) -> list[Path]:
         ) from exc
 
     valid_files: list[Path] = []
-    for path in entries:
-        masked_path = _mask_path(path)
+    try:
+        for root, dirnames, filenames in walk_iter:
+            root_path = Path(root)
 
-        if path.is_dir():
-            logger.error("Nested directories are not allowed in '%s'", masked_dir)
-            raise ActionSpecsParseError(
-                f"Nested directories are not allowed in '{masked_dir}': '{masked_path}'"
-            )
+            visible_dirs = sorted(name for name in dirnames if not name.startswith("."))
+            dirnames[:] = visible_dirs
 
-        if not path.is_file():
-            continue
+            for dirname in visible_dirs:
+                _validate_namespace_dir_name(root_path / dirname)
 
-        if path.suffix not in ALLOWED_SPEC_EXTENSIONS:
-            logger.error("Invalid SEG DSL spec extension in '%s'", masked_path)
-            raise ActionSpecsParseError(
-                (
-                    f"Invalid SEG DSL spec extension in '{masked_path}': "
-                    f"allowed={ALLOWED_SPEC_EXTENSIONS}"
-                )
-            )
+            for filename in sorted(filenames):
+                if filename.startswith("."):
+                    continue
 
-        valid_files.append(path)
+                path = root_path / filename
+                masked_path = _mask_path(path)
 
-    return valid_files
+                if not path.is_file():
+                    continue
+
+                if path.suffix not in ALLOWED_SPEC_EXTENSIONS:
+                    logger.error("Invalid SEG DSL spec extension in '%s'", masked_path)
+                    raise ActionSpecsParseError(
+                        (
+                            f"Invalid SEG DSL spec extension in '{masked_path}': "
+                            f"allowed={ALLOWED_SPEC_EXTENSIONS}"
+                        )
+                    )
+
+                _validate_module_filename(path)
+                valid_files.append(path)
+    except OSError as exc:
+        logger.error("Failed to discover SEG DSL spec files in '%s'", masked_dir)
+        raise ActionSpecsParseError(
+            f"Failed to discover SEG DSL spec files in '{masked_dir}'"
+        ) from exc
+
+    return sorted(
+        valid_files,
+        key=lambda path: path.relative_to(spec_dir).as_posix(),
+    )
 
 
 def validate_yaml_file_safety(path: Path, settings: Settings) -> None:
@@ -232,9 +256,10 @@ def load_module_specs(
         return []
 
     modules: list[ModuleSpec] = []
-    seen_module_names: set[str] = set()
+    seen_module_identities: set[tuple[str, ...]] = set()
 
     for path in spec_files:
+        spec_root = _resolve_spec_root_for_file(path, spec_dirs)
         validate_yaml_file_safety(path, settings)
         module = load_module_spec(path)
 
@@ -253,18 +278,25 @@ def load_module_specs(
                 )
             )
 
-        if module.module in seen_module_names:
+        namespace, source = _derive_namespace(path, spec_root)
+        module.with_runtime_namespace(namespace, source)
+
+        module_identity = namespace + (module.module,)
+        if module_identity in seen_module_identities:
             masked_path = _mask_path(path)
             logger.error(
-                "Duplicate module '%s' discovered in '%s'",
-                module.module,
+                "Duplicate fully qualified module '%s' discovered in '%s'",
+                ".".join(module_identity),
                 masked_path,
             )
             raise ActionSpecsParseError(
-                f"Duplicate module name '{module.module}' discovered in '{masked_path}'"
+                (
+                    "Duplicate fully qualified module "
+                    f"'{'.'.join(module_identity)}' discovered in '{masked_path}'"
+                )
             )
 
-        seen_module_names.add(module.module)
+        seen_module_identities.add(module_identity)
         modules.append(module)
 
     logger.info("Successfully loaded %d SEG DSL module(s)", len(modules))
@@ -281,11 +313,116 @@ def _mask_path(path: Path) -> str:
         Masked path according to configured core/user directories.
     """
 
-    if path.parent == CORE_SPECS_DIR:
-        return f"{CORE_MASK_PREFIX}/{path.name}"
-    if path.parent == USER_SPECS_DIR:
-        return f"{USER_MASK_PREFIX}/{path.name}"
+    for base_dir, prefix in (
+        (CORE_SPECS_DIR, CORE_MASK_PREFIX),
+        (USER_SPECS_DIR, USER_MASK_PREFIX),
+    ):
+        try:
+            relative = path.relative_to(base_dir)
+        except ValueError:
+            continue
+
+        relative_str = relative.as_posix()
+        if relative_str in {"", "."}:
+            return prefix
+
+        return f"{prefix}/{relative_str}"
+
     return str(path)
+
+
+def _validate_namespace_dir_name(path: Path) -> None:
+    """Validate one namespace directory segment name.
+
+    Args:
+        path: Directory path under the current specs root.
+
+    Raises:
+        ActionSpecsParseError: If the directory segment is invalid.
+    """
+
+    if _NAME_PATTERN.fullmatch(path.name):
+        return
+
+    masked_path = _mask_path(path)
+    logger.error("Invalid namespace directory '%s'", masked_path)
+    raise ActionSpecsParseError(
+        (
+            f"Invalid namespace directory '{masked_path}': "
+            "expected pattern '^[a-z][a-z0-9_]*$'"
+        )
+    )
+
+
+def _validate_module_filename(path: Path) -> None:
+    """Validate one YAML module file stem.
+
+    Args:
+        path: YAML file path to validate.
+
+    Raises:
+        ActionSpecsParseError: If stem does not match SEG identifier rules.
+    """
+
+    if _NAME_PATTERN.fullmatch(path.stem):
+        return
+
+    masked_path = _mask_path(path)
+    logger.error("Invalid module filename '%s'", masked_path)
+    raise ActionSpecsParseError(
+        (
+            f"Invalid module filename '{masked_path}': "
+            "expected pattern '^[a-z][a-z0-9_]*$'"
+        )
+    )
+
+
+def _derive_namespace(path: Path, spec_dir: Path) -> tuple[tuple[str, ...], str]:
+    """Derive runtime namespace and source from path under a specs root.
+
+    Args:
+        path: Module file path.
+        spec_dir: Specs root containing this file.
+
+    Returns:
+        Tuple of namespace parts and source label.
+    """
+
+    relative = path.relative_to(spec_dir)
+    relative_dirs = relative.parent.parts
+
+    if spec_dir == USER_SPECS_DIR:
+        return (USER_NAMESPACE_PREFIX, *relative_dirs), USER_SPEC_SOURCE
+
+    return tuple(relative_dirs), CORE_SPEC_SOURCE
+
+
+def _resolve_spec_root_for_file(path: Path, spec_dirs: list[Path]) -> Path:
+    """Resolve which configured specs root contains a discovered file.
+
+    Args:
+        path: Discovered module path.
+        spec_dirs: Ordered list of configured specs roots.
+
+    Returns:
+        Matching specs root.
+
+    Raises:
+        ActionSpecsParseError: If no root matches the path.
+    """
+
+    for spec_dir in spec_dirs:
+        try:
+            path.relative_to(spec_dir)
+        except ValueError:
+            continue
+        return spec_dir
+
+    masked_path = _mask_path(path)
+    logger.error("Failed to resolve SEG DSL specs root for '%s'", masked_path)
+    raise ActionSpecsParseError(
+        f"Failed to resolve SEG DSL specs root for '{masked_path}'"
+    )
 
 
 def _read_yaml_mapping(path: Path) -> dict[str, Any]:

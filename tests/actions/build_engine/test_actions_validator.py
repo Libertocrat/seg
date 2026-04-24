@@ -83,17 +83,31 @@ def test_validate_modules_rejects_duplicate_binary_names(
         validate_modules([module])
 
 
-def test_validate_modules_rejects_duplicate_module_names(make_valid_module):
+def test_validate_modules_rejects_duplicate_root_module_identities(make_valid_module):
     """
-    GIVEN two modules with the same module name
+    GIVEN two modules with the same module name and no runtime namespace
     WHEN validate_modules is called
     THEN ActionSpecsParseError is raised
     """
     first = make_valid_module()
     second = make_valid_module()
 
-    with pytest.raises(ActionSpecsParseError, match="duplicate module name"):
+    with pytest.raises(ActionSpecsParseError, match="duplicate fully qualified module"):
         validate_modules([first, second])
+
+
+def test_validate_modules_allows_duplicate_module_names_in_different_namespaces(
+    make_valid_module,
+):
+    """
+    GIVEN two modules with the same base module name but different runtime namespaces
+    WHEN validate_modules is called
+    THEN validation succeeds
+    """
+    first = make_valid_module().with_runtime_namespace(("file",), "core")
+    second = make_valid_module().with_runtime_namespace(("security",), "core")
+
+    validate_modules([first, second])
 
 
 def test_validate_modules_rejects_module_without_actions(

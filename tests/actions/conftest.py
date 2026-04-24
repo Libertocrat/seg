@@ -129,7 +129,7 @@ def make_module_payload(make_action_payload):
         """Build a ModuleSpec-compatible payload dictionary.
 
         Args:
-            module_name: Module namespace name.
+            module_name: Bare module name from the DSL payload.
             version: DSL module version.
             binaries: Optional allowed binaries list.
             actions: Optional action mapping payload.

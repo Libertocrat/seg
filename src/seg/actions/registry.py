@@ -14,13 +14,13 @@ from seg.core.config import Settings, get_settings
 
 
 class ActionRegistry:
-    """Immutable runtime action registry keyed by fully-qualified action name."""
+    """Immutable runtime action registry keyed by final runtime action name."""
 
     def __init__(self, actions: Mapping[str, ActionSpec]) -> None:
         """Initialize immutable registry state.
 
         Args:
-            actions: Mapping keyed by fully-qualified action name.
+            actions: Mapping keyed by final runtime action name.
         """
         self._actions: dict[str, ActionSpec] = dict(actions)
 

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PrivateAttr
 
 from .action import ActionSpecInput
 
 
 class ModuleSpec(BaseModel):
     """Root DSL module definition."""
+
+    _namespace: tuple[str, ...] = PrivateAttr(default_factory=tuple)
+    _source: str = PrivateAttr(default="core")
 
     version: int
     module: str
@@ -22,3 +25,34 @@ class ModuleSpec(BaseModel):
     binaries: List[str]
 
     actions: Dict[str, ActionSpecInput]
+
+    @property
+    def namespace(self) -> tuple[str, ...]:
+        """Return runtime namespace derived from specs directory layout."""
+
+        return self._namespace
+
+    @property
+    def source(self) -> str:
+        """Return runtime source label for this module."""
+
+        return self._source
+
+    def with_runtime_namespace(
+        self,
+        namespace: tuple[str, ...],
+        source: str,
+    ) -> "ModuleSpec":
+        """Attach loader-derived runtime namespace metadata.
+
+        Args:
+            namespace: Namespace parts derived from the module file path.
+            source: Source label such as `core` or `user`.
+
+        Returns:
+            This module instance with runtime namespace metadata attached.
+        """
+
+        self._namespace = namespace
+        self._source = source
+        return self
