@@ -68,6 +68,49 @@ actions:
     assert isinstance(spec, ActionSpec)
 
 
+def test_build_registry_from_specs_uses_directory_namespace(tmp_path, monkeypatch):
+    """
+    GIVEN a valid DSL module inside a namespace directory
+    WHEN build_registry_from_specs is called
+    THEN the registry exposes the fully namespaced action name
+    """
+    specs_dir = tmp_path / "specs"
+    nested = specs_dir / "file"
+    nested.mkdir(parents=True, exist_ok=True)
+
+    (nested / "sample.yml").write_text(
+        """
+version: 1
+module: sample
+description: "Sample runtime module"
+binaries:
+    - echo
+
+actions:
+    ping:
+        description: "Ping action"
+        summary: "Ping"
+        command:
+            - binary: echo
+            - "hello"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    settings = Settings.model_validate(
+        {
+            "seg_root_dir": str(tmp_path),
+        }
+    )
+
+    monkeypatch.setattr(registry_module, "SPEC_DIRS", (specs_dir,))
+
+    registry = build_registry_from_specs(settings)
+
+    assert registry.has("file.sample.ping") is True
+    assert registry.has("sample.ping") is False
+
+
 # ============================================================================
 # Action Lookup
 # ============================================================================

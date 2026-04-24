@@ -57,7 +57,8 @@ def build_actions(
         modules: Validated SEG DSL modules.
 
     Returns:
-        Flat dictionary keyed by fully qualified action name.
+        Flat dictionary keyed by the final runtime action name, including any
+        directory-derived namespace.
 
     Raises:
         ActionSpecsBuildError: If validated specs cannot be compiled into
@@ -70,7 +71,7 @@ def build_actions(
 
     for module in modules:
         for action_name, action in module.actions.items():
-            action_fqdn = f"{module.module}.{action_name}"
+            action_fqdn = _build_action_fqdn(module, action_name)
 
             if action_fqdn in compiled:
                 raise ActionSpecsBuildError(
@@ -120,7 +121,7 @@ def _build_action(
         ActionSpecsBuildError: If the action cannot be compiled.
     """
 
-    action_fqdn = f"{module.module}.{action_name}"
+    action_fqdn = _build_action_fqdn(module, action_name)
 
     try:
         arg_defs = _build_arg_defs(action)
@@ -139,6 +140,7 @@ def _build_action(
 
         compiled = ActionSpec(
             name=action_fqdn,
+            namespace=module.namespace,
             module=module.module,
             action=action_name,
             version=module.version,
@@ -165,6 +167,20 @@ def _build_action(
 
     logger.info("Compiled runtime action %s", action_fqdn)
     return compiled
+
+
+def _build_action_fqdn(module: ModuleSpec, action_name: str) -> str:
+    """Build the fully qualified runtime action name.
+
+    Args:
+        module: Parent validated module.
+        action_name: Action name inside the module.
+
+    Returns:
+        Fully-qualified runtime action name.
+    """
+
+    return ".".join((*module.namespace, module.module, action_name))
 
 
 def _build_arg_defs(action: ActionSpecInput) -> dict[str, ArgDef]:

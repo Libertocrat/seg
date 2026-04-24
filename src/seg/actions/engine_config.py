@@ -26,6 +26,10 @@ SPEC_DIRS: tuple[Path, ...] = (
     USER_SPECS_DIR,
 )
 
+CORE_SPEC_SOURCE = "core"
+USER_SPEC_SOURCE = "user"
+USER_NAMESPACE_PREFIX = "user"
+
 # ------------------------------------------------------------------
 # DSL FILE VALIDATION CONSTANTS
 # ------------------------------------------------------------------

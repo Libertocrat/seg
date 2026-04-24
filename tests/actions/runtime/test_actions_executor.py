@@ -43,6 +43,7 @@ def _make_spec(
 
     return ActionSpec(
         name="test.exec",
+        namespace=(),
         module="test",
         action="exec",
         version=1,

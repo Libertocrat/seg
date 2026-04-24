@@ -17,6 +17,7 @@ import yaml
 
 import seg.actions.build_engine.loader as loader_module
 from seg.actions.build_engine.loader import (
+    _mask_path,
     discover_spec_files,
     load_module_spec,
     load_module_specs,
@@ -74,7 +75,7 @@ def make_module_payload():
         """Build a minimal valid module payload.
 
         Args:
-            module_name: Module namespace to embed in payload.
+            module_name: Bare module name to embed in payload.
 
         Returns:
             ModuleSpec-compatible dictionary.
@@ -278,17 +279,30 @@ def test_discover_spec_files_returns_sorted_files_per_directory_order(
     user_specs_dir: Path,
 ):
     """
-    GIVEN ordered core and user directories with mixed valid YAML extensions
+    GIVEN ordered core and user directories with nested valid YAML modules
     WHEN discover_spec_files is called
-    THEN files are sorted by filename while preserving directory order
+    THEN files are sorted by relative path while preserving directory order
     """
-    (core_specs_dir / "zeta.yml").write_text("version: 1\n", encoding="utf-8")
-    (core_specs_dir / "alpha.yaml").write_text("version: 1\n", encoding="utf-8")
-    (user_specs_dir / "beta.yml").write_text("version: 1\n", encoding="utf-8")
+    (core_specs_dir / "a").mkdir()
+    (core_specs_dir / "b").mkdir()
+    (user_specs_dir / "custom").mkdir()
+
+    (core_specs_dir / "a" / "zeta.yml").write_text("version: 1\n", encoding="utf-8")
+    (core_specs_dir / "a" / "alpha.yml").write_text("version: 1\n", encoding="utf-8")
+    (core_specs_dir / "b" / "beta.yml").write_text("version: 1\n", encoding="utf-8")
+    (user_specs_dir / "custom" / "tool.yml").write_text(
+        "version: 1\n",
+        encoding="utf-8",
+    )
 
     discovered = discover_spec_files([core_specs_dir, user_specs_dir])
 
-    assert [path.name for path in discovered] == ["alpha.yaml", "zeta.yml", "beta.yml"]
+    assert [path.relative_to(core_specs_dir).as_posix() for path in discovered[:3]] == [
+        "a/alpha.yml",
+        "a/zeta.yml",
+        "b/beta.yml",
+    ]
+    assert discovered[3].relative_to(user_specs_dir).as_posix() == "custom/tool.yml"
 
 
 def test_discover_spec_files_skips_missing_directories(tmp_path: Path):
@@ -318,18 +332,26 @@ def test_discover_spec_files_raises_when_path_is_not_directory(tmp_path: Path):
         discover_spec_files([file_path])
 
 
-def test_discover_spec_files_raises_when_subdirectory_exists(core_specs_dir: Path):
+def test_discover_spec_files_allows_nested_directories(core_specs_dir: Path):
     """
-    GIVEN a specs directory containing a nested subdirectory
+    GIVEN valid YAML modules inside nested namespace directories
     WHEN discover_spec_files is called
-    THEN ActionSpecsParseError is raised
+    THEN nested YAML files are discovered in deterministic relative-path order
     """
-    (core_specs_dir / "nested").mkdir()
+    nested = core_specs_dir / "file" / "crypto"
+    nested.mkdir(parents=True)
+    (nested / "hash.yml").write_text("version: 1\n", encoding="utf-8")
+    (core_specs_dir / "file" / "compress.yml").write_text(
+        "version: 1\n",
+        encoding="utf-8",
+    )
 
-    with pytest.raises(
-        ActionSpecsParseError, match="Nested directories are not allowed"
-    ):
-        discover_spec_files([core_specs_dir])
+    discovered = discover_spec_files([core_specs_dir])
+
+    assert [path.relative_to(core_specs_dir).as_posix() for path in discovered] == [
+        "file/compress.yml",
+        "file/crypto/hash.yml",
+    ]
 
 
 def test_discover_spec_files_raises_when_invalid_extension_exists(core_specs_dir: Path):
@@ -341,6 +363,106 @@ def test_discover_spec_files_raises_when_invalid_extension_exists(core_specs_dir
     (core_specs_dir / "module.txt").write_text("bad\n", encoding="utf-8")
 
     with pytest.raises(ActionSpecsParseError, match="Invalid SEG DSL spec extension"):
+        discover_spec_files([core_specs_dir])
+
+
+def test_discover_spec_files_ignores_empty_directories(core_specs_dir: Path):
+    """
+    GIVEN empty namespace directories under a specs root
+    WHEN discover_spec_files is called
+    THEN no files are returned and no error is raised
+    """
+    (core_specs_dir / "file" / "crypto").mkdir(parents=True)
+
+    discovered = discover_spec_files([core_specs_dir])
+
+    assert discovered == []
+
+
+def test_discover_spec_files_ignores_hidden_directories(core_specs_dir: Path):
+    """
+    GIVEN YAML files under a hidden directory
+    WHEN discover_spec_files is called
+    THEN hidden directory contents are ignored
+    """
+    hidden_dir = core_specs_dir / ".hidden_specs"
+    hidden_dir.mkdir()
+    (hidden_dir / "ignored.yml").write_text("version: 1\n", encoding="utf-8")
+
+    discovered = discover_spec_files([core_specs_dir])
+
+    assert discovered == []
+
+
+def test_discover_spec_files_rejects_invalid_extension_in_nested_directory(
+    core_specs_dir: Path,
+):
+    """
+    GIVEN a non-YAML file inside a valid namespace directory
+    WHEN discover_spec_files is called
+    THEN ActionSpecsParseError is raised
+    """
+    nested = core_specs_dir / "file"
+    nested.mkdir()
+    (nested / "module.txt").write_text("bad\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="Invalid SEG DSL spec extension"):
+        discover_spec_files([core_specs_dir])
+
+
+@pytest.mark.parametrize(
+    "dirname",
+    ["Invalid", "bad-name", "bad name", "123bad", "_hidden"],
+    ids=[
+        "invalid_uppercase",
+        "invalid_dash",
+        "invalid_space",
+        "invalid_start_digit",
+        "invalid_hidden",
+    ],
+)
+def test_discover_spec_files_rejects_invalid_namespace_directory_name(
+    core_specs_dir: Path,
+    dirname: str,
+):
+    """
+    GIVEN a namespace directory whose name violates SEG naming rules
+    WHEN discover_spec_files is called
+    THEN ActionSpecsParseError is raised
+    """
+    nested = core_specs_dir / dirname
+    nested.mkdir()
+    (nested / "module.yml").write_text("version: 1\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="[Ii]nvalid namespace directory"):
+        discover_spec_files([core_specs_dir])
+
+
+@pytest.mark.parametrize(
+    "filename",
+    ["Invalid.yml", "bad-name.yml", "bad name.yml", "123bad.yml", "_hidden.yml"],
+    ids=[
+        "invalid_uppercase",
+        "invalid_dash",
+        "invalid_space",
+        "invalid_start_digit",
+        "invalid_hidden",
+    ],
+)
+def test_discover_spec_files_rejects_invalid_yaml_filename_stem(
+    core_specs_dir: Path,
+    filename: str,
+):
+    """
+    GIVEN a YAML filename stem that violates SEG naming rules
+    WHEN discover_spec_files is called
+    THEN ActionSpecsParseError is raised
+    """
+    nested = core_specs_dir / "file"
+    nested.mkdir()
+    (nested / filename).write_text("version: 1\n", encoding="utf-8")
+
+    with pytest.raises(ActionSpecsParseError, match="[Ii]nvalid module filename"):
         discover_spec_files([core_specs_dir])
 
 
@@ -641,22 +763,54 @@ def test_load_module_specs_loads_from_core_and_user_dirs(
     assert all(isinstance(module, ModuleSpec) for module in modules)
 
 
-def test_load_module_specs_rejects_duplicate_module_names(
+def test_load_module_specs_allows_duplicate_module_names_in_different_namespaces(
     core_specs_dir: Path,
     user_specs_dir: Path,
     make_module_payload,
     settings: Settings,
+    monkeypatch,
 ):
     """
-    GIVEN core and user files declaring the same module name
+    GIVEN two modules with the same base module name in different namespaces
+    WHEN load_module_specs is called
+    THEN both modules are loaded successfully with different runtime namespaces
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+    monkeypatch.setattr(loader_module, "USER_SPECS_DIR", user_specs_dir)
+
+    (core_specs_dir / "file").mkdir()
+    (core_specs_dir / "security").mkdir()
+    write_yaml(core_specs_dir / "file" / "crypto.yml", make_module_payload("crypto"))
+    write_yaml(
+        core_specs_dir / "security" / "crypto.yml",
+        make_module_payload("crypto"),
+    )
+
+    modules = load_module_specs([core_specs_dir, user_specs_dir], settings)
+
+    assert [module.module for module in modules] == ["crypto", "crypto"]
+    assert [module.namespace for module in modules] == [("file",), ("security",)]
+
+
+def test_load_module_specs_rejects_duplicate_effective_module_identity(
+    core_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+    monkeypatch,
+):
+    """
+    GIVEN two files producing the same namespace plus module identity
     WHEN load_module_specs is called
     THEN ActionSpecsParseError is raised
     """
-    write_yaml(core_specs_dir / "dup.yml", make_module_payload("dup"))
-    write_yaml(user_specs_dir / "dup.yaml", make_module_payload("dup"))
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
 
-    with pytest.raises(ActionSpecsParseError, match="Duplicate module name"):
-        load_module_specs([core_specs_dir, user_specs_dir], settings)
+    (core_specs_dir / "file").mkdir()
+    write_yaml(core_specs_dir / "file" / "crypto.yml", make_module_payload("crypto"))
+    write_yaml(core_specs_dir / "file" / "crypto.yaml", make_module_payload("crypto"))
+
+    with pytest.raises(ActionSpecsParseError, match="Duplicate fully qualified module"):
+        load_module_specs([core_specs_dir], settings)
 
 
 def test_load_module_specs_rejects_filename_module_mismatch(
@@ -690,21 +844,141 @@ def test_load_module_specs_rejects_invalid_extension(
         load_module_specs([core_specs_dir], settings)
 
 
-def test_load_module_specs_rejects_subdirectory(
+def test_load_module_specs_loads_nested_module(
     core_specs_dir: Path,
+    make_module_payload,
     settings: Settings,
+    monkeypatch,
 ):
     """
-    GIVEN a nested directory inside specs directory
+    GIVEN a module stored under nested namespace directories
     WHEN load_module_specs is called
-    THEN ActionSpecsParseError is raised
+    THEN the module is loaded successfully
     """
-    (core_specs_dir / "nested").mkdir()
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
 
-    with pytest.raises(
-        ActionSpecsParseError, match="Nested directories are not allowed"
-    ):
-        load_module_specs([core_specs_dir], settings)
+    (core_specs_dir / "file" / "crypto").mkdir(parents=True)
+    write_yaml(
+        core_specs_dir / "file" / "crypto" / "hash.yml",
+        make_module_payload("hash"),
+    )
+
+    modules = load_module_specs([core_specs_dir], settings)
+
+    assert len(modules) == 1
+    assert modules[0].module == "hash"
+    assert modules[0].namespace == ("file", "crypto")
+
+
+def test_load_module_specs_attaches_core_namespace_from_relative_dirs(
+    core_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+    monkeypatch,
+):
+    """
+    GIVEN a core module inside nested namespace directories
+    WHEN load_module_specs is called
+    THEN the loaded ModuleSpec exposes the expected runtime namespace
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+
+    (core_specs_dir / "file").mkdir()
+    write_yaml(core_specs_dir / "file" / "crypto.yml", make_module_payload("crypto"))
+
+    module = load_module_specs([core_specs_dir], settings)[0]
+
+    assert module.namespace == ("file",)
+    assert module.source == "core"
+
+
+def test_load_module_specs_attaches_user_namespace_prefix(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+    monkeypatch,
+):
+    """
+    GIVEN a user module inside nested namespace directories
+    WHEN load_module_specs is called
+    THEN the loaded ModuleSpec namespace starts with user
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+    monkeypatch.setattr(loader_module, "USER_SPECS_DIR", user_specs_dir)
+
+    (user_specs_dir / "custom").mkdir()
+    write_yaml(
+        user_specs_dir / "custom" / "my_module.yml",
+        make_module_payload("my_module"),
+    )
+
+    module = load_module_specs([user_specs_dir], settings)[0]
+
+    assert module.namespace == ("user", "custom")
+    assert module.source == "user"
+
+
+def test_load_module_specs_uses_empty_namespace_for_root_core_module(
+    core_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+    monkeypatch,
+):
+    """
+    GIVEN a root-level core module
+    WHEN load_module_specs is called
+    THEN module namespace is empty
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+
+    write_yaml(core_specs_dir / "checksum.yml", make_module_payload("checksum"))
+
+    module = load_module_specs([core_specs_dir], settings)[0]
+
+    assert module.namespace == ()
+
+
+def test_load_module_specs_uses_user_namespace_for_root_user_module(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
+    make_module_payload,
+    settings: Settings,
+    monkeypatch,
+):
+    """
+    GIVEN a root-level user module
+    WHEN load_module_specs is called
+    THEN module namespace starts with user
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+    monkeypatch.setattr(loader_module, "USER_SPECS_DIR", user_specs_dir)
+
+    write_yaml(user_specs_dir / "checksum.yml", make_module_payload("checksum"))
+
+    module = load_module_specs([user_specs_dir], settings)[0]
+
+    assert module.namespace == ("user",)
+
+
+def test_mask_path_preserves_nested_relative_path(
+    core_specs_dir: Path,
+    user_specs_dir: Path,
+    monkeypatch,
+):
+    """
+    GIVEN nested core and user module paths
+    WHEN _mask_path is called
+    THEN the base directory is masked and relative subpath is preserved
+    """
+    monkeypatch.setattr(loader_module, "CORE_SPECS_DIR", core_specs_dir)
+    monkeypatch.setattr(loader_module, "USER_SPECS_DIR", user_specs_dir)
+
+    core_path = core_specs_dir / "file" / "crypto.yml"
+    user_path = user_specs_dir / "custom" / "my_module.yml"
+
+    assert _mask_path(core_path) == "CORE/file/crypto.yml"
+    assert _mask_path(user_path) == "USER/custom/my_module.yml"
 
 
 def test_load_module_specs_fails_fast_on_first_invalid_file(

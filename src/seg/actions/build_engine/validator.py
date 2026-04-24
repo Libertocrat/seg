@@ -56,31 +56,47 @@ def validate_modules(modules: list[ModuleSpec]) -> None:
         ActionSpecsParseError: If any semantic validation rule is violated.
     """
 
-    _validate_unique_module_names(modules)
+    _validate_unique_module_identities(modules)
 
     for module in modules:
         _validate_module(module)
 
 
-def _validate_unique_module_names(modules: list[ModuleSpec]) -> None:
-    """Ensure module names are unique across the input collection.
+def _validate_unique_module_identities(modules: list[ModuleSpec]) -> None:
+    """Ensure effective module identities are unique.
 
     Args:
         modules: Parsed module specifications.
 
     Raises:
-        ActionSpecsParseError: If the same module name appears more than once.
+        ActionSpecsParseError: If the same effective module identity appears
+            more than once.
     """
 
-    seen: set[str] = set()
+    seen: set[tuple[str, ...]] = set()
 
     for module in modules:
-        if module.module in seen:
+        module_identity = _module_identity(module)
+
+        if module_identity in seen:
             _raise_module_error(
-                module.module,
-                f"duplicate module name '{module.module}'",
+                ".".join(module_identity),
+                ("duplicate fully qualified module " f"'{'.'.join(module_identity)}'"),
             )
-        seen.add(module.module)
+        seen.add(module_identity)
+
+
+def _module_identity(module: ModuleSpec) -> tuple[str, ...]:
+    """Return the effective module identity used for uniqueness checks.
+
+    Args:
+        module: Parsed module specification.
+
+    Returns:
+        Tuple with namespace parts plus module name.
+    """
+
+    return (*module.namespace, module.module)
 
 
 def _validate_module(module: ModuleSpec) -> None:
@@ -1333,7 +1349,7 @@ def _raise_module_error(module_name: str, message: str) -> NoReturn:
     """Raise a module-scoped semantic validation error.
 
     Args:
-        module_name: Module name to include in the error.
+        module_name: Module identity label to include in the error.
         message: Human-readable failure detail.
 
     Raises:
@@ -1349,7 +1365,7 @@ def _raise_action_error(module_name: str, action_name: str, message: str) -> NoR
     """Raise an action-scoped semantic validation error.
 
     Args:
-        module_name: Module name to include in the error.
+        module_name: Module identity label to include in the error.
         action_name: Action name to include in the error.
         message: Human-readable failure detail.
 

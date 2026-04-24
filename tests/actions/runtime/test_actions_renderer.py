@@ -138,6 +138,7 @@ def _make_spec(
 
     return ActionSpec(
         name="test.echo",
+        namespace=(),
         module="test",
         action="echo",
         version=1,

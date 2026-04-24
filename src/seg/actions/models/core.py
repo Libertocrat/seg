@@ -178,9 +178,10 @@ class ActionSpec:
     """Canonical specification object describing a registered SEG action.
 
     Attributes:
-        name: Fully-qualified action name.
-        module: DSL module namespace.
-        action: DSL action key within module namespace.
+        name: Final runtime action name.
+        namespace: Runtime namespace tuple derived from the module file path.
+        module: Bare DSL module name from YAML.
+        action: DSL action key within the module.
         version: DSL version used by the module.
         params_model: Generated Pydantic model for runtime parameter validation.
         binary: Primary binary extracted from command template.
@@ -198,6 +199,7 @@ class ActionSpec:
     """
 
     name: str
+    namespace: tuple[str, ...]
     module: str
     action: str
     version: int
@@ -224,7 +226,7 @@ class ActionSpec:
 
     @property
     def fqdn(self) -> str:
-        """Return the canonical fully-qualified action name."""
+        """Return the canonical runtime action name."""
         return self.name
 
     @property
@@ -255,6 +257,7 @@ class ActionSpec:
         """
         raw = {
             "name": self.name,
+            "namespace": self.namespace,
             "module": self.module,
             "action": self.action,
             "version": self.version,

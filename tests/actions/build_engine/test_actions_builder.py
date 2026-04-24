@@ -75,18 +75,105 @@ def test_action_names_are_namespaced(
     make_action_spec_input,
 ):
     """
-    GIVEN a module and action
+    GIVEN a module with runtime namespace metadata
     WHEN build_actions is called
-    THEN the resulting key uses `module.action` namespacing
+    THEN the resulting key uses `namespace.module.action`
     """
     action = make_action_spec_input()
     module = make_module_spec(
         make_module_payload(module_name="random_gen", actions={"token_hex": action})
     )
+    module.with_runtime_namespace(("file",), "core")
 
     result = build_actions([module], _test_settings())
 
-    assert "random_gen.token_hex" in result
+    assert "file.random_gen.token_hex" in result
+
+
+def test_build_actions_uses_module_action_for_empty_namespace(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a module without runtime namespace metadata
+    WHEN build_actions is called
+    THEN the action key remains module.action
+    """
+    action = make_action_spec_input()
+    module = make_module_spec(
+        make_module_payload(module_name="test_module", actions={"ping": action})
+    )
+
+    result = build_actions([module], _test_settings())
+
+    assert "test_module.ping" in result
+
+
+def test_build_actions_includes_core_directory_namespace(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a module with a core directory namespace
+    WHEN build_actions is called
+    THEN the final action key includes namespace.module.action
+    """
+    module = make_module_spec(
+        make_module_payload(
+            module_name="crypto", actions={"encrypt_file": make_action_spec_input()}
+        )
+    )
+    module.with_runtime_namespace(("file",), "core")
+
+    result = build_actions([module], _test_settings())
+
+    assert "file.crypto.encrypt_file" in result
+
+
+def test_build_actions_includes_user_namespace_prefix(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a user module with runtime namespace metadata
+    WHEN build_actions is called
+    THEN the final action key starts with user
+    """
+    module = make_module_spec(
+        make_module_payload(
+            module_name="my_module", actions={"some_action": make_action_spec_input()}
+        )
+    )
+    module.with_runtime_namespace(("user", "custom"), "user")
+
+    result = build_actions([module], _test_settings())
+
+    assert "user.custom.my_module.some_action" in result
+
+
+def test_build_actions_sets_action_spec_namespace(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a module with runtime namespace metadata
+    WHEN build_actions is called
+    THEN ActionSpec exposes the namespace tuple
+    """
+    module = make_module_spec(
+        make_module_payload(
+            module_name="crypto", actions={"encrypt_file": make_action_spec_input()}
+        )
+    )
+    module.with_runtime_namespace(("file", "crypto"), "core")
+
+    spec = build_actions([module], _test_settings())["file.crypto.crypto.encrypt_file"]
+
+    assert spec.namespace == ("file", "crypto")
 
 
 # ============================================================================
@@ -606,7 +693,7 @@ def test_params_model_name_generation(
     make_action_spec_input,
 ):
     """
-    GIVEN a namespaced action identifier with underscore segments
+    GIVEN a namespaced action identifier with directory and underscore segments
     WHEN build_actions is called
     THEN params_model name follows CamelCase + Params suffix
     """
@@ -618,10 +705,11 @@ def test_params_model_name_generation(
             actions={"token_hex": action},
         )
     )
+    module.with_runtime_namespace(("file",), "core")
 
-    spec = build_actions([module], _test_settings())["random_gen.token_hex"]
+    spec = build_actions([module], _test_settings())["file.random_gen.token_hex"]
 
-    assert spec.params_model.__name__ == "RandomGenTokenHexParams"
+    assert spec.params_model.__name__ == "FileRandomGenTokenHexParams"
 
 
 # ============================================================================
@@ -695,6 +783,56 @@ def test_duplicate_action_names_raise_error(
 
     with pytest.raises(ActionSpecsBuildError, match="duplicate fully qualified"):
         build_actions([first, second], _test_settings())
+
+
+def test_build_actions_rejects_duplicate_final_action_fqdn(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN two modules producing the same final action FQDN
+    WHEN build_actions is called
+    THEN ActionSpecsBuildError is raised
+    """
+    action = make_action_spec_input()
+    first = make_module_spec(
+        make_module_payload(module_name="crypto", actions={"encrypt_file": action})
+    ).with_runtime_namespace(("file",), "core")
+    second = make_module_spec(
+        make_module_payload(module_name="crypto", actions={"encrypt_file": action})
+    ).with_runtime_namespace(("file",), "core")
+
+    with pytest.raises(
+        ActionSpecsBuildError,
+        match="duplicate fully qualified action name",
+    ):
+        build_actions([first, second], _test_settings())
+
+
+def test_build_actions_allows_same_module_action_in_different_namespaces(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN two modules with the same base module and action names
+    in different namespaces
+    WHEN build_actions is called
+    THEN both final action names are compiled
+    """
+    action = make_action_spec_input()
+    first = make_module_spec(
+        make_module_payload(module_name="crypto", actions={"encrypt_file": action})
+    ).with_runtime_namespace(("file",), "core")
+    second = make_module_spec(
+        make_module_payload(module_name="crypto", actions={"encrypt_file": action})
+    ).with_runtime_namespace(("security",), "core")
+
+    result = build_actions([first, second], _test_settings())
+
+    assert "file.crypto.encrypt_file" in result
+    assert "security.crypto.encrypt_file" in result
 
 
 # ============================================================================
