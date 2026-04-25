@@ -18,11 +18,15 @@ from __future__ import annotations
 
 import csv
 import logging
-import re
 import unicodedata
 from typing import Any, NoReturn, cast
 from uuid import UUID
 
+from seg.actions.engine_config import (
+    CONST_TEMPLATE_ALLOWED_ARG_TYPES,
+    IDENTIFIER_NAME_PATTERN,
+    MIME_LIKE_PATTERN,
+)
 from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.models.core import ParamType
 from seg.actions.schemas.action import ActionSpecInput
@@ -39,11 +43,6 @@ from seg.actions.schemas.module import ModuleSpec
 from seg.actions.security.policy import DEFAULT_BLOCKED_BINARIES, is_simple_binary_name
 
 logger = logging.getLogger("seg.actions.build_engine.validator")
-
-_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
-_MIME_LIKE_PATTERN = re.compile(
-    r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
-)
 
 
 def validate_modules(modules: list[ModuleSpec]) -> None:
@@ -523,9 +522,16 @@ def _validate_command_elements(
                 inline string literal is unsafe.
     """
 
+    args = cast(dict[str, ArgSpec], action.args or {})
+
     for element in action.command:
         if isinstance(element, str):
-            _validate_command_literal(module_name, action_name, element)
+            _validate_command_literal(
+                module_name,
+                action_name,
+                element,
+                args,
+            )
             continue
 
         if isinstance(element, (BinaryCmd, ArgCmd, FlagCmd, OutputCmd)):
@@ -542,6 +548,7 @@ def _validate_command_literal(
     module_name: str,
     action_name: str,
     literal: str,
+    args: dict[str, ArgSpec],
 ) -> None:
     """Validate one inline string literal inside a command template.
 
@@ -549,10 +556,11 @@ def _validate_command_literal(
         module_name: Parent module name.
         action_name: Action name.
         literal: Literal command token.
+        args: Action argument definitions indexed by arg name.
 
     Raises:
-        ActionSpecsParseError: If the literal is empty, blank, or contains
-                control characters.
+        ActionSpecsParseError: If the literal is empty/blank, contains
+            control characters, or defines invalid placeholders.
     """
 
     if literal == "":
@@ -582,6 +590,97 @@ def _validate_command_literal(
             action_name,
             "command literal must not contain control characters",
         )
+
+    if "{" not in literal and "}" not in literal:
+        return
+
+    try:
+        placeholders = _extract_command_literal_placeholders(literal)
+    except ValueError as exc:
+        _raise_action_error(
+            module_name,
+            action_name,
+            f"command literal has invalid placeholder syntax ({exc})",
+        )
+
+    for placeholder_name in placeholders:
+        arg_spec = args.get(placeholder_name)
+        if arg_spec is None:
+            _raise_action_error(
+                module_name,
+                action_name,
+                (
+                    "command literal placeholder "
+                    f"'{{{placeholder_name}}}' references undefined arg "
+                    f"'{placeholder_name}'"
+                ),
+            )
+
+        if arg_spec.type not in CONST_TEMPLATE_ALLOWED_ARG_TYPES:
+            _raise_action_error(
+                module_name,
+                action_name,
+                (
+                    "command literal placeholder "
+                    f"'{{{placeholder_name}}}' references arg "
+                    f"'{placeholder_name}' with unsupported type "
+                    f"'{arg_spec.type.value}'"
+                ),
+            )
+
+
+def _extract_command_literal_placeholders(literal: str) -> tuple[str, ...]:
+    """Extract placeholder arg names from one command literal.
+
+    Supported placeholder syntax is strictly `{arg_name}`.
+
+    Args:
+        literal: Literal command token that may contain placeholders.
+
+    Returns:
+        Tuple of placeholder arg names in left-to-right order.
+
+    Raises:
+        ValueError: If brace usage or placeholder name syntax is invalid.
+    """
+
+    placeholders: list[str] = []
+    index = 0
+
+    while index < len(literal):
+        current = literal[index]
+
+        if current == "}":
+            raise ValueError("unmatched closing brace '}'")
+
+        if current != "{":
+            index += 1
+            continue
+
+        if index > 0 and literal[index - 1] == "$":
+            raise ValueError("`${...}` syntax is not supported")
+
+        closing_index = literal.find("}", index + 1)
+        if closing_index == -1:
+            raise ValueError("unmatched opening brace '{'")
+
+        placeholder_name = literal[index + 1 : closing_index]
+        if placeholder_name == "":
+            raise ValueError("empty placeholder '{}' is not allowed")
+
+        if "{" in placeholder_name or "}" in placeholder_name:
+            raise ValueError("nested placeholders are not supported")
+
+        if not IDENTIFIER_NAME_PATTERN.fullmatch(placeholder_name):
+            raise ValueError(
+                f"invalid placeholder name '{placeholder_name}'; "
+                "expected '{arg_name}'"
+            )
+
+        placeholders.append(placeholder_name)
+        index = closing_index + 1
+
+    return tuple(placeholders)
 
 
 def _validate_command_references(
@@ -647,6 +746,19 @@ def _validate_unused_definitions(
     used_args = {
         element.arg for element in action.command if isinstance(element, ArgCmd)
     }
+    for element in action.command:
+        if not isinstance(element, str):
+            continue
+
+        try:
+            used_args.update(_extract_command_literal_placeholders(element))
+        except ValueError as exc:
+            _raise_action_error(
+                module_name,
+                action_name,
+                f"command literal has invalid placeholder syntax ({exc})",
+            )
+
     used_flags = {
         element.flag for element in action.command if isinstance(element, FlagCmd)
     }
@@ -1135,7 +1247,7 @@ def _validate_file_constraints(arg_name: str, constraints: dict[str, Any]) -> No
                 f"arg '{arg_name}' allowed_mime_types must be a list of strings"
             )
         if not all(
-            _MIME_LIKE_PATTERN.fullmatch(item.strip().lower())
+            MIME_LIKE_PATTERN.fullmatch(item.strip().lower())
             for item in allowed_mime_types
         ):
             raise ValueError(
@@ -1275,7 +1387,7 @@ def _validate_identifier(
                 pattern `^[a-z][a-z0-9_]*$`.
     """
 
-    if _NAME_PATTERN.fullmatch(identifier_value):
+    if IDENTIFIER_NAME_PATTERN.fullmatch(identifier_value):
         return
 
     message = (

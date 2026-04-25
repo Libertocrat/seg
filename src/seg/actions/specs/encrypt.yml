@@ -24,7 +24,7 @@ actions:
       passphrase:
         type: string
         required: true
-        description: "Passphrase for encryption with this format: `pass:your_passphrase_here`"
+        description: "Passphrase for encryption. Use a strong one"
 
     outputs:
       encrypted_file:
@@ -43,7 +43,7 @@ actions:
       - "-out"
       - output: encrypted_file
       - "-pass"
-      - arg: passphrase
+      - "pass:{passphrase}"
 
 
   decrypt_aes_256:
@@ -59,7 +59,7 @@ actions:
       passphrase:
         type: string
         required: true
-        description: "Passphrase for decryption with this format: `pass:your_passphrase_here`"
+        description: "Passphrase for decryption. Use a strong one"
 
     outputs:
       decrypted_file:
@@ -78,4 +78,4 @@ actions:
       - "-out"
       - output: decrypted_file
       - "-pass"
-      - arg: passphrase
+      - "pass:{passphrase}"

@@ -8,7 +8,10 @@ These values are part of the system design and must remain deterministic.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+from seg.actions.models.core import ParamType
 
 # ------------------------------------------------------------------
 # DSL SPEC DIRECTORIES
@@ -45,6 +48,28 @@ ALLOWED_CONTROL_CHARS: tuple[str, ...] = ("\n", "\r", "\t")
 DISALLOWED_YAML_PATTERNS: tuple[str, ...] = (
     "!!python",
     "!!binary",
+)
+
+# ------------------------------------------------------------------
+# DSL BEHAVIOR CONSTANTS
+# ------------------------------------------------------------------
+
+# Shared identifier pattern for module, action, arg, flag, and output names.
+IDENTIFIER_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
+
+# MIME-like token pattern used by file constraints validation.
+MIME_LIKE_PATTERN = re.compile(
+    r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+)
+
+# Placeholder matcher for restricted const-template interpolation: {arg_name}.
+CONST_TEMPLATE_PLACEHOLDER_PATTERN = re.compile(r"\{([a-z][a-z0-9_]*)\}")
+
+# Allowed arg types for const-template interpolation.
+CONST_TEMPLATE_ALLOWED_ARG_TYPES: tuple[ParamType, ...] = (
+    ParamType.STRING,
+    ParamType.INT,
+    ParamType.FLOAT,
 )
 
 # ------------------------------------------------------------------

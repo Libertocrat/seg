@@ -1082,6 +1082,96 @@ def test_render_command__preserves_command_token_order():
     assert render_command(spec, {"name": "seg"}) == ["echo", "-n", "seg", "!"]
 
 
+def test_render_command__interpolates_const_placeholders_for_supported_types():
+    """
+    GIVEN const literals containing string/int/float placeholders
+    WHEN render_command is called
+    THEN placeholders are interpolated into argv tokens deterministically
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "user": ArgDef(type=ParamType.STRING, required=True, description="user"),
+            "count": ArgDef(type=ParamType.INT, required=True, description="count"),
+            "ratio": ArgDef(type=ParamType.FLOAT, required=True, description="ratio"),
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "u:{user}"},
+            {"kind": "const", "value": "c:{count}"},
+            {"kind": "const", "value": "r:{ratio}"},
+            {"kind": "const", "value": "mix:{user}_{count}"},
+        ),
+    )
+
+    assert render_command(
+        spec,
+        {"user": "alice", "count": 3, "ratio": 2.5},
+    ) == ["echo", "u:alice", "c:3", "r:2.5", "mix:alice_3"]
+
+
+def test_render_command__interpolates_repeated_const_placeholder():
+    """
+    GIVEN a const literal with repeated placeholder name
+    WHEN render_command is called
+    THEN each placeholder occurrence is replaced with the same arg value
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "name": ArgDef(type=ParamType.STRING, required=True, description="name")
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "{name}:{name}"},
+        ),
+    )
+
+    assert render_command(spec, {"name": "seg"}) == ["echo", "seg:seg"]
+
+
+def test_render_command__rejects_const_template_value_with_whitespace():
+    """
+    GIVEN a string arg used by const placeholder containing whitespace
+    WHEN render_command is called
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "name": ArgDef(type=ParamType.STRING, required=True, description="name")
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "user:{name}"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="cannot contain whitespace"):
+        render_command(spec, {"name": "bad value"})
+
+
+def test_render_command__rejects_const_template_value_with_control_characters():
+    """
+    GIVEN a string arg used by const placeholder containing control characters
+    WHEN render_command is called
+    THEN ActionInvalidArgError is raised
+    """
+
+    spec = _make_spec(
+        arg_defs={
+            "name": ArgDef(type=ParamType.STRING, required=True, description="name")
+        },
+        command_template=(
+            {"kind": "binary", "value": "echo"},
+            {"kind": "const", "value": "user:{name}"},
+        ),
+    )
+
+    with pytest.raises(ActionInvalidArgError, match="control characters"):
+        render_command(spec, {"name": "bad\u0007value"})
+
+
 def test_render_command__supports_multiple_args_and_flags():
     """
     GIVEN a command template with multiple args and flags

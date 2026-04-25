@@ -6,11 +6,13 @@ into a fully resolved `RenderedAction` for subprocess-safe execution.
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any, cast
 from uuid import UUID
 
 from pydantic import UUID4
 
+from seg.actions.engine_config import CONST_TEMPLATE_PLACEHOLDER_PATTERN
 from seg.actions.exceptions import (
     ActionInvalidArgError,
     ActionRuntimeError,
@@ -92,7 +94,13 @@ def render_command(
 
             if kind == "const":
                 const_token = cast(ConstCmd, token)
-                argv.append(const_token["value"])
+                argv.append(
+                    _render_const_literal(
+                        const_token["value"],
+                        spec=spec,
+                        resolved=resolved,
+                    )
+                )
                 continue
 
             if kind == "arg":
@@ -133,6 +141,151 @@ def render_command(
         raise ActionRuntimeRenderError(
             "Unexpected failure while rendering command"
         ) from exc
+
+
+def _render_const_literal(
+    literal: str,
+    *,
+    spec: ActionSpec,
+    resolved: dict[str, Any],
+) -> str:
+    """Render one `const` command token with restricted placeholders.
+
+    Args:
+        literal: Raw const token value from the command template.
+        spec: Action runtime specification.
+        resolved: Resolved runtime params after defaults + request params merge.
+
+    Returns:
+        Final rendered const token value.
+
+    Raises:
+        ActionInvalidArgError: If a referenced arg value is invalid.
+        ActionRuntimeRenderError: If validated template metadata cannot be
+            resolved at runtime due to an internal inconsistency.
+    """
+
+    if "{" not in literal and "}" not in literal:
+        return literal
+
+    placeholders = tuple(
+        dict.fromkeys(CONST_TEMPLATE_PLACEHOLDER_PATTERN.findall(literal))
+    )
+    rendered = literal
+
+    for placeholder_name in placeholders:
+        try:
+            arg_def = spec.arg_defs[placeholder_name]
+            placeholder_value = resolved[placeholder_name]
+        except KeyError as exc:
+            raise ActionRuntimeRenderError(
+                "Unexpected const template resolution failure"
+            ) from exc
+
+        replacement = _resolve_const_placeholder_value(
+            name=placeholder_name,
+            arg_def=arg_def,
+            value=placeholder_value,
+        )
+        rendered = rendered.replace(f"{{{placeholder_name}}}", replacement)
+
+    _validate_rendered_const_token(rendered)
+    return rendered
+
+
+def _resolve_const_placeholder_value(name: str, arg_def: ArgDef, value: Any) -> str:
+    """Resolve one const placeholder from a runtime arg value.
+
+    Args:
+        name: Placeholder/arg name.
+        arg_def: Runtime arg definition.
+        value: Resolved runtime arg value.
+
+    Returns:
+        String value to inject into const literal.
+
+    Raises:
+        ActionInvalidArgError: If value is invalid for template interpolation.
+        ActionRuntimeRenderError: If a validated placeholder resolves to an
+            unexpected arg type at runtime.
+    """
+
+    constraints = arg_def.constraints or {}
+
+    if arg_def.type in {ParamType.INT, ParamType.FLOAT}:
+        _validate_numeric_constraints(name, value, constraints)
+        return str(value)
+
+    if arg_def.type == ParamType.STRING:
+        _validate_string_constraints(name, value, constraints)
+        string_value = cast(str, value)
+        _validate_template_string_value(name, string_value)
+        return string_value
+
+    raise ActionRuntimeRenderError(
+        ("Unexpected const template arg type " f"'{arg_def.type.value}' for '{name}'")
+    )
+
+
+def _validate_template_string_value(name: str, value: str) -> None:
+    """Validate runtime string value safety for const placeholder injection.
+
+    Args:
+        name: Placeholder/arg name.
+        value: Runtime string value.
+
+    Raises:
+        ActionInvalidArgError: If value is unsafe for interpolation.
+    """
+
+    if any(character.isspace() for character in value):
+        raise ActionInvalidArgError(
+            (
+                f"Param '{name}' cannot contain whitespace when "
+                "used in const template placeholders"
+            )
+        )
+
+    if "\x00" in value:
+        raise ActionInvalidArgError(
+            (
+                f"Param '{name}' cannot contain NULL bytes when "
+                "used in const template placeholders"
+            )
+        )
+
+    if _contains_control_characters(value):
+        raise ActionInvalidArgError(
+            (
+                f"Param '{name}' cannot contain control characters when "
+                "used in const template placeholders"
+            )
+        )
+
+
+def _validate_rendered_const_token(value: str) -> None:
+    """Validate the final rendered const token before appending to argv.
+
+    Args:
+        value: Final rendered const token value.
+
+    Raises:
+        ActionInvalidArgError: If rendered token violates token safety rules.
+    """
+
+    if value == "":
+        raise ActionInvalidArgError("Rendered const token must not be empty")
+
+    if value.strip() == "":
+        raise ActionInvalidArgError("Rendered const token must not be whitespace-only")
+
+    if "\x00" in value:
+        raise ActionInvalidArgError("Rendered const token must not contain NULL bytes")
+
+    if _contains_control_characters(value):
+        raise ActionInvalidArgError(
+            "Rendered const token must not contain control characters"
+        )
 
 
 def _resolve_arg(arg_def: ArgDef, value: Any) -> list[str]:
@@ -438,6 +591,19 @@ def _validate_list_constraints(
         raise ActionInvalidArgError(
             f"Param '{name}' must contain at most {max_items} item(s)"
         )
+
+
+def _contains_control_characters(value: str) -> bool:
+    """Return whether a string contains Unicode control characters.
+
+    Args:
+        value: String to inspect.
+
+    Returns:
+        True if at least one control character is present.
+    """
+
+    return any(unicodedata.category(char).startswith("C") for char in value)
 
 
 def _coerce_file_id(name: str, value: Any) -> UUID:
