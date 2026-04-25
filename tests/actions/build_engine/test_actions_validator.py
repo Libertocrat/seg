@@ -666,6 +666,156 @@ def test_validate_modules_rejects_invalid_command_literals(
         validate_modules([module])
 
 
+def test_validate_modules_accepts_command_literal_placeholders_and_marks_args_used(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN args referenced only inside a const literal template
+    WHEN validate_modules is called
+    THEN semantic validation succeeds without unused-arg errors
+    """
+    action = make_action_payload(
+        args={
+            "user": {
+                "type": "string",
+                "required": True,
+                "description": "user name",
+            },
+            "count": {
+                "type": "int",
+                "required": True,
+                "description": "retry count",
+            },
+        },
+        command=[{"binary": "echo"}, "user_{user}_count_{count}"],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "{}",
+        "{arg:-default}",
+        "{exec(cmd)}",
+        "{arg1_{arg2}}",
+        "{missing",
+        "missing}",
+        "${user}",
+    ],
+    ids=[
+        "empty_placeholder",
+        "modifier_syntax",
+        "expression_syntax",
+        "nested_placeholder",
+        "unbalanced_opening",
+        "unbalanced_closing",
+        "dollar_brace_syntax",
+    ],
+)
+def test_validate_modules_rejects_invalid_command_literal_placeholder_syntax(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    literal: str,
+):
+    """
+    GIVEN a const literal with invalid placeholder syntax
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised at startup
+    """
+    action = make_action_payload(
+        args={
+            "user": {
+                "type": "string",
+                "required": True,
+                "description": "user name",
+            }
+        },
+        command=[{"binary": "echo"}, literal],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(
+        ActionSpecsParseError,
+        match="invalid placeholder syntax",
+    ):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_command_literal_placeholder_with_undefined_arg(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a const literal placeholder referencing an undefined arg
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={
+            "user": {
+                "type": "string",
+                "required": True,
+                "description": "user name",
+            }
+        },
+        command=[{"binary": "echo"}, "hello_{missing}"],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="references undefined arg"):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "arg_spec",
+    [
+        {
+            "type": "bool",
+            "required": True,
+            "description": "bool arg",
+        },
+        {
+            "type": "file_id",
+            "required": True,
+            "description": "file arg",
+        },
+        {
+            "type": "list",
+            "items": "string",
+            "required": True,
+            "description": "list arg",
+        },
+    ],
+    ids=["bool", "file_id", "list"],
+)
+def test_validate_modules_rejects_command_literal_placeholder_with_unsupported_arg_type(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    arg_spec,
+):
+    """
+    GIVEN a const literal placeholder pointing to unsupported arg type
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(
+        args={"value": arg_spec},
+        command=[{"binary": "echo"}, "{value}"],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="unsupported type"):
+        validate_modules([module])
+
+
 # ============================================================================
 # references
 # ============================================================================

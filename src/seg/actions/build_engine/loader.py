@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +21,7 @@ from seg.actions.engine_config import (
     CORE_SPEC_SOURCE,
     CORE_SPECS_DIR,
     DISALLOWED_YAML_PATTERNS,
+    IDENTIFIER_NAME_PATTERN,
     USER_MASK_PREFIX,
     USER_NAMESPACE_PREFIX,
     USER_SPEC_SOURCE,
@@ -32,8 +32,6 @@ from seg.actions.schemas.module import ModuleSpec
 from seg.core.config import Settings
 
 logger = logging.getLogger("seg.actions.build_engine.loader")
-
-_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
 def discover_spec_files(spec_dirs: list[Path]) -> list[Path]:
@@ -341,7 +339,7 @@ def _validate_namespace_dir_name(path: Path) -> None:
         ActionSpecsParseError: If the directory segment is invalid.
     """
 
-    if _NAME_PATTERN.fullmatch(path.name):
+    if IDENTIFIER_NAME_PATTERN.fullmatch(path.name):
         return
 
     masked_path = _mask_path(path)
@@ -364,7 +362,7 @@ def _validate_module_filename(path: Path) -> None:
         ActionSpecsParseError: If stem does not match SEG identifier rules.
     """
 
-    if _NAME_PATTERN.fullmatch(path.stem):
+    if IDENTIFIER_NAME_PATTERN.fullmatch(path.stem):
         return
 
     masked_path = _mask_path(path)
