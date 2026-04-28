@@ -23,11 +23,15 @@ async def delete_file_handler(
 ) -> DeleteFileResult:
     """Delete a previously uploaded file and its metadata.
 
-    Flow:
-    - Load and validate metadata
-    - Verify storage consistency and blob presence
-    - Delete blob first, then metadata
-    - Return typed delete result
+    Args:
+        file_id: Target file UUID.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Typed delete result with deleted flag.
+
+    Raises:
+        SegError: If metadata/blob validation or deletion fails.
     """
 
     cfg = settings or get_settings()

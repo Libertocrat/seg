@@ -147,7 +147,7 @@ def build_module_summaries(
                 description=module.description,
                 tags=_parse_tags(module.tags),
                 authors=tuple(module.authors) if module.authors else None,
-                actions=sorted(summaries, key=lambda action: action.action_name),
+                actions=sorted(summaries, key=lambda action: action.action),
             )
         )
 
@@ -192,7 +192,7 @@ def filter_modules(
             action
             for action in module.actions
             if (
-                _matches_query(action.action_name, query)
+                _matches_query(action.action, query)
                 or _matches_query(action.summary, query)
                 or _matches_query(action.description, query)
             )
@@ -212,12 +212,6 @@ def filter_modules(
                 )
             )
             continue
-
-        if _matches_query(module.description, query) or _matches_query(
-            module.module_id,
-            query,
-        ):
-            filtered.append(module)
 
     return filtered
 

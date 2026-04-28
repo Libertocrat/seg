@@ -8,12 +8,45 @@ from fastapi.responses import JSONResponse
 from seg.core.errors import SegError
 from seg.core.schemas.envelope import ResponseEnvelope
 from seg.routes.actions.handlers.execute_action import execute_action_handler
-from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
+from seg.routes.actions.handlers.list_actions import list_actions_handler
+from seg.routes.actions.schemas import (
+    ExecuteActionData,
+    ExecuteRequest,
+    ListActionsData,
+)
 
-router = APIRouter(prefix="/v1", tags=["execute"])
+router = APIRouter(prefix="/v1", tags=["Actions"])
 
 
-@router.post("/execute", response_model=ResponseEnvelope[ExecuteActionData])
+@router.get(
+    "/actions",
+    response_model=ResponseEnvelope[ListActionsData],
+    summary="List available actions grouped by module with optional filtering.",
+)
+async def list_actions(
+    request: Request,
+    q: str | None = None,
+    tag: str | None = None,
+) -> JSONResponse | ResponseEnvelope[ListActionsData]:
+    """List DSL-defined actions grouped by module with optional filtering."""
+
+    try:
+        result = await list_actions_handler(request, q=q, tag=tag)
+        return ResponseEnvelope.success_response(result)
+    except SegError as exc:
+        payload = ResponseEnvelope.failure(
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        )
+        return JSONResponse(status_code=exc.http_status, content=payload.model_dump())
+
+
+@router.post(
+    "/execute",
+    response_model=ResponseEnvelope[ExecuteActionData],
+    summary="Execute a registered action with given parameters.",
+)
 async def execute(
     request: Request,
     req: ExecuteRequest,

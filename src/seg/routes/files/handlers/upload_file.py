@@ -43,7 +43,14 @@ from seg.routes.files.schemas import (
 def parse_post_file_request(
     checksum: Annotated[str | None, Form()] = None,
 ) -> UploadFileRequest:
-    """Build the typed request schema for `POST /v1/files` form fields."""
+    """Build typed request payload for POST /v1/files form fields.
+
+    Args:
+        checksum: Optional client-provided SHA-256 checksum.
+
+    Returns:
+        Typed upload request model.
+    """
 
     return UploadFileRequest(checksum=checksum)
 
@@ -56,15 +63,15 @@ async def upload_file_handler(
     """Validate and persist an uploaded file under SEG-managed storage.
 
     Args:
-            upload: Incoming FastAPI multipart file stream.
-            verify_checksum: Optional checksum constraint provided by the client.
-            settings: Optional pre-loaded runtime settings.
+        upload: Incoming FastAPI multipart file stream.
+        verify_checksum: Optional checksum constraint provided by the client.
+        settings: Optional pre-loaded runtime settings.
 
     Returns:
-            Persisted file metadata.
+        Persisted file metadata.
 
     Raises:
-            SegError: If validation or persistence fails.
+        SegError: If validation or persistence fails.
     """
 
     cfg = settings or get_settings()

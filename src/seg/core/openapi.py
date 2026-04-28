@@ -115,8 +115,8 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
 
     schema["tags"] = [
         {
-            "name": "Execution",
-            "description": "Execute sandboxed actions via dispatcher.",
+            "name": "Actions",
+            "description": "Discover and execute DSL-defined actions.",
         },
         {
             "name": "Files",
@@ -778,7 +778,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     if not post:
         return
 
-    post["tags"] = ["Execution"]
+    # post["tags"] = ["Actions"]
     registry = getattr(app.state, "action_registry", None)
     if not isinstance(registry, ActionRegistry):
         return

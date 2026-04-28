@@ -74,28 +74,26 @@ def test_build_module_summaries_from_valid_registry(
     assert isinstance(module, ModuleSummary)
     assert isinstance(module.module_id, str)
     assert isinstance(module.actions, list)
-    assert all(action.action_name for action in module.actions)
+    assert all(action.action_id for action in module.actions)
 
 
-def test_module_summaries_include_real_action_names(
+def test_module_summaries_include_real_action_ids(
     registry_modules_and_actions,
 ) -> None:
     """
     GIVEN a real registry
     WHEN building summaries
-    THEN action names must match registry keys
+    THEN action ids must match registry keys
     """
 
     modules, actions = registry_modules_and_actions
 
     result = build_module_summaries(modules, actions)
 
-    action_names = {
-        action.action_name for module in result for action in module.actions
-    }
+    action_ids = {action.action_id for module in result for action in module.actions}
     registry_names = set(actions.keys())
 
-    assert action_names.issubset(registry_names)
+    assert action_ids.issubset(registry_names)
 
 
 def test_module_namespace_consistency(registry_modules_and_actions) -> None:
@@ -136,7 +134,7 @@ def test_filter_modules_query_real_data(registry_modules_and_actions) -> None:
     """
     GIVEN real module summaries
     WHEN filtering by query
-    THEN results must match actual descriptions or names
+    THEN results must match actual action name, summary, or description
     """
 
     modules, actions = registry_modules_and_actions
@@ -148,16 +146,13 @@ def test_filter_modules_query_real_data(registry_modules_and_actions) -> None:
     query = "test"
 
     for module in result:
-        module_match = (
-            query in module.module_id.lower() or query in module.description.lower()
-        )
-        action_match = any(
-            query in action.action_name.lower()
+        assert module.actions
+        assert all(
+            query in action.action.lower()
             or query in (action.summary or "").lower()
             or query in (action.description or "").lower()
             for action in module.actions
         )
-        assert module_match or action_match
 
 
 def test_filter_modules_tag_real(registry_modules_and_actions) -> None:

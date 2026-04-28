@@ -27,7 +27,24 @@ async def list_files_handler(
     extension: str | None,
     settings: Settings | None = None,
 ) -> FileListData:
-    """List persisted file metadata with filtering, sorting and cursor pagination."""
+    """List persisted file metadata with filters and cursor pagination.
+
+    Args:
+        limit: Maximum number of records to return.
+        cursor: Optional opaque pagination cursor.
+        sort: Sort field name.
+        order: Sort order, asc or desc.
+        status: Optional status filter.
+        mime_type: Optional MIME type filter.
+        extension: Optional file extension filter.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Typed file list payload with pagination metadata.
+
+    Raises:
+        SegError: If input validation or listing workflow fails.
+    """
 
     cfg = settings or get_settings()
 
