@@ -1,4 +1,4 @@
-"""Request schema for the `/v1/execute` endpoint."""
+"""Schemas for action execution and discovery endpoints."""
 
 from __future__ import annotations
 
@@ -31,3 +31,31 @@ class ExecuteActionData(BaseModel):
     truncated: bool
     redacted: bool
     outputs: dict[str, FileMetadata | None] | None = None
+
+
+class ActionSummarySchema(BaseModel):
+    """Public summary payload for one registered action."""
+
+    action: str
+    action_id: str
+    summary: str | None
+    description: str | None
+
+
+class ModuleSummarySchema(BaseModel):
+    """Public summary payload for one DSL module."""
+
+    module: str
+    module_id: str
+    namespace: str
+    namespace_path: list[str]
+    description: str | None
+    tags: list[str]
+    authors: list[str]
+    actions: list[ActionSummarySchema]
+
+
+class ListActionsData(BaseModel):
+    """Success payload for `GET /v1/actions`."""
+
+    modules: list[ModuleSummarySchema]

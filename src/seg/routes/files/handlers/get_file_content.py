@@ -18,7 +18,15 @@ from seg.routes.files.utils import safe_load_metadata
 
 @dataclass(slots=True, frozen=True)
 class FileContentDescriptor:
-    """Transport-neutral descriptor for streamed file content."""
+    """Transport-neutral descriptor for streamed file content.
+
+    Attributes:
+        file_id: File UUID associated with the blob.
+        blob_path: Filesystem path to the persisted blob.
+        mime_type: Response media type used for streaming.
+        filename: Download-safe filename for Content-Disposition.
+        size_bytes: Optional blob size used for Content-Length.
+    """
 
     file_id: uuid.UUID
     blob_path: Path
@@ -31,7 +39,18 @@ async def get_file_content_handler(
     file_id: uuid.UUID,
     settings: Settings | None = None,
 ) -> FileContentDescriptor:
-    """Resolve and validate metadata + blob path for content streaming."""
+    """Resolve and validate metadata and blob path for content streaming.
+
+    Args:
+        file_id: Target file UUID.
+        settings: Optional pre-loaded runtime settings.
+
+    Returns:
+        Descriptor containing validated streaming metadata.
+
+    Raises:
+        SegError: If metadata/blob validation or stream preparation fails.
+    """
 
     cfg = settings or get_settings()
     metadata = safe_load_metadata(file_id, cfg)

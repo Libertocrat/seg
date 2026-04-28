@@ -25,7 +25,7 @@ def to_action_summary(spec: ActionSpec) -> ActionSummary:
 
     return ActionSummary(
         action=spec.action,
-        action_name=spec.name,
+        action_id=spec.name,
         summary=spec.summary,
         description=spec.description,
     )
@@ -74,7 +74,8 @@ def to_action_public_spec(spec: ActionSpec) -> ActionPublicSpec:
     ]
 
     return ActionPublicSpec(
-        name=spec.name,
+        action_id=spec.name,
+        action=spec.action,
         summary=spec.summary,
         description=spec.description,
         args=args,
@@ -106,7 +107,7 @@ def module_summary_to_dict(module: ModuleSummary) -> dict[str, Any]:
         "actions": [
             {
                 "action": action.action,
-                "action_name": action.action_name,
+                "action_id": action.action_id,
                 "summary": action.summary,
                 "description": action.description,
             }

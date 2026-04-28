@@ -16,13 +16,15 @@ async def get_file_metadata_handler(
 ) -> FileMetadata:
     """Load metadata for a previously uploaded file.
 
-    This handler orchestrates storage access and maps low-level errors into
-    SEG's standardized error model.
+    Args:
+        file_id: Target file UUID.
+        settings: Optional pre-loaded runtime settings.
 
-    Error mapping:
-    - FILE_NOT_FOUND → metadata file does not exist
-    - INVALID_REQUEST → metadata exists but is invalid/corrupted
-    - INTERNAL_ERROR → unexpected system or IO failure
+    Returns:
+        Validated file metadata model.
+
+    Raises:
+        SegError: If metadata is missing, invalid, or cannot be loaded.
     """
 
     cfg = settings or get_settings()

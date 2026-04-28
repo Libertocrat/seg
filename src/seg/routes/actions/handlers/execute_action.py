@@ -41,7 +41,14 @@ from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
 
 
 def _encode_output(data: bytes) -> tuple[str, Literal["utf-8", "base64"]]:
-    """Encode process output bytes for JSON transport."""
+    """Encode process output bytes for JSON transport.
+
+    Args:
+        data: Raw process output bytes.
+
+    Returns:
+        Tuple containing encoded output and encoding label.
+    """
 
     try:
         return data.decode("utf-8"), "utf-8"
@@ -53,13 +60,13 @@ def _get_action_registry(request: Request) -> ActionRegistry:
     """Resolve and validate the action registry from application state.
 
     Args:
-            request: FastAPI request instance.
+        request: FastAPI request instance.
 
     Returns:
-            Runtime ActionRegistry instance.
+        Runtime ActionRegistry instance.
 
     Raises:
-            SegError: If registry is missing or invalid in app state.
+        SegError: If registry is missing or invalid in app state.
     """
     registry = getattr(request.app.state, "action_registry", None)
     if not isinstance(registry, ActionRegistry):
@@ -74,7 +81,18 @@ async def execute_action_handler(
     request: Request,
     payload: ExecuteRequest,
 ) -> ExecuteActionData:
-    """Execute one DSL action and map runtime exceptions to `SegError`."""
+    """Execute one DSL action and map runtime exceptions to SegError.
+
+    Args:
+        request: Incoming FastAPI request.
+        payload: Validated execute request payload.
+
+    Returns:
+        Typed execution result payload.
+
+    Raises:
+        SegError: If action execution or output handling fails.
+    """
 
     registry = _get_action_registry(request)
     settings = getattr(request.app.state, "settings", None)

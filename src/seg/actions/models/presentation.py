@@ -12,13 +12,13 @@ class ActionSummary:
 
     Attributes:
         action: Short DSL action name, for example "encrypt".
-        action_name: Fully qualified runtime action name.
+        action_id: Fully qualified runtime action name.
         summary: Optional short summary for discovery views.
         description: Optional long description of the action.
     """
 
     action: str
-    action_name: str
+    action_id: str
     summary: str | None
     description: str | None
 
@@ -55,7 +55,8 @@ class ActionPublicSpec:
     """Detailed API-facing specification of one action.
 
     Attributes:
-        name: Fully qualified runtime action name.
+        action: Short DSL action name, for example "encrypt".
+        action_id: Fully qualified runtime action name.
         summary: Optional short summary.
         description: Optional long description.
         args: Serialized argument definitions.
@@ -65,7 +66,8 @@ class ActionPublicSpec:
         response_schema: JSON schema for execute response payload data.
     """
 
-    name: str
+    action: str
+    action_id: str
     summary: str | None
     description: str | None
 

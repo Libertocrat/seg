@@ -80,7 +80,7 @@ def sample_module_summary(sample_action_spec: ActionSpec) -> ModuleSummary:
 
     action = ActionSummary(
         action="encrypt",
-        action_name=sample_action_spec.name,
+        action_id=sample_action_spec.name,
         summary="summary",
         description="description",
     )
@@ -113,7 +113,7 @@ def test_to_action_summary_maps_fields(sample_action_spec: ActionSpec) -> None:
 
     assert isinstance(result, ActionSummary)
     assert result.action == "encrypt"
-    assert result.action_name == "crypto.hash.encrypt"
+    assert result.action_id == "crypto.hash.encrypt"
     assert result.summary == "summary"
     assert result.description == "description"
 
@@ -133,6 +133,8 @@ def test_to_action_public_spec_maps_fields(sample_action_spec: ActionSpec) -> No
     result = to_action_public_spec(sample_action_spec)
 
     assert isinstance(result, ActionPublicSpec)
+    assert result.action == "encrypt"
+    assert result.action_id == "crypto.hash.encrypt"
     assert len(result.args) == 1
     assert len(result.flags) == 1
     assert len(result.outputs) == 1
@@ -230,6 +232,7 @@ def test_module_summary_to_dict(sample_module_summary: ModuleSummary) -> None:
     assert result["module_id"] == "crypto.hash"
     assert result["namespace_path"] == ["crypto", "hash"]
     assert result["authors"] == ["author"]
+    assert result["actions"][0]["action_id"] == "crypto.hash.encrypt"
 
 
 def test_modules_to_response(sample_module_summary: ModuleSummary) -> None:
