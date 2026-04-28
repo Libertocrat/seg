@@ -118,12 +118,14 @@ jobs:
       # Scan image
       # -------------------------
       - name: Scan image before publish (block on HIGH/CRITICAL)
+        env:
+          IMAGE_REF: ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
         run: |
           trivy image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 1 \
-            ghcr.io/${{ env.IMAGE_OWNER }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            "$IMAGE_REF"
 
       # -------------------------
       # Artifact distribution (Docker Hub / GHCR)
@@ -166,8 +168,10 @@ jobs:
           python scripts/export_openapi.py
 
       - name: Create versioned OpenAPI copy
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          cp docs/api-docs/output/openapi.json openapi-${{ github.ref_name }}.json
+          cp docs/api-docs/output/openapi.json "openapi-${RELEASE_TAG}.json"
 
       # -------------------------
       # GitHub Release
