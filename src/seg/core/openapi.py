@@ -145,6 +145,7 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     _patch_public_endpoints(schema)
     _patch_execute_contract(schema, app)
     _patch_files_contract(schema)
+    _patch_actions_get_contract(schema)
     _inject_middleware_errors(schema, MIDDLEWARE_ERROR_MAP)
     _replace_default_422(schema)
     _inject_response_headers(schema)
@@ -470,6 +471,40 @@ def _patch_files_contract(schema: dict[str, Any]) -> None:
                 }
             },
         }
+
+
+def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
+    """Enhance GET /v1/actions/{action_id} contract."""
+
+    actions_get_errors = [
+        errors.ACTION_NOT_FOUND,
+        errors.INVALID_PARAMS,
+        errors.INTERNAL_ERROR,
+    ]
+
+    actions_get_success_example = {
+        "success": True,
+        "error": None,
+        "data": {
+            "action": "ping",
+            "action_id": "test_runtime.ping",
+            "summary": "Ping",
+            "description": "Return deterministic hello output",
+            "args": [],
+            "flags": [],
+            "outputs": [],
+            "params_schema": {},
+            "response_schema": {},
+        },
+    }
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/actions/{action_id}",
+        method="get",
+        errors=actions_get_errors,
+        success_example=actions_get_success_example,
+    )
 
 
 # ---------------------------------------------------------------------

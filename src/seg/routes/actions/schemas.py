@@ -59,3 +59,17 @@ class ListActionsData(BaseModel):
     """Success payload for `GET /v1/actions`."""
 
     modules: list[ModuleSummarySchema]
+
+
+class GetActionData(BaseModel):
+    """Success payload for `GET /v1/actions/{action_id}`."""
+
+    action: str
+    action_id: str
+    summary: str | None
+    description: str | None
+    args: list[dict[str, Any]]
+    flags: list[dict[str, Any]]
+    outputs: list[dict[str, Any]]
+    params_schema: dict[str, Any]
+    response_schema: dict[str, Any]

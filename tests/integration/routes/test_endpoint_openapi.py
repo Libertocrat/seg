@@ -16,7 +16,9 @@ from seg.core.openapi import (
     _build_required_arg_example_value,
     _format_arg_type_for_docs,
 )
-from tests.integration.routes.test_endpoint_execute import _build_outputs_registry
+from tests.integration.routes.actions.test_endpoint_action_execute import (
+    _build_outputs_registry,
+)
 
 # ============================================================================
 # Helpers
