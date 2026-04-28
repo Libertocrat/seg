@@ -9,6 +9,7 @@ from .core import (
     OutputType,
     ParamType,
 )
+from .presentation import ActionPublicSpec, ActionSummary, ModuleSummary
 from .runtime import ActionExecutionOutput, ActionExecutionResult, RenderedAction
 from .security import BinaryPolicy
 
@@ -20,6 +21,9 @@ __all__ = [
     "OutputType",
     "OutputSource",
     "OutputDef",
+    "ActionSummary",
+    "ModuleSummary",
+    "ActionPublicSpec",
     "ActionExecutionResult",
     "ActionExecutionOutput",
     "RenderedAction",
