@@ -10,7 +10,8 @@ from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel
 
 import seg.core.errors as errors
-from seg.actions.models.core import ActionSpec, ParamType
+from seg.actions.models.presentation import ActionPublicSpec
+from seg.actions.presentation.serializers import to_action_public_spec
 from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
@@ -493,8 +494,10 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
             "args": [],
             "flags": [],
             "outputs": [],
-            "params_schema": {},
-            "response_schema": {},
+            "params_contract": {},
+            "params_example": {},
+            "response_contract": {},
+            "response_example": {},
         },
     }
 
@@ -512,17 +515,20 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
 # ---------------------------------------------------------------------
 
 
-def _build_execute_action_request_markdown(spec: ActionSpec) -> str:
+def _build_action_request_markdown(public_spec: ActionPublicSpec) -> str:
     """Build a markdown description block for one action request example.
 
     Args:
-        spec: Runtime action specification.
+        public_spec: Public action spec containing rendered contracts/examples.
 
     Returns:
-        Markdown description including description, args, and flags.
+        Markdown section describing args and flags.
     """
 
-    description = spec.description or spec.summary or "No description provided."
+    description = (
+        public_spec.description or public_spec.summary or "No description provided."
+    )
+    params_contract = public_spec.params_contract.get("params", {})
 
     lines = [
         "",
@@ -532,21 +538,24 @@ def _build_execute_action_request_markdown(spec: ActionSpec) -> str:
         "",
     ]
 
-    if spec.arg_defs:
-        for arg_name, arg_def in spec.arg_defs.items():
-            arg_type_display = _format_arg_type_for_docs(arg_def.type, arg_def.items)
+    if public_spec.args:
+        for arg in public_spec.args:
+            arg_name = str(arg.get("name", ""))
+            contract_arg = params_contract.get(arg_name, {})
+            arg_type_display = contract_arg.get("type", arg.get("type", "unknown"))
             arg_line = f"- `{arg_name}` (`{arg_type_display}`): "
             details: list[str] = []
 
-            if arg_def.description:
-                details.append(arg_def.description)
+            description_value = arg.get("description")
+            if description_value:
+                details.append(str(description_value))
 
-            if arg_def.required:
+            if bool(arg.get("required", False)):
                 details.append("**\\*required**")
             else:
-                default_value = spec.defaults.get(arg_name, arg_def.default)
                 details.append(
-                    "default: " f"`{_format_openapi_markdown_value(default_value)}`"
+                    "default: "
+                    f"`{_format_openapi_markdown_value(arg.get('default'))}`"
                 )
 
             arg_line += "; ".join(details) if details else "No details."
@@ -555,31 +564,28 @@ def _build_execute_action_request_markdown(spec: ActionSpec) -> str:
         lines.append("- _No args_")
 
     lines.extend(["", "#### Flags", ""])
-    if spec.flag_defs:
-        for flag_name, flag_def in spec.flag_defs.items():
-            flag_line = (
-                f"- `{flag_name}`: {flag_def.description}; "
-                "default: "
-                f"`{_format_openapi_markdown_value(flag_def.default)}`"
+    if public_spec.flags:
+        for flag in public_spec.flags:
+            flag_name = str(flag.get("name", ""))
+            flag_description = str(flag.get("description") or "")
+            flag_default = _format_openapi_markdown_value(flag.get("default"))
+            lines.append(
+                f"- `{flag_name}`: {flag_description}; default: `{flag_default}`"
             )
-            lines.append(flag_line)
     else:
         lines.append("- _No flags_")
-
-    if spec.deprecated:
-        lines.extend(["", "⚠️ Deprecated action."])
 
     return "\n".join(lines)
 
 
-def _build_execute_action_response_markdown(spec: ActionSpec) -> str:
+def _build_action_response_markdown(public_spec: ActionPublicSpec) -> str:
     """Build a markdown description block for one action response example.
 
     Args:
-        spec: Runtime action specification.
+        public_spec: Public action spec containing rendered contracts/examples.
 
     Returns:
-        Markdown description including output definitions only.
+        Markdown section describing outputs.
     """
 
     lines = [
@@ -588,117 +594,20 @@ def _build_execute_action_response_markdown(spec: ActionSpec) -> str:
         "",
     ]
 
-    if spec.outputs:
-        for output_name, output_def in spec.outputs.items():
+    if public_spec.outputs:
+        for output in public_spec.outputs:
+            output_name = str(output.get("name", ""))
+            output_type = str(output.get("type", "unknown"))
+            output_description = str(output.get("description") or "")
+            output_source = str(output.get("source") or "unknown")
             lines.append(
-                f"- `{output_name}` (`{output_def.type.value}`): "
-                f"{output_def.description}; source: `{output_def.source.value}`"
+                f"- `{output_name}` (`{output_type}`): "
+                f"{output_description}; source: `{output_source}`"
             )
     else:
         lines.append("- _No outputs_")
 
     return "\n".join(lines)
-
-
-def _build_execute_params_example(spec: ActionSpec) -> dict[str, Any]:
-    """Build request `params` examples for one runtime action.
-
-    Args:
-        spec: Runtime action specification.
-
-    Returns:
-        Dictionary compatible with the action's `params_model`.
-    """
-
-    if spec.params_example is not None:
-        return spec.params_example.model_dump(exclude_none=False)
-
-    params_example: dict[str, Any] = {}
-
-    for arg_name, arg_def in spec.arg_defs.items():
-        if arg_def.required:
-            params_example[arg_name] = _build_required_arg_example_value(
-                arg_name,
-                arg_def.type,
-                arg_def.items,
-            )
-            continue
-
-        if arg_name in spec.defaults:
-            params_example[arg_name] = spec.defaults[arg_name]
-
-    for flag_name, flag_def in spec.flag_defs.items():
-        params_example[flag_name] = flag_def.default
-
-    return params_example
-
-
-def _build_required_arg_example_value(
-    arg_name: str,
-    param_type: ParamType,
-    item_type: ParamType | None = None,
-) -> Any:
-    """Build a deterministic example value for a required action argument.
-
-    Args:
-        arg_name: Action argument name.
-        param_type: Argument logical type.
-
-    Returns:
-        Example value aligned with the declared param type.
-    """
-
-    if param_type == ParamType.INT:
-        return 1
-
-    if param_type == ParamType.FLOAT:
-        return 1.0
-
-    if param_type == ParamType.STRING:
-        return f"{arg_name}_value"
-
-    if param_type == ParamType.BOOL:
-        return True
-
-    if param_type == ParamType.FILE_ID:
-        return "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-
-    if param_type == ParamType.LIST:
-        if item_type == ParamType.STRING:
-            return [f"{arg_name}_item_1", f"{arg_name}_item_2"]
-        if item_type == ParamType.FILE_ID:
-            return [
-                "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-                "98e56387-3364-4ce2-9c66-44d23ec4e23a",
-            ]
-        return []
-
-    return None
-
-
-def _format_arg_type_for_docs(
-    param_type: ParamType,
-    item_type: ParamType | None = None,
-) -> str:
-    """Format argument type for OpenAPI markdown documentation.
-
-    Args:
-        param_type: Argument logical type.
-        item_type: List item type when `param_type` is `list`.
-
-    Returns:
-        Human-readable type label for docs.
-    """
-
-    if param_type != ParamType.LIST:
-        return param_type.value
-
-    if item_type == ParamType.STRING:
-        return "list[str]"
-    if item_type == ParamType.FILE_ID:
-        return "list[file_id]"
-
-    return "list"
 
 
 def _format_openapi_markdown_value(value: Any) -> str:
@@ -718,78 +627,6 @@ def _format_openapi_markdown_value(value: Any) -> str:
         return "true" if value else "false"
 
     return str(value)
-
-
-def _build_file_metadata_example(
-    *,
-    original_filename: str,
-    mime_type: str,
-    extension: str,
-    size_bytes: int,
-) -> dict[str, Any]:
-    """Build a deterministic `FileMetadata` example payload for docs.
-
-    Args:
-        original_filename: Client-facing filename to expose in the example.
-        mime_type: MIME type advertised by the example metadata.
-        extension: File extension including leading dot.
-        size_bytes: Example file size.
-
-    Returns:
-        JSON-serializable dictionary matching `FileMetadata`.
-    """
-
-    return {
-        "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-        "original_filename": original_filename,
-        "stored_filename": "file_3fa85f64-5717-4562-b3fc-2c963f66afa6.bin",
-        "mime_type": mime_type,
-        "extension": extension,
-        "size_bytes": size_bytes,
-        "sha256": "8e9aa02fb68dfb526d787f6b66adda7b651dd3f9f3b4a03e266d466161f4c39e",
-        "created_at": "2026-01-01T00:00:00Z",
-        "updated_at": "2026-01-01T00:00:00Z",
-        "status": "ready",
-    }
-
-
-def _build_execute_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
-    """Build a representative `outputs` example for one action.
-
-    Args:
-        spec: Runtime action specification.
-
-    Returns:
-        Example outputs mapping or `None` if the action declares no outputs.
-    """
-
-    if not spec.outputs:
-        return None
-
-    outputs_example: dict[str, Any] = {}
-
-    for output_name, output_def in spec.outputs.items():
-        if output_def.type.value != "file":
-            outputs_example[output_name] = None
-            continue
-
-        if output_def.source.value == "stdout":
-            outputs_example[output_name] = _build_file_metadata_example(
-                original_filename=f"action.{output_name}.txt",
-                mime_type="text/plain",
-                extension=".txt",
-                size_bytes=16,
-            )
-            continue
-
-        outputs_example[output_name] = _build_file_metadata_example(
-            original_filename=f"action.{output_name}.bin",
-            mime_type="application/octet-stream",
-            extension=".bin",
-            size_bytes=1024,
-        )
-
-    return outputs_example
 
 
 def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
@@ -826,9 +663,12 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     # ------------------------------------------------------------------
     _register_model(ExecuteActionRequest, schemas_section, nested=True)
     _register_model(ExecuteActionData, schemas_section, nested=True)
+
+    public_specs: dict[str, ActionPublicSpec] = {}
     for name in registry.list_names():
         spec = registry.get(name)
         _register_model(spec.params_model, schemas_section, nested=True)
+        public_specs[name] = to_action_public_spec(spec)
 
     # ------------------------------------------------------------------
     # 2. Build request examples (selected action now comes from path)
@@ -837,18 +677,17 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     request_examples = {}
 
     for name in registry.list_names():
-        spec = registry.get(name)
-        request_markdown = _build_execute_action_request_markdown(spec)
-        action_summary = spec.summary or spec.description or "Execute action"
+        public_spec = public_specs[name]
+        request_markdown = _build_action_request_markdown(public_spec)
+        action_summary = (
+            public_spec.summary or public_spec.description or "Execute action"
+        )
 
-        params_example = _build_execute_params_example(spec)
-
-        # Build request example
         request_examples[name] = {
             "summary": f"{name}: {action_summary}",
             "description": request_markdown,
             "value": {
-                "params": params_example,
+                "params": public_spec.params_example,
             },
         }
 
@@ -875,34 +714,13 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     response_examples = {}
 
     for name in registry.list_names():
-        spec = registry.get(name)
-        outputs_example = _build_execute_outputs_example(spec)
-        response_markdown = _build_execute_action_response_markdown(spec)
-
-        response_data = {
-            "exit_code": 0,
-            "stdout": "",
-            "stdout_encoding": "utf-8",
-            "stderr": "",
-            "stderr_encoding": "utf-8",
-            "exec_time": 0.01,
-            "pid": 12345,
-            "truncated": False,
-            "redacted": False,
-            "outputs": None,
-        }
-
-        if outputs_example is not None:
-            response_data["outputs"] = outputs_example
+        public_spec = public_specs[name]
+        response_markdown = _build_action_response_markdown(public_spec)
 
         response_examples[name] = {
             "summary": f"Response for: {name}",
             "description": response_markdown,
-            "value": {
-                "success": True,
-                "error": None,
-                "data": response_data,
-            },
+            "value": public_spec.response_example,
         }
 
     responses = post.setdefault("responses", {})
@@ -951,12 +769,10 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     action_lines = []
     for name in registry.list_names():
-        spec = registry.get(name)
+        public_spec = public_specs[name]
         label = f"- `{name}`"
-        if spec.summary:
-            label += f": {spec.summary}"
-        if spec.deprecated:
-            label += " _(deprecated)_"
+        if public_spec.summary:
+            label += f": {public_spec.summary}"
         action_lines.append(label)
 
     dynamic_description = (

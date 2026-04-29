@@ -140,22 +140,27 @@ def test_to_action_public_spec_maps_fields(sample_action_spec: ActionSpec) -> No
     assert len(result.outputs) == 1
     assert result.args[0]["name"] == "value"
     assert result.flags[0]["name"] == "verbose"
+    assert "value" not in result.flags[0]
     assert result.outputs[0]["name"] == "result"
 
 
-def test_to_action_public_spec_includes_schemas(sample_action_spec: ActionSpec) -> None:
+def test_to_action_public_spec_includes_contracts(
+    sample_action_spec: ActionSpec,
+) -> None:
     """
     GIVEN a valid ActionSpec
     WHEN converting to ActionPublicSpec
-    THEN schemas must be included
+    THEN contracts and examples must be included
     """
 
     result = to_action_public_spec(sample_action_spec)
 
-    assert isinstance(result.params_schema, dict)
-    assert isinstance(result.response_schema, dict)
-    assert "type" in result.params_schema
-    assert "type" in result.response_schema
+    assert isinstance(result.params_contract, dict)
+    assert isinstance(result.params_example, dict)
+    assert isinstance(result.response_contract, dict)
+    assert isinstance(result.response_example, dict)
+    assert "params" in result.params_contract
+    assert "data" in result.response_contract
 
 
 def test_to_action_public_spec_defaults(sample_action_spec: ActionSpec) -> None:

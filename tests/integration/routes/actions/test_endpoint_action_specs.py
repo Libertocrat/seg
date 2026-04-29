@@ -34,8 +34,10 @@ def test_get_action_specs_success(action_specs_client, auth_headers):
     data = body["data"]
     assert data["action_id"] == "test_runtime.ping"
     assert data["action"] == "ping"
-    assert "params_schema" in data
-    assert "response_schema" in data
+    assert "params_contract" in data
+    assert "params_example" in data
+    assert "response_contract" in data
+    assert "response_example" in data
 
 
 def test_get_action_specs_not_found(action_specs_client, auth_headers):
@@ -74,8 +76,10 @@ def test_get_action_specs_contains_required_fields(action_specs_client, auth_hea
     assert "args" in data
     assert "flags" in data
     assert "outputs" in data
-    assert isinstance(data["params_schema"], dict)
-    assert isinstance(data["response_schema"], dict)
+    assert isinstance(data["params_contract"], dict)
+    assert isinstance(data["params_example"], dict)
+    assert isinstance(data["response_contract"], dict)
+    assert isinstance(data["response_example"], dict)
 
 
 def test_get_action_specs_envelope(action_specs_client, auth_headers):

@@ -34,8 +34,6 @@ class ActionRegistry:
         self.modules: list[ModuleSpec] = list(modules)
 
         # Module Presentation cache (build time)
-        # Build using detached data structures to avoid circular imports
-        # inside the presentation package.
         self.module_summaries: list[ModuleSummary] = build_module_summaries(
             self.modules, self._actions
         )

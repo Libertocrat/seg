@@ -10,7 +10,12 @@ from seg.actions.models.presentation import (
     ActionSummary,
     ModuleSummary,
 )
-from seg.routes.actions.schemas import ExecuteActionData
+from seg.actions.presentation.contracts import (
+    build_params_contract,
+    build_params_example,
+    build_response_contract,
+    build_response_example,
+)
 
 
 def to_action_summary(spec: ActionSpec) -> ActionSummary:
@@ -57,7 +62,6 @@ def to_action_public_spec(spec: ActionSpec) -> ActionPublicSpec:
         {
             "name": name,
             "default": flag.default,
-            "value": flag.value,
             "description": flag.description,
         }
         for name, flag in spec.flag_defs.items()
@@ -81,8 +85,10 @@ def to_action_public_spec(spec: ActionSpec) -> ActionPublicSpec:
         args=args,
         flags=flags,
         outputs=outputs,
-        params_schema=spec.params_model.model_json_schema(),
-        response_schema=ExecuteActionData.model_json_schema(),
+        params_contract=build_params_contract(spec),
+        params_example=build_params_example(spec),
+        response_contract=build_response_contract(spec),
+        response_example=build_response_example(spec),
     )
 
 
