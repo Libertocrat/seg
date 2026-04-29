@@ -9,17 +9,17 @@ from pydantic import BaseModel, Field
 from seg.routes.files.schemas import FileMetadata
 
 
-class ExecuteRequest(BaseModel):
-    """Client request body for executing a registered SEG action."""
+class ExecuteActionRequest(BaseModel):
+    """Client request body for executing a SEG action."""
 
-    action: str = Field(..., description="Action name, e.g. file_checksum.")
     params: dict[str, Any] = Field(
-        default_factory=dict, description="Action parameters."
+        default_factory=dict,
+        description="Action parameters.",
     )
 
 
 class ExecuteActionData(BaseModel):
-    """Typed success payload for the `/v1/execute` endpoint."""
+    """Typed success payload for the `POST /v1/actions/{action_id}` endpoint."""
 
     exit_code: int
     stdout: str

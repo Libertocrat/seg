@@ -162,7 +162,7 @@ def test_request_within_limit_proceeds_without_429(client, auth_headers):
     THEN it proceeds normally and is not rejected with 429
     """
     response = client.post(
-        "/v1/execute", json={"action": "noop", "params": {}}, headers=auth_headers
+        "/v1/actions/noop", json={"params": {}}, headers=auth_headers
     )
 
     assert response.status_code != RATE_LIMITED.http_status
@@ -186,10 +186,10 @@ def test_rate_limit_exceeded_returns_429_envelope_headers_and_metric(
     THEN the second request is rejected with 429 and proper contract metadata
     """
     reason = "token_bucket_exhausted"
-    before = _rate_limited_metric_value("/v1/execute", "POST", reason)
+    before = _rate_limited_metric_value("/v1/actions/noop", "POST", reason)
 
-    first = low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
-    second = low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
+    first = low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    second = low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
 
     assert first.status_code != RATE_LIMITED.http_status
     assert second.status_code == RATE_LIMITED.http_status
@@ -202,7 +202,7 @@ def test_rate_limit_exceeded_returns_429_envelope_headers_and_metric(
     assert "Retry-After" in second.headers
     assert int(second.headers["Retry-After"]) > 0
 
-    after = _rate_limited_metric_value("/v1/execute", "POST", reason)
+    after = _rate_limited_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0
 
 
@@ -219,8 +219,8 @@ def test_retry_after_is_integer_and_reasonable_for_one_rps(
     WHEN the second immediate request is rejected
     THEN Retry-After is an integer >= 1 and within a small timing tolerance
     """
-    low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
-    rejected = low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
+    low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    rejected = low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
 
     assert rejected.status_code == RATE_LIMITED.http_status
 
@@ -256,9 +256,9 @@ def test_rate_limit_respects_env_configuration(
     app = create_app()
     client = TestClient(app)
 
-    first = client.post("/v1/execute", json={}, headers=auth_headers)
-    second = client.post("/v1/execute", json={}, headers=auth_headers)
-    third = client.post("/v1/execute", json={}, headers=auth_headers)
+    first = client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    second = client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    third = client.post("/v1/actions/noop", json={}, headers=auth_headers)
 
     assert first.status_code != RATE_LIMITED.http_status
     assert second.status_code != RATE_LIMITED.http_status
@@ -278,8 +278,8 @@ def test_metrics_endpoint_is_exempt_even_when_bucket_is_exhausted(
     WHEN the metrics endpoint is requested
     THEN /metrics remains accessible because it is exempt
     """
-    low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
-    limited = low_rps_client.post("/v1/execute", json={}, headers=auth_headers)
+    low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    limited = low_rps_client.post("/v1/actions/noop", json={}, headers=auth_headers)
     assert limited.status_code == RATE_LIMITED.http_status
 
     metrics = low_rps_client.get("/metrics")
@@ -294,8 +294,10 @@ def test_docs_endpoints_are_exempt_when_docs_are_enabled(
     WHEN /docs is requested
     THEN docs remain accessible because docs endpoints are exempt
     """
-    low_rps_docs_client.post("/v1/execute", json={}, headers=auth_headers)
-    limited = low_rps_docs_client.post("/v1/execute", json={}, headers=auth_headers)
+    low_rps_docs_client.post("/v1/actions/noop", json={}, headers=auth_headers)
+    limited = low_rps_docs_client.post(
+        "/v1/actions/noop", json={}, headers=auth_headers
+    )
     assert limited.status_code == RATE_LIMITED.http_status
 
     docs = low_rps_docs_client.get("/docs")
@@ -314,24 +316,26 @@ def test_metric_path_label_is_normalized_on_rejection(low_rps_client, auth_heade
     THEN metric labels use normalized path without trailing slash or query
     """
     reason = "token_bucket_exhausted"
-    before_normalized = _rate_limited_metric_value("/v1/execute", "POST", reason)
-    before_raw = _rate_limited_metric_value("/v1/execute/", "POST", reason)
+    before_normalized = _rate_limited_metric_value("/v1/actions/noop", "POST", reason)
+    before_raw = _rate_limited_metric_value("/v1/actions/noop/", "POST", reason)
 
     # Hit canonical path first to avoid redirects consuming the token.
     allowed = low_rps_client.post(
-        "/v1/execute",
+        "/v1/actions/noop",
         json={},
         headers=auth_headers,
     )
     # Then call variant with query; it should be rejected
     # and labeled with normalized path.
-    rejected = low_rps_client.post("/v1/execute/?a=1", json={}, headers=auth_headers)
+    rejected = low_rps_client.post(
+        "/v1/actions/noop/?a=1", json={}, headers=auth_headers
+    )
 
     assert allowed.status_code != RATE_LIMITED.http_status
     assert rejected.status_code == RATE_LIMITED.http_status
 
-    after_normalized = _rate_limited_metric_value("/v1/execute", "POST", reason)
-    after_raw = _rate_limited_metric_value("/v1/execute/", "POST", reason)
+    after_normalized = _rate_limited_metric_value("/v1/actions/noop", "POST", reason)
+    after_raw = _rate_limited_metric_value("/v1/actions/noop/", "POST", reason)
 
     assert after_normalized == before_normalized + 1.0
     assert after_raw == before_raw

@@ -11,7 +11,7 @@ Responsibilities:
   - Path sanity (NUL, backslash, control chars <0x20 except TAB)
   - Header integrity via raw headers (duplicate Authorization, whitespace in name,
     control chars in name/value)
-  - Content-Type for POST /v1/execute (application/json base type required)
+   - Content-Type for POST /v1/actions/{action_id} (application/json base type required)
   - Body size enforcement using seg_max_file_bytes:
     - Strict Content-Length parsing when present
     - Streaming enforcement when Content-Length is absent
@@ -161,7 +161,7 @@ class RequestIntegrityMiddleware:
         # ------------------------------------------------------------------
         # 4) Content-Type enforcement (policy-driven)
         # ------------------------------------------------------------------
-        policy = self._content_type_policies.get((method, path))
+        policy = self._resolve_content_type_policy(method, path)
         if policy:
             raw_ct = self._get_header_value(raw_headers, b"content-type")
             base_ct = normalize_content_type(raw_ct)
@@ -243,23 +243,89 @@ class RequestIntegrityMiddleware:
     @staticmethod
     def _index_policies(
         policies: list[ContentTypePolicy],
-    ) -> dict[tuple[str, str], frozenset[str]]:
-        """Index content type policies for fast lookup.
+    ) -> list[tuple[str, str, frozenset[str]]]:
+        """Normalize content type policies for lookup.
 
         Args:
             policies: List of `ContentTypePolicy` instances.
 
         Returns:
-            Mapping from `(method, path)` to a lowercase allowlist.
+            List of `(method, path, allowlist)` tuples.
         """
 
-        indexed: dict[tuple[str, str], frozenset[str]] = {}
+        indexed: list[tuple[str, str, frozenset[str]]] = []
 
         for p in policies:
-            key = (p.method.upper(), p.path)
-            indexed[key] = frozenset(ct.lower() for ct in p.allowed)
+            indexed.append(
+                (
+                    p.method.upper(),
+                    p.path,
+                    frozenset(ct.lower() for ct in p.allowed),
+                )
+            )
 
         return indexed
+
+    @staticmethod
+    def _path_matches_policy_path(policy_path: str, request_path: str) -> bool:
+        """Return True when a request path matches a configured policy path.
+
+        A policy path can be either an exact literal path or a template path
+        containing placeholders such as `/v1/actions/{action_id}`.
+        """
+
+        if policy_path == request_path:
+            return True
+
+        if "{" not in policy_path or "}" not in policy_path:
+            return False
+
+        policy_segments = policy_path.strip("/").split("/")
+        request_segments = request_path.strip("/").split("/")
+        if len(policy_segments) != len(request_segments):
+            return False
+
+        for policy_segment, request_segment in zip(
+            policy_segments,
+            request_segments,
+            strict=True,
+        ):
+            if (
+                policy_segment.startswith("{")
+                and policy_segment.endswith("}")
+                and len(policy_segment) > 2
+            ):
+                if not request_segment:
+                    return False
+                continue
+            if policy_segment != request_segment:
+                return False
+
+        return True
+
+    def _resolve_content_type_policy(
+        self,
+        method: str,
+        path: str,
+    ) -> frozenset[str] | None:
+        """Resolve the allowlist matching a method/path pair.
+
+        Args:
+            method: Incoming HTTP method.
+            path: Incoming request path.
+
+        Returns:
+            Matched content-type allowlist or None when no policy applies.
+        """
+
+        method_upper = method.upper()
+        for policy_method, policy_path, allowed in self._content_type_policies:
+            if policy_method != method_upper:
+                continue
+            if self._path_matches_policy_path(policy_path, path):
+                return allowed
+
+        return None
 
     @staticmethod
     def _get_raw_headers(scope: Scope) -> list[tuple[bytes, bytes]]:

@@ -1,4 +1,4 @@
-"""Route handler for SEG `/v1/execute` runtime orchestration."""
+"""Route handler for SEG `POST /v1/actions/{action_id}` execution."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ from seg.core.errors import (
     TIMEOUT,
     SegError,
 )
-from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
+from seg.routes.actions.schemas import ExecuteActionData, ExecuteActionRequest
 
 
 def _encode_output(data: bytes) -> tuple[str, Literal["utf-8", "base64"]]:
@@ -79,12 +79,14 @@ def _get_action_registry(request: Request) -> ActionRegistry:
 
 async def execute_action_handler(
     request: Request,
-    payload: ExecuteRequest,
+    action_id: str,
+    payload: ExecuteActionRequest,
 ) -> ExecuteActionData:
     """Execute one DSL action and map runtime exceptions to SegError.
 
     Args:
         request: Incoming FastAPI request.
+        action_id: Target action identifier from path parameter.
         payload: Validated execute request payload.
 
     Returns:
@@ -101,15 +103,15 @@ async def execute_action_handler(
     try:
         result = await dispatch_action(
             registry,
-            payload.action,
+            action_id,
             payload.params,
             settings=cfg,
         )
     except ActionNotFoundError as exc:
         raise SegError(
             ACTION_NOT_FOUND,
-            message=f"Action '{payload.action}' is not supported.",
-            details={"action": payload.action},
+            message=f"Action '{action_id}' is not supported.",
+            details={"action_id": action_id},
         ) from exc
     except ValidationError as exc:
         raise SegError(

@@ -64,6 +64,7 @@ Developers who want to work with the codebase locally should use [DEVELOPMENT.md
 The development guide covers:
 
 - local environment setup
+- authenticated action API routes under `/v1/actions` and `/v1/files`
 - Makefile workflow
 - CI reproduction
 - pre-commit hooks

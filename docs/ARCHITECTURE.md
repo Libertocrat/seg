@@ -39,7 +39,7 @@ The main implementation lives under `src/seg`.
 | `src/seg/actions` | Dispatcher, registry, action discovery, domain exceptions, and concrete action modules. |
 | `src/seg/middleware` | HTTP middleware for authentication, request hygiene, observability, rate limiting, timeout control, request IDs, and response security headers. |
 | `src/seg/core` | Shared configuration, error definitions, OpenAPI generation, response schemas, and security utilities. |
-| `src/seg/routes` | Thin FastAPI route handlers for `/v1/execute`, `/v1/files`, `/health`, and `/metrics`. |
+| `src/seg/routes` | Thin FastAPI route handlers for `/v1/actions`, `/v1/files`, `/health`, and `/metrics`. |
 | `tests` | Smoke, unit, and integration tests covering application startup, schemas, security helpers, middleware, routes, dispatcher behavior, and file actions. |
 
 Within `src/seg/actions/file`, each supported file capability is implemented in its own module: `checksum.py`, `delete.py`, `mime_detect.py`, `move.py`, and `verify.py`. Shared action request and response models live in `src/seg/actions/file/schemas.py`.
@@ -61,7 +61,8 @@ Key application behaviors in `app.py`:
 
 The app includes four route modules:
 
-- `/v1/execute`: main action execution endpoint.
+- `/v1/actions`: authenticated action discovery endpoint.
+- `/v1/actions/{action_id}`: authenticated action contract retrieval and execution endpoints.
 - `/v1/files`: SEG-managed file CRUD and content streaming endpoints.
 - `/health`: readiness endpoint that returns `{"status": "ok"}` inside the standard response envelope.
 - `/metrics`: Prometheus exposition endpoint.
@@ -75,7 +76,7 @@ Two global handlers are registered:
 
 ### Endpoint model
 
-`/v1/execute` is intentionally thin. The route validates the request against `ExecuteRequest`, delegates to `dispatch_execute()`, and returns the dispatcher result as a JSON response. `/v1/files` exposes typed handlers for upload, metadata retrieval, listing, content download, and deletion using `file_id` identifiers. Health and metrics are separated into dedicated routes and do not contain business logic.
+The `/v1/actions` routes are intentionally thin. `GET /v1/actions` reads the in-memory registry and returns grouped action summaries. `GET /v1/actions/{action_id}` returns the public contract for one registered action. `POST /v1/actions/{action_id}` validates the body against `ExecuteActionRequest`, delegates execution to `execute_action_handler()`, and returns the typed execution result as a JSON response envelope. `/v1/files` exposes typed handlers for upload, metadata retrieval, listing, content download, and deletion using `file_id` identifiers. Health and metrics are separated into dedicated routes and do not contain business logic.
 
 ## 4. Middleware Security Layer
 
@@ -120,7 +121,7 @@ If security headers are disabled, the pipeline starts at `RequestIDMiddleware`.
 - Rejects malformed request paths containing NUL bytes, backslashes, or disallowed control characters.
 - Rejects malformed raw headers, including duplicate `Authorization` headers, whitespace in header names, and control characters in names or values.
 - Rejects requests that contain both `Content-Length` and `Transfer-Encoding`.
-- Enforces `application/json` for `POST /v1/execute` and `multipart/form-data` for `POST /v1/files`.
+- Enforces `application/json` for `POST /v1/actions/{action_id}` and `multipart/form-data` for `POST /v1/files`.
 - Enforces maximum body size through strict `Content-Length` parsing or streaming body counting when the header is absent.
 - Emits rejection metrics through `seg_request_integrity_rejections_total`.
 
@@ -173,9 +174,9 @@ The action system lives in `src/seg/actions` and separates action discovery, reg
 
 ### Dispatch model
 
-`dispatch_execute()` performs the runtime action flow:
+`dispatch_action()` performs the runtime action flow:
 
-1. Look up the action by name in the registry.
+1. Look up the action by `action_id` in the registry.
 2. Validate `req.params` with the action-specific Pydantic `params_model`.
 3. Execute the async handler.
 4. Validate the returned payload with `result_model` when one is defined.
@@ -185,7 +186,8 @@ Known domain failures are transported through `SegError` (defined in `src/seg/co
 
 ```mermaid
 flowchart TD
-ExecuteRequest --> Dispatcher
+ActionIdPath --> Dispatcher
+ExecuteActionRequest --> Dispatcher
 Dispatcher --> ActionRegistry
 ActionRegistry --> ActionImplementation
 ActionImplementation --> Result
@@ -349,7 +351,8 @@ SEG generates OpenAPI dynamically from the live application, action registry, an
 - injects a global bearer authentication scheme
 - marks `/health` and `/metrics` as public in the OpenAPI document
 - registers shared schemas such as `ResponseEnvelope` and `ErrorInfo`
-- derives the `/v1/execute` request and response variants from the registered actions
+- enriches `POST /v1/actions/{action_id}` with action-specific examples and runtime response variants
+- documents the public contracts for `GET /v1/actions` and `GET /v1/actions/{action_id}`
 - applies explicit `/v1/files` contract overrides for upload, metadata retrieval, listing, content streaming, and delete operations
 - adds SEG response headers such as `X-Request-Id` and `Retry-After`
 - removes internal-only schemas from the published document
@@ -409,6 +412,6 @@ Testing is organized by scope:
 - `tests/actions` covers the dispatcher, registry, and file action modules.
 - `tests/core` covers schemas, settings, and security helpers.
 - `tests/integration/middleware` exercises middleware behavior end to end.
-- `tests/integration/routes` exercises route-level behavior for `/v1/execute`, `/v1/files`, `/health`, and `/metrics`.
+- `tests/integration/routes` exercises route-level behavior for `/v1/actions`, `/v1/actions/{action_id}`, `/v1/files`, `/health`, and `/metrics`.
 
 The test layout separates unit-level validation of the action and security primitives from integration-level checks of the HTTP surface.

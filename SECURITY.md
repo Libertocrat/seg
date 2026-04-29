@@ -2,6 +2,8 @@
 
 Secure Execution Gateway (SEG) is designed as an internal service with a defense-in-depth security model. The project includes authentication, strict action allowlisting, sandboxed filesystem access, request validation middleware, and container-based isolation.
 
+The authenticated application API is centered on `GET /v1/actions`, `GET /v1/actions/{action_id}`, `POST /v1/actions/{action_id}`, and the protected `/v1/files` routes.
+
 Detailed security design and threat analysis are documented separately:
 
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md): system architecture and security-relevant components

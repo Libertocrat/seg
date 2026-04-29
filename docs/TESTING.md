@@ -87,7 +87,7 @@ Within those directories:
 - `tests/actions/file` covers `file_checksum`, `file_delete`, `file_mime_detect`, `file_move`, and `file_verify`
 - `tests/core/security` covers path security, HTTP validation helpers, and security header behavior
 - `tests/integration/middleware` covers auth, observability, rate limiting, request IDs, request integrity, security headers, and timeout behavior
-- `tests/integration/routes` covers `/v1/execute`, `/v1/files`, `/health`, `/metrics`, and runtime OpenAPI generation
+- `tests/integration/routes` covers `/v1/actions`, `/v1/actions/{action_id}`, `/v1/files`, `/health`, `/metrics`, and runtime OpenAPI generation
 
 ## 4. Unit Testing
 
@@ -138,7 +138,9 @@ Middleware integration coverage includes:
 
 Route integration coverage includes:
 
-- `/v1/execute` request validation, success envelope behavior, and unknown action handling
+- `GET /v1/actions` discovery, filtering, and grouped response behavior
+- `GET /v1/actions/{action_id}` public contract retrieval and unknown-action handling
+- `POST /v1/actions/{action_id}` request validation, success envelope behavior, and unknown action handling
 - `/v1/files` upload, metadata retrieval, listing, content download, and delete endpoint behavior
 - `/health` success payload validation
 - `/metrics` content type and Prometheus text format validation

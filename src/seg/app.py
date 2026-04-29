@@ -150,7 +150,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         content_type_policies=[
             ContentTypePolicy(
                 method="POST",
-                path="/v1/execute",
+                path="/v1/actions/{action_id}",
                 allowed=frozenset({"application/json"}),
             ),
             ContentTypePolicy(

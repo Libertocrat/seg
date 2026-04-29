@@ -71,7 +71,7 @@ SEG acts as an internal execution gateway for automation and platform workflows 
 
 The service accepts HTTP requests, validates them through a defense-in-depth middleware stack, resolves a registered action from an explicit in-memory allowlist, and executes that action only inside a configured filesystem sandbox.
 
-This design keeps the exposed capability set small and predictable. The API is centered on one action execution endpoint plus SEG-managed file CRUD endpoints, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
+This design keeps the exposed capability set small and predictable. The API is centered on authenticated action discovery and execution endpoints plus SEG-managed file CRUD endpoints, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
 
 > [!IMPORTANT]
 > SEG was originally created as a secure alternative to unsafe command execution mechanisms commonly used in workflow automation platforms.
@@ -323,7 +323,13 @@ For container identity, runtime limits, timezone, and other deployment settings,
 
 ## 8. API Overview
 
-SEG exposes `POST /v1/execute` for allowlisted execution operations and `/v1/files` as the exclusive API for file lifecycle management.
+SEG exposes three authenticated action endpoints under `/v1/actions`:
+
+- `GET /v1/actions` for discovery and filtering
+- `GET /v1/actions/{action_id}` for public action contract retrieval
+- `POST /v1/actions/{action_id}` for action execution
+
+`/v1/files` remains the exclusive API for SEG-managed file lifecycle management.
 
 ### Endpoints
 
@@ -331,7 +337,9 @@ The public HTTP surface is intentionally small.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /v1/execute` | execute allowlisted actions |
+| `GET /v1/actions` | list registered actions grouped by module, with optional filtering |
+| `GET /v1/actions/{action_id}` | retrieve the public contract for one action |
+| `POST /v1/actions/{action_id}` | execute one allowlisted action by `action_id` |
 | `POST /v1/files` | upload and persist a managed file |
 | `GET /v1/files/{id}` | retrieve managed file metadata by `file_id` |
 | `GET /v1/files` | list managed files with cursor pagination |
@@ -349,6 +357,14 @@ Interactive documentation endpoints are available only when `SEG_ENABLE_DOCS=tru
 Hosted API documentation is published at:
 
 - [https://libertocrat.github.io/seg/api-docs/](https://libertocrat.github.io/seg/api-docs/)
+
+### Action API model
+
+Action interaction follows a simple discovery-to-execution flow:
+
+- discover available actions with `GET /v1/actions`
+- inspect the public request and response contract with `GET /v1/actions/{action_id}`
+- execute the action with `POST /v1/actions/{action_id}` and an action-specific `params` body
 
 ### File management model
 

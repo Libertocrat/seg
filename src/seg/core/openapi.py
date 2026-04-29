@@ -14,7 +14,7 @@ from seg.actions.models.core import ActionSpec, ParamType
 from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
-from seg.routes.actions.schemas import ExecuteActionData, ExecuteRequest
+from seg.routes.actions.schemas import ExecuteActionData, ExecuteActionRequest
 
 # Define explicit response contract overrides for endpoints that cannot be correctly
 # inferred from FastAPI's default schema generation
@@ -508,7 +508,7 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------
-# /v1/execute dynamic contract
+# /v1/actions/{action_id} dynamic contract
 # ---------------------------------------------------------------------
 
 
@@ -793,9 +793,9 @@ def _build_execute_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
 
 
 def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
-    """Patch `/v1/execute` to reflect action-driven runtime contracts.
+    """Patch `POST /v1/actions/{action_id}` runtime OpenAPI contract.
 
-    This function dynamically enriches the `/v1/execute` operation using
+    This function dynamically enriches the `/v1/actions/{action_id}` operation using
     the action registry by generating request/response variants, providing
     rich examples, and annotating middleware-driven behavior.
 
@@ -805,7 +805,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     """
 
     paths = schema.get("paths", {})
-    execute = paths.get("/v1/execute")
+    execute = paths.get("/v1/actions/{action_id}")
     if not execute:
         return
 
@@ -824,40 +824,22 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     # ------------------------------------------------------------------
     # 1. Ensure all action models are registered in components.schemas
     # ------------------------------------------------------------------
-    _register_model(ExecuteRequest, schemas_section, nested=True)
+    _register_model(ExecuteActionRequest, schemas_section, nested=True)
     _register_model(ExecuteActionData, schemas_section, nested=True)
     for name in registry.list_names():
         spec = registry.get(name)
         _register_model(spec.params_model, schemas_section, nested=True)
 
     # ------------------------------------------------------------------
-    # 2. Build request oneOf variants + discriminator
+    # 2. Build request examples (selected action now comes from path)
     # ------------------------------------------------------------------
 
-    request_variants = []
     request_examples = {}
 
     for name in registry.list_names():
         spec = registry.get(name)
         request_markdown = _build_execute_action_request_markdown(spec)
         action_summary = spec.summary or spec.description or "Execute action"
-
-        variant: dict[str, Any] = {
-            "type": "object",
-            "description": request_markdown,
-            "properties": {
-                "action": {"type": "string", "const": name},
-                "params": {
-                    "$ref": f"#/components/schemas/{spec.params_model.__name__}"
-                },
-            },
-            "required": ["action", "params"],
-        }
-
-        if spec.deprecated:
-            variant["deprecated"] = True
-
-        request_variants.append(variant)
 
         params_example = _build_execute_params_example(spec)
 
@@ -866,7 +848,6 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
             "summary": f"{name}: {action_summary}",
             "description": request_markdown,
             "value": {
-                "action": name,
                 "params": params_example,
             },
         }
@@ -876,17 +857,13 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     app_json = content.setdefault("application/json", {})
 
     app_json["schema"] = {
-        "oneOf": request_variants,
-        "discriminator": {
-            "propertyName": "action",
-        },
+        "$ref": "#/components/schemas/ExecuteActionRequest",
     }
 
     request_body["description"] = (
-        "Request body with a required `action` selector and "
-        "action-specific `params`.\n\n"
-        "Select an example below to inspect the exact parameter contract for"
-        " each action."
+        "Request body containing action-specific `params`.\n\n"
+        "The target action is selected via the `action_id` path parameter. "
+        "Select an example below to inspect parameter contracts per action."
     )
 
     app_json["examples"] = request_examples
@@ -984,6 +961,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
 
     dynamic_description = (
         "Executes a registered SEG action within the secure sandbox environment.\n\n"
+        "Set the target action using the `action_id` path parameter.\n\n"
         "### Supported Actions\n\n" + "\n".join(action_lines)
     )
 

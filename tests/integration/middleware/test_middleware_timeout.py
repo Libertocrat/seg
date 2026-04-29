@@ -169,7 +169,7 @@ def slow_execute_endpoint_success(monkeypatch):
         None. The dispatcher is patched in-place.
     """
 
-    async def slow_execute_handler(_request, _payload):
+    async def slow_execute_handler(_request, _action_id, _payload):
         """Simulate delayed successful execute handler response."""
         await asyncio.sleep(0.2)
         return ExecuteActionData(
@@ -201,7 +201,7 @@ def slow_execute_endpoint_error(monkeypatch):
         None. The dispatcher is patched in-place.
     """
 
-    async def slow_execute_handler(_request, _payload):
+    async def slow_execute_handler(_request, _action_id, _payload):
         """Simulate delayed execute handler raising a domain error."""
         await asyncio.sleep(0.2)
         raise SegError(
@@ -267,8 +267,8 @@ def test_seg_action_error_is_not_converted_to_timeout(
     THEN it is NOT converted into a timeout response
     """
     response = low_timeout_client.post(
-        "/v1/execute",
-        json={"action": "raise_seg_action_error", "params": {}},
+        "/v1/actions/raise_seg_action_error",
+        json={"params": {}},
         headers=auth_headers,
     )
 
@@ -291,15 +291,12 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     THEN TIMEOUT takes priority
     """
 
-    payload = {
-        "action": "random_gen.uuid",
-        "params": {},
-    }
+    payload = {"params": {}}
 
-    before = _timeout_metric_value("/v1/execute", "POST")
+    before = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
 
     response = low_timeout_client.post(
-        "/v1/execute",
+        "/v1/actions/random_gen.uuid",
         json=payload,
         headers=auth_headers,
     )
@@ -311,7 +308,7 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     assert body["error"] is not None
     assert body["error"]["code"] == TIMEOUT.code
 
-    after = _timeout_metric_value("/v1/execute", "POST")
+    after = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
     assert after == before + 1.0
 
 
@@ -326,15 +323,12 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     THEN TIMEOUT is returned instead of domain error
     """
 
-    payload = {
-        "action": "random_gen.uuid",
-        "params": {},
-    }
+    payload = {"params": {}}
 
-    before = _timeout_metric_value("/v1/execute", "POST")
+    before = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
 
     response = low_timeout_client.post(
-        "/v1/execute",
+        "/v1/actions/random_gen.uuid",
         json=payload,
         headers=auth_headers,
     )
@@ -347,7 +341,7 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     assert body["error"]["code"] == TIMEOUT.code
     assert body["error"]["code"] != INVALID_REQUEST.code
 
-    after = _timeout_metric_value("/v1/execute", "POST")
+    after = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
     assert after == before + 1.0
 
 

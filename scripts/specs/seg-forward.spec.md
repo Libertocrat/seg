@@ -163,13 +163,14 @@ All TCP traffic received on the local port is forwarded to SEG.
 
 The forward allows access to **any SEG endpoint**, including but not limited to:
 
-| Endpoint        | Description             |
-| --------------- | ----------------------- |
-| `/docs`         | Swagger UI              |
-| `/openapi.json` | OpenAPI specification   |
-| `/health`       | Health check            |
-| `/v1/execute`   | Core execution endpoint |
-| `/metrics`      | Prometheus metrics      |
+| Endpoint                  | Description                             |
+| ------------------------- | --------------------------------------- |
+| `/docs`                   | Swagger UI                              |
+| `/openapi.json`           | OpenAPI specification                   |
+| `/health`                 | Health check                            |
+| `/v1/actions`             | Action discovery endpoint               |
+| `/v1/actions/{action_id}` | Action spec (GET) and execution (POST)  |
+| `/metrics`                | Prometheus metrics                      |
 
 This enables full API interaction from the host.
 
