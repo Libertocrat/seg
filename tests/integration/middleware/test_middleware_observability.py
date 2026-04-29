@@ -182,11 +182,11 @@ def test_request_integrity_rejection_is_counted_by_observability_as_4xx(
 ):
     """
     GIVEN request-integrity content-type enforcement
-    WHEN POST /v1/execute is sent with unsupported content type
+    WHEN POST /v1/actions/noop is sent with unsupported content type
     THEN observability captures request, duration, and 4xx error metrics
     """
 
-    path = "/v1/execute"
+    path = "/v1/actions/noop"
     before_requests = requests_total_value("POST", path, "400")
     before_duration_count = duration_count_value("POST", path, "4xx")
     before_errors_4xx = errors_total_value("4xx")

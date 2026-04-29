@@ -113,18 +113,18 @@ def low_max_bytes_client(low_max_bytes_app):
 
 def test_execute_rejects_unsupported_content_type(client, auth_headers):
     """
-    GIVEN POST /v1/execute requires application/json
+    GIVEN POST /v1/actions/noop requires application/json
     WHEN a request uses an unsupported content type
     THEN middleware rejects with HTTP 400 and INVALID_REQUEST envelope
     AND the seg_request_integrity_rejections_total metric is incremented
     """
     reason = "unsupported_content_type"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     # Use "content" with raw bytes to bypass TestClient's default JSON encoding
     # and content-type. Don't use "data" to avoid HTTPX deprecation warnings.
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/noop",
         content=b"plain-text-payload",
         headers={
             **auth_headers,
@@ -140,7 +140,7 @@ def test_execute_rejects_unsupported_content_type(client, auth_headers):
     assert body["error"]["message"] == "Unsupported content type"
     assert "X-Request-Id" in response.headers
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0
 
 
@@ -150,7 +150,7 @@ def test_execute_allows_application_json_with_charset(
     sandbox_file_factory,
 ):
     """
-    GIVEN POST /v1/execute requires JSON base media type
+    GIVEN POST /v1/actions/noop requires JSON base media type
     WHEN Content-Type is application/json with charset parameter
     THEN request passes request-integrity validation
     AND the seg_request_integrity_rejections_total metric is not incremented
@@ -158,12 +158,11 @@ def test_execute_allows_application_json_with_charset(
     sf = sandbox_file_factory(name="charset_ok.txt", content=b"hello")
 
     reason = "unsupported_content_type"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/noop",
         json={
-            "action": "file_checksum",
             "params": {"path": str(sf.rel_path)},
         },
         headers={
@@ -174,7 +173,7 @@ def test_execute_allows_application_json_with_charset(
 
     assert response.status_code != INVALID_REQUEST.http_status
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before
 
 
@@ -191,11 +190,11 @@ def test_duplicate_authorization_header_is_rejected(api_token, client):
     AND the seg_request_integrity_rejections_total metric is incremented
     """
     reason = "duplicate_authorization"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     response = client.post(
-        "/v1/execute",
-        content=b'{"action":"noop","params":{}}',
+        "/v1/actions/noop",
+        content=b'{"params":{}}',
         headers=[
             ("Authorization", f"Bearer {api_token}"),
             ("Authorization", "Bearer badtoken"),
@@ -211,7 +210,7 @@ def test_duplicate_authorization_header_is_rejected(api_token, client):
     assert body["error"]["message"] == "Duplicate Authorization headers are not allowed"
     assert "X-Request-Id" in response.headers
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0
 
 
@@ -226,11 +225,11 @@ def test_conflicting_content_length_and_transfer_encoding_is_rejected(
     AND the seg_request_integrity_rejections_total metric is incremented
     """
     reason = "conflicting_cl_te"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     response = client.post(
-        "/v1/execute",
-        content=b'{"action":"noop","params":{}}',
+        "/v1/actions/noop",
+        content=b'{"params":{}}',
         headers={
             "Authorization": f"Bearer {api_token}",
             "Content-Type": "application/json",
@@ -250,7 +249,7 @@ def test_conflicting_content_length_and_transfer_encoding_is_rejected(
     )
     assert "X-Request-Id" in response.headers
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0
 
 
@@ -267,11 +266,11 @@ def test_invalid_content_length_is_rejected(low_max_bytes_client, auth_headers):
     AND the seg_request_integrity_rejections_total metric is incremented
     """
     reason = "invalid_content_length"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     response = low_max_bytes_client.post(
-        "/v1/execute",
-        content=b'{"action":"noop","params":{}}',
+        "/v1/actions/noop",
+        content=b'{"params":{}}',
         headers={
             **auth_headers,
             "Content-Type": "application/json",
@@ -287,7 +286,7 @@ def test_invalid_content_length_is_rejected(low_max_bytes_client, auth_headers):
     assert body["error"]["message"] == "Invalid Content-Length header"
     assert "X-Request-Id" in response.headers
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0
 
 
@@ -299,10 +298,10 @@ def test_content_length_exceeding_limit_is_rejected(low_max_bytes_client, auth_h
     AND the seg_request_integrity_rejections_total metric is incremented
     """
     reason = "content_length_exceeds_limit"
-    before = _integrity_metric_value("/v1/execute", "POST", reason)
+    before = _integrity_metric_value("/v1/actions/noop", "POST", reason)
 
     response = low_max_bytes_client.post(
-        "/v1/execute",
+        "/v1/actions/noop",
         content=b"{}",
         headers={
             **auth_headers,
@@ -318,5 +317,5 @@ def test_content_length_exceeding_limit_is_rejected(low_max_bytes_client, auth_h
     assert body["error"]["code"] == FILE_TOO_LARGE.code
     assert "X-Request-Id" in response.headers
 
-    after = _integrity_metric_value("/v1/execute", "POST", reason)
+    after = _integrity_metric_value("/v1/actions/noop", "POST", reason)
     assert after == before + 1.0

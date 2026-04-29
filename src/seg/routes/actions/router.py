@@ -12,7 +12,7 @@ from seg.routes.actions.handlers.get_action_specs import get_action_specs_handle
 from seg.routes.actions.handlers.list_actions import list_actions_handler
 from seg.routes.actions.schemas import (
     ExecuteActionData,
-    ExecuteRequest,
+    ExecuteActionRequest,
     GetActionData,
     ListActionsData,
 )
@@ -76,18 +76,19 @@ async def get_action_specs(
 
 
 @router.post(
-    "/execute",
+    "/actions/{action_id}",
     response_model=ResponseEnvelope[ExecuteActionData],
     summary="Execute a registered action with given parameters.",
 )
-async def execute(
+async def execute_action(
     request: Request,
-    req: ExecuteRequest,
+    action_id: str,
+    req: ExecuteActionRequest,
 ) -> JSONResponse | ResponseEnvelope[ExecuteActionData]:
     """Execute an allow-listed DSL action via the runtime handler."""
 
     try:
-        data = await execute_action_handler(request, req)
+        data = await execute_action_handler(request, action_id, req)
         return ResponseEnvelope.success_response(data)
     except SegError as exc:
         payload = ResponseEnvelope.failure(

@@ -84,12 +84,12 @@ def test_request_id_is_preserved_when_valid(client):
     [
         "/health",
         "/metrics",
-        "/v1/execute",
+        "/v1/actions/random_gen.uuid",
     ],
     ids=[
         "health",
         "metrics",
-        "v1_execute",
+        "v1_actions_action_id",
     ],
 )
 def test_request_id_is_present_across_endpoints(client, auth_headers, path):
@@ -99,13 +99,13 @@ def test_request_id_is_present_across_endpoints(client, auth_headers, path):
     THEN a request id is always included in the response
     """
     kwargs = {}
-    if path == "/v1/execute":
+    if path == "/v1/actions/random_gen.uuid":
         kwargs["headers"] = auth_headers
         kwargs["json"] = {}
 
     response = (
         client.get(path, **kwargs)
-        if path != "/v1/execute"
+        if path != "/v1/actions/random_gen.uuid"
         else client.post(path, **kwargs)
     )
 

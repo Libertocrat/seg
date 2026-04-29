@@ -113,11 +113,12 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
     minimal_safe_env,
     monkeypatch,
 ):
-    """Validate `/v1/execute` runtime contract projection in OpenAPI.
+    """Validate `POST /v1/actions/{action_id}` runtime contract projection.
 
     GIVEN docs are enabled
     WHEN generating the OpenAPI schema
-    THEN `/v1/execute` includes dynamic request/data variants and integrity metadata
+    THEN `/v1/actions/{action_id}` includes dynamic request/response examples
+    and integrity metadata
     AND `X-Request-Id` is documented as UUID on responses.
 
     Args:
@@ -126,7 +127,7 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
     """
     schema = _openapi_document(minimal_safe_env, monkeypatch)
 
-    post = schema["paths"]["/v1/execute"]["post"]
+    post = schema["paths"]["/v1/actions/{action_id}"]["post"]
 
     integrity = post["x-seg-integrity"]
     assert integrity["content_type_required"] == "application/json"
@@ -134,8 +135,7 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
     assert isinstance(integrity["body_limit_bytes"], int)
 
     request_schema = post["requestBody"]["content"]["application/json"]["schema"]
-    assert "oneOf" in request_schema
-    assert len(request_schema["oneOf"]) >= 1
+    assert request_schema["$ref"] == "#/components/schemas/ExecuteActionRequest"
 
     for code in ("200", "400", "401", "429", "500", "504"):
         if code not in post["responses"]:
@@ -155,7 +155,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     minimal_safe_env,
     monkeypatch,
 ):
-    """Validate enriched action docs and params examples for `/v1/execute`.
+    """Validate enriched action docs and params examples for the execute route.
 
     GIVEN docs are enabled
     WHEN generating the OpenAPI schema
@@ -168,12 +168,13 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     """
 
     schema = _openapi_document(minimal_safe_env, monkeypatch)
-    post = schema["paths"]["/v1/execute"]["post"]
+    post = schema["paths"]["/v1/actions/{action_id}"]["post"]
     examples = post["requestBody"]["content"]["application/json"]["examples"]
 
     sha256_example = examples["checksum.sha256"]
     sha256_description = sha256_example["description"]
     sha256_params = sha256_example["value"]["params"]
+    assert "action" not in sha256_example["value"]
 
     assert "#### Args" in sha256_description
     assert "#### Flags" in sha256_description
@@ -189,6 +190,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     token_hex_example = examples["random_gen.token_hex"]
     token_hex_description = token_hex_example["description"]
     token_hex_params = token_hex_example["value"]["params"]
+    assert "action" not in token_hex_example["value"]
 
     assert "`bytes` (`int`)" in token_hex_description
     assert "default: `16`" in token_hex_description
@@ -197,6 +199,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     uuid_example = examples["random_gen.uuid"]
     uuid_description = uuid_example["description"]
     uuid_params = uuid_example["value"]["params"]
+    assert "action" not in uuid_example["value"]
 
     assert "- _No args_" in uuid_description
     assert "- _No flags_" in uuid_description
@@ -238,7 +241,7 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
 
     assert response.status_code == 200
 
-    post = response.json()["paths"]["/v1/execute"]["post"]
+    post = response.json()["paths"]["/v1/actions/{action_id}"]["post"]
     examples = post["responses"]["200"]["content"]["application/json"]["examples"]
 
     outputs_description = examples["outputs_runtime.copy_cmd_output"]["description"]
@@ -384,7 +387,7 @@ def test_openapi_registers_action_models_and_prunes_internal_schemas(
 
     components = schema["components"]["schemas"]
     for model_name in (
-        "ExecuteRequest",
+        "ExecuteActionRequest",
         "ExecuteActionData",
         "ChecksumSha256Params",
         "ChecksumMd5Params",
@@ -410,7 +413,7 @@ def test_openapi_error_contract_replaces_default_422_with_public_error_examples(
     minimal_safe_env,
     monkeypatch,
 ):
-    """Validate dynamic error response generation for `/v1/execute`.
+    """Validate dynamic error response generation for action execution endpoint.
 
     GIVEN docs are enabled
     WHEN generating the OpenAPI schema
@@ -423,7 +426,7 @@ def test_openapi_error_contract_replaces_default_422_with_public_error_examples(
     """
     schema = _openapi_document(minimal_safe_env, monkeypatch)
 
-    post = schema["paths"]["/v1/execute"]["post"]
+    post = schema["paths"]["/v1/actions/{action_id}"]["post"]
     responses = post["responses"]
 
     assert "422" in responses

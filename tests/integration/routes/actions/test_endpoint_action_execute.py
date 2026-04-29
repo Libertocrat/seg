@@ -1,5 +1,5 @@
 """
-Integration tests for the /v1/execute endpoint.
+Integration tests for the POST /v1/actions/{action_id} endpoint.
 
 These tests validate the HTTP contract and wiring of the execute route.
 They ensure that requests are validated, delegated to the dispatcher,
@@ -26,13 +26,13 @@ from seg.actions.exceptions import (
 def test_execute_rejects_invalid_payload(client, auth_headers):
     """
     GIVEN an invalid execute request payload
-    WHEN the /v1/execute endpoint is called
+    WHEN the endpoint is called with an invalid body
     THEN it returns HTTP 422 due to request validation failure
     """
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/test_runtime.ping",
         headers=auth_headers,
-        json={},  # missing required fields
+        json={"params": ["invalid"]},
     )
 
     assert response.status_code == 422
@@ -48,19 +48,19 @@ def test_execute_returns_success_envelope_for_valid_action(
 ):
     """
     GIVEN a valid execute request for a registered action
-    WHEN the /v1/execute endpoint is called
+    WHEN the endpoint is called
     THEN it returns HTTP 200 with a success ResponseEnvelope
     """
 
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.repeat"
     payload = {
-        "action": "test_runtime.repeat",
         "params": {"count": 5},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -85,13 +85,13 @@ def test_execute_uses_default_param_value(client, auth_headers, valid_registry):
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.default_test"
     payload = {
-        "action": "test_runtime.default_test",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -114,16 +114,16 @@ def test_execute_returns_error_envelope_for_unknown_action(
 ):
     """
     GIVEN an execute request for an unknown action
-    WHEN the /v1/execute endpoint is called
+    WHEN the endpoint is called
     THEN it returns a stable error ResponseEnvelope
     """
+    action_id = "non_existent_action"
     payload = {
-        "action": "non_existent_action",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -150,13 +150,13 @@ def test_execute_invalid_param_type_maps_to_invalid_params(
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.repeat"
     payload = {
-        "action": "test_runtime.repeat",
         "params": {"count": "not-an-int"},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -179,13 +179,13 @@ def test_execute_missing_required_param_maps_to_invalid_params(
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.repeat"
     payload = {
-        "action": "test_runtime.repeat",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -206,13 +206,13 @@ def test_execute_renderer_error_maps_to_invalid_params(
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.repeat"
     payload = {
-        "action": "test_runtime.repeat",
         "params": {"count": None},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -233,13 +233,13 @@ def test_execute_out_of_range_param_maps_to_invalid_params(
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.range_test"
     payload = {
-        "action": "test_runtime.range_test",
         "params": {"value": 999},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -268,7 +268,7 @@ def test_execute_binary_policy_errors_map_to_permission_denied(
 ):
     """
     GIVEN dispatcher raises a binary-policy runtime error
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN endpoint maps error to PERMISSION_DENIED envelope
     """
     _ = test_id
@@ -283,9 +283,9 @@ def test_execute_binary_policy_errors_map_to_permission_denied(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/test_runtime.ping",
         headers=auth_headers,
-        json={"action": "test_runtime.ping", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -308,13 +308,13 @@ def test_execute_output_encoding_fields_present(client, auth_headers, valid_regi
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.ping"
     payload = {
-        "action": "test_runtime.ping",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -333,13 +333,13 @@ def test_execute_stderr_fields_always_present(client, auth_headers, valid_regist
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.ping"
     payload = {
-        "action": "test_runtime.ping",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -358,13 +358,13 @@ def test_execute_response_envelope_contract(client, auth_headers, valid_registry
     """
     client.app.state.action_registry = valid_registry
 
+    action_id = "test_runtime.ping"
     payload = {
-        "action": "test_runtime.ping",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        f"/v1/actions/{action_id}",
         headers=auth_headers,
         json=payload,
     )
@@ -479,7 +479,7 @@ def test_execute__returns_file_command_output(
 ):
     """
     GIVEN action with file+command output
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN response contains outputs metadata for command output
     """
 
@@ -490,9 +490,9 @@ def test_execute__returns_file_command_output(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.copy_cmd_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.copy_cmd_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -513,7 +513,7 @@ def test_execute__file_command_output_is_ready(
 ):
     """
     GIVEN successful execution
-    WHEN /v1/execute returns
+    WHEN the endpoint returns
     THEN command output file status is ready
     """
 
@@ -524,9 +524,9 @@ def test_execute__file_command_output_is_ready(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.copy_cmd_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.copy_cmd_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -544,7 +544,7 @@ def test_execute__returns_file_stdout_output(
 ):
     """
     GIVEN action with file+stdout output
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN response contains stdout-derived output metadata
     """
 
@@ -555,9 +555,9 @@ def test_execute__returns_file_stdout_output(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.stdout_to_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.stdout_to_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -576,7 +576,7 @@ def test_execute__stdout_file_contains_stdout(
 ):
     """
     GIVEN stdout output action
-    WHEN /v1/execute returns outputs
+    WHEN the endpoint returns outputs
     THEN output blob content matches stdout bytes
     """
 
@@ -587,9 +587,9 @@ def test_execute__stdout_file_contains_stdout(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.stdout_to_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.stdout_to_output", "params": {}},
+        json={"params": {}},
     )
     body = response.json()
     output_id = body["data"]["outputs"]["stdout_file"]["id"]
@@ -612,7 +612,7 @@ def test_execute__command_failure_returns_null_output(
 ):
     """
     GIVEN command failure action
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN command output is returned as null
     """
 
@@ -623,9 +623,9 @@ def test_execute__command_failure_returns_null_output(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.fail_cmd_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.fail_cmd_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -644,7 +644,7 @@ def test_execute__command_failure_cleans_up_files(
 ):
     """
     GIVEN command failure action
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN no placeholder metadata files remain after cleanup
     """
 
@@ -658,9 +658,9 @@ def test_execute__command_failure_cleans_up_files(
     before_count = len(list(meta_dir.glob("file_*.json"))) if meta_dir.exists() else 0
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.fail_cmd_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.fail_cmd_output", "params": {}},
+        json={"params": {}},
     )
 
     after_count = len(list(meta_dir.glob("file_*.json"))) if meta_dir.exists() else 0
@@ -678,7 +678,7 @@ def test_execute__multiple_outputs_are_returned(
 ):
     """
     GIVEN action declaring command and stdout file outputs
-    WHEN /v1/execute is called
+    WHEN the endpoint is called
     THEN both outputs are present in response payload
     """
 
@@ -689,9 +689,9 @@ def test_execute__multiple_outputs_are_returned(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.copy_with_stdout_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.copy_with_stdout_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()
@@ -712,7 +712,7 @@ def test_execute__output_order_is_preserved(
 ):
     """
     GIVEN action with multiple declared outputs
-    WHEN /v1/execute returns outputs
+    WHEN the endpoint returns outputs
     THEN output key order matches DSL declaration order
     """
 
@@ -723,9 +723,9 @@ def test_execute__output_order_is_preserved(
     )
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/outputs_runtime.copy_with_stdout_output",
         headers=auth_headers,
-        json={"action": "outputs_runtime.copy_with_stdout_output", "params": {}},
+        json={"params": {}},
     )
 
     body = response.json()

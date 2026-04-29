@@ -90,7 +90,7 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
     THEN the request is rejected with HTTP 401
     """
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/random_gen.uuid",
         json={},
         headers=headers,
     )
@@ -111,12 +111,11 @@ def test_protected_endpoint_allows_valid_auth(
     THEN the request is allowed to proceed
     """
     payload = {
-        "action": "random_gen.uuid",
         "params": {},
     }
 
     response = client.post(
-        "/v1/execute",
+        "/v1/actions/random_gen.uuid",
         json=payload,
         headers=auth_headers,
     )
@@ -137,7 +136,7 @@ def test_unauthorized_response_uses_response_envelope_failure(
     WHEN authentication fails
     THEN the response body follows the ResponseEnvelope failure contract
     """
-    response = client.post("/v1/execute", json={})
+    response = client.post("/v1/actions/random_gen.uuid", json={})
 
     assert response.status_code == 401
 
@@ -159,7 +158,7 @@ def test_unauthorized_response_sets_www_authenticate_header(
     WHEN authentication fails
     THEN the WWW-Authenticate header is set to indicate Bearer authentication
     """
-    response = client.post("/v1/execute", json={})
+    response = client.post("/v1/actions/random_gen.uuid", json={})
 
     assert response.status_code == 401
     assert response.headers.get("WWW-Authenticate") == "Bearer"

@@ -292,6 +292,16 @@ docker compose logs -f
 docker compose ps
 ```
 
+Common authenticated API routes during local development include:
+
+- `GET /v1/actions`
+- `GET /v1/actions/{action_id}`
+- `POST /v1/actions/{action_id}`
+- `POST /v1/files`
+- `GET /v1/files/{id}`
+- `GET /v1/files/{id}/content`
+- `DELETE /v1/files/{id}`
+
 > [!NOTE]
 > The compose stack includes an ephemeral `seg-init` service that prepares ownership and permissions on `SEG_ROOT_DIR` before the `seg` service starts.
 
