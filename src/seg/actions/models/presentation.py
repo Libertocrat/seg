@@ -62,8 +62,10 @@ class ActionPublicSpec:
         args: Serialized argument definitions.
         flags: Serialized flag definitions.
         outputs: Serialized output definitions.
-        params_schema: JSON schema for the action params model.
-        response_schema: JSON schema for execute response payload data.
+        params_contract: Public params contract without JSON Schema internals.
+        params_example: Public params example payload.
+        response_contract: Public response contract without JSON Schema internals.
+        response_example: Public response example payload.
     """
 
     action: str
@@ -75,5 +77,7 @@ class ActionPublicSpec:
     flags: list[dict[str, Any]]
     outputs: list[dict[str, Any]]
 
-    params_schema: dict[str, Any]
-    response_schema: dict[str, Any]
+    params_contract: dict[str, Any]
+    params_example: dict[str, Any]
+    response_contract: dict[str, Any]
+    response_example: dict[str, Any]

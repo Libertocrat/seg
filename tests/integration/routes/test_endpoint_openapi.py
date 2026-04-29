@@ -11,11 +11,11 @@ from fastapi.testclient import TestClient
 from openapi_spec_validator import validate
 
 from seg.actions.models.core import ParamType
-from seg.app import create_app
-from seg.core.openapi import (
+from seg.actions.presentation.contracts import (
     _build_required_arg_example_value,
     _format_arg_type_for_docs,
 )
+from seg.app import create_app
 from tests.integration.routes.actions.test_endpoint_action_execute import (
     _build_outputs_registry,
 )
@@ -270,7 +270,7 @@ def test_openapi_helpers_support_list_arg_docs_and_examples():
     THEN list docs labels and example payloads match supported list item types.
     """
 
-    assert _format_arg_type_for_docs(ParamType.LIST, ParamType.STRING) == "list[str]"
+    assert _format_arg_type_for_docs(ParamType.LIST, ParamType.STRING) == "list[string]"
     assert (
         _format_arg_type_for_docs(ParamType.LIST, ParamType.FILE_ID) == "list[file_id]"
     )
