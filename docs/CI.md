@@ -227,7 +227,7 @@ The workflow installs Python 3.12, caches pip downloads, creates a virtual envir
 - `requirements/runtime.txt`
 - `requirements/security.txt`
 
-It then runs three security stages.
+It then runs three security stages. Semgrep is invoked directly through the GitHub Action, while the Trivy stages remain Makefile-driven through `make trivy-fs` and `make trivy-image`.
 
 ### Semgrep SAST
 
@@ -318,6 +318,8 @@ Release assets include:
 - `docs/api-docs/output/openapi.json`
 - `openapi-vX.Y.Z.json`
 
+These OpenAPI artifacts are generated from the live FastAPI app and the runtime action registry built from validated DSL YAML specs.
+
 This means the release pipeline publishes both container artifacts and API contract artifacts.
 
 ```mermaid
@@ -356,7 +358,7 @@ The workflow performs these stages:
 
 The Python helper scripts do the actual documentation build work:
 
-- `scripts/export_openapi.py` builds the FastAPI app with documentation settings and writes `docs/api-docs/output/openapi.json`
+- `scripts/export_openapi.py` builds the FastAPI app with documentation settings, initializes the DSL-backed runtime registry, and writes `docs/api-docs/output/openapi.json`
 - `scripts/build_docs_site.py` creates `site/api-docs/<version>/`, copies Swagger UI assets, writes `index.html`, copies `openapi.json`, and creates redirect pages
 
 The published site contains:

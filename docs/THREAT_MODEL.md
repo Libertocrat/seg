@@ -15,48 +15,48 @@
 
 ## 1. Security Overview
 
-SEG is an internal FastAPI service that exposes a strict allowlist of file operations. It runs inside container infrastructure and performs all file access inside a configured sandbox filesystem root.
+SEG is an internal FastAPI service that exposes authenticated action execution and managed file endpoints.
 
-The service does not execute arbitrary commands. Clients can only call actions that are registered in the in-memory action registry. Each request passes through multiple validation and control layers before an action handler can touch the filesystem.
+The service does not accept arbitrary commands from clients. Instead, it builds its runtime action registry from YAML DSL specs that are validated and compiled at startup. Execution requests can only target actions present in that immutable registry, and runtime execution is further constrained by rendered-command checks and binary policy enforcement.
 
 SEG uses defense in depth through these mechanisms:
 
 - bearer token authentication enforced by `AuthMiddleware`
 - API token loading from the Docker secret `/run/secrets/seg_api_token`
 - request structure validation in `RequestIntegrityMiddleware`
-- strict action allowlisting in `src/seg/actions/registry.py`
-- parameter validation through Pydantic models in the dispatcher
-- sandbox path enforcement in `src/seg/core/security/paths.py`
+- strict startup validation of DSL YAML spec files
+- build-time and runtime binary policy checks
+- managed file storage rooted at `SEG_ROOT_DIR`
+- sandbox path enforcement in low-level filesystem helpers
 - optional baseline response security headers
 - container isolation and a non-root container user
 
-This model aims to keep the exposed capability set small and predictable.
+This model aims to keep the exposed capability set small, deterministic, and observable.
 
 ## 2. Security Goals
 
 The implemented security goals are:
 
-- prevent unauthorized callers from executing protected actions
-- prevent arbitrary filesystem access outside the configured sandbox
-- prevent directory traversal through user supplied paths
-- reject symlink based path abuse for existing path components and final file opens
-- prevent execution of unregistered actions
+- prevent unauthorized callers from accessing protected endpoints
+- prevent arbitrary command execution outside the DSL-defined action surface
+- reject unsafe or malformed DSL module definitions before they become executable actions
+- prevent filesystem access outside SEG-managed storage boundaries
 - reject malformed or structurally unsafe HTTP requests early
-- limit denial of service through oversized requests, request flooding, and long running operations
-- keep action behavior deterministic by validating both inputs and, when configured, action results
+- limit denial of service through oversized requests, request flooding, and long-running operations
+- keep action behavior deterministic by validating inputs, command rendering, and declared outputs
 
-These goals match the current architecture. They do not include multi-tenant isolation or arbitrary workload execution.
+These goals do not include multi-tenant isolation or public Internet exposure.
 
 ## 3. Protected Assets
 
 SEG protects these assets:
 
-- Host integrity. The service reduces host exposure by running in a container, using a non-root user, and restricting filesystem access to a mounted sandbox path.
-- Sandbox filesystem contents. File operations are limited to a strict root boundary at `SEG_ROOT_DIR`.
-- Action execution environment. Only registered action handlers can run through `POST /v1/actions/{action_id}`, while action discovery and public contract reads are constrained to the authenticated `/v1/actions` API surface.
+- Host integrity. The service reduces host exposure by running in a container, using a non-root user, and restricting storage to a mounted SEG root directory.
+- Managed storage contents. File uploads, action outputs, blobs, and metadata are limited to a strict root boundary at `SEG_ROOT_DIR`.
+- Action execution environment. Only DSL-defined actions that passed startup validation can run through `POST /v1/actions/{action_id}`.
 - Authentication token. The bearer token gates protected endpoints and is loaded from a Docker secret path.
 - Service availability. Body size limits, rate limiting, and request timeouts protect the service from simple abuse patterns.
-- Integrity of action results. Dispatcher level input validation, action specific validation, and optional result model validation reduce malformed execution results.
+- Integrity of action results. Param validation, runtime rendering checks, binary policy enforcement, and output sanitization reduce malformed execution results.
 - Observability data. Request IDs and Prometheus metrics support incident analysis and abuse detection.
 
 ## 4. Trust Boundaries
@@ -64,28 +64,29 @@ SEG protects these assets:
 SEG has three primary trust boundaries.
 
 1. HTTP boundary. Requests cross from other internal services into the SEG application.
-2. Application to filesystem boundary. Action handlers cross from validated API input into sandboxed filesystem operations.
+2. Application to storage boundary. Validated API input is converted into managed file operations and controlled subprocess execution rooted in `SEG_ROOT_DIR`.
 3. Container boundary. SEG relies on the container runtime to isolate the process from the rest of the host environment.
 
 ```mermaid
 flowchart TD
 ExternalClient --> InternalNetwork
 InternalNetwork --> SEG
-SEG --> SandboxFilesystem
+SEG --> ManagedStorage
+ManagedStorage --> SEGRootDir[SEG_ROOT_DIR]
 ```
 
 Trust assumptions exist at each boundary:
 
 - clients are expected to be internal services, but requests are still treated as untrusted input
-- the sandbox directory is treated as the permitted filesystem boundary
+- the SEG root directory is treated as the permitted storage boundary
 - container isolation and Docker secret mounting are assumed to work correctly
 
 ## 5. Attack Surface
 
 The application exposes these HTTP entry points:
 
-- `/v1/actions` via GET. This endpoint lists registered actions and accepts optional discovery filters.
-- `/v1/actions/{action_id}` via GET. This endpoint returns the public contract of one registered action.
+- `/v1/actions` via GET. This endpoint lists registered runtime actions and accepts optional discovery filters.
+- `/v1/actions/{action_id}` via GET. This endpoint returns the public contract of one runtime action.
 - `/v1/actions/{action_id}` via POST. This is the main execution attack surface because it accepts action-specific parameters for the selected `action_id`.
 - `/v1/files` via POST and GET. These endpoints handle managed file upload and listing.
 - `/v1/files/{id}` via GET and DELETE. These endpoints handle managed file metadata retrieval and deletion by `file_id`.
@@ -100,7 +101,7 @@ Attack inputs include:
 - request body content sent to `POST /v1/actions/{action_id}` and multipart form uploads sent to `/v1/files`
 - `action_id` path parameters on `GET /v1/actions/{action_id}` and `POST /v1/actions/{action_id}`
 - discovery query parameters such as `q` and `tag` on `GET /v1/actions`
-- `file_id` path parameters and file query/filter parameters on `/v1/files` routes
+- `file_id` path parameters and file query or filter parameters on `/v1/files` routes
 - environment and secret based configuration such as `SEG_ROOT_DIR` and the API token secret
 
 Authentication coverage is as follows:
@@ -132,31 +133,33 @@ Authentication coverage is as follows:
 - unsupported content types for `/v1/files` uploads
 - invalid `Content-Length` values
 - oversized request bodies
-- invalid action parameters that do not match the registered Pydantic model
+- invalid action parameters that do not match the generated Pydantic model
 
 ### Filesystem threats
 
-- directory traversal using `..`
+- escaping the managed storage root
+- sandbox traversal using `..`
 - absolute path access
 - backslash based alternate path syntax
-- escaping the sandbox root
-- access outside the configured `SEG_ROOT_DIR`
 - symlink abuse in existing path components or final file opens
 - use of non-regular files where regular files are expected
+- abuse of stored blob identifiers or metadata transitions
 
 ### Action execution threats
 
-- invoking an action name that is not registered
-- attempting to bypass handler contracts with malformed parameters
-- returning malformed action results when a result model exists
-- abusing write-like file actions such as delete or move outside policy constraints
-- abusing `/v1/files` lifecycle operations with invalid `file_id` values or illegal state transitions
+- invoking an action name that is not present in the built registry
+- attempting to bypass action contracts with malformed parameters
+- attempting to smuggle unsafe values through template placeholders or rendered argv
+- use of blocked or non-allowlisted binaries
+- abuse of declared outputs to force unsafe file handling
+- returning unsafe or excessively large process output
 
 ### Denial of service threats
 
 - request flooding against protected endpoints
 - oversized request payloads
 - operations that block or run longer than the configured timeout
+- expensive upload, download, or file listing patterns
 - metrics scraping or docs access generating extra unauthenticated load
 
 ### Request smuggling and parser confusion
@@ -178,33 +181,38 @@ Authentication coverage is as follows:
 
 - `RequestIntegrityMiddleware` rejects malformed paths, malformed raw headers, invalid `Content-Length`, unsupported content types, and oversized bodies.
 - `ContentTypePolicy` restricts `POST /v1/actions/{action_id}` to `application/json` and `POST /v1/files` to `multipart/form-data`.
-- `dispatch_action()` validates action parameters against the action specific `params_model`.
-- `dispatch_action()` can also validate handler output against `result_model` and return `INVALID_RESULT` on mismatch.
+- Action execution validates params against the action-specific generated `params_model`.
+- Runtime rendering rejects invalid placeholder values and `None` values before execution.
+
+### DSL build and execution mitigations
+
+- YAML specs are discovered deterministically and checked for file size, extension, UTF-8 safety, NUL bytes, disallowed control characters, and dangerous YAML patterns.
+- `validate_modules()` rejects unsupported DSL versions, duplicate module identities, invalid identifiers, blocked binaries, and malformed action declarations.
+- `build_actions()` compiles only validated modules into immutable runtime `ActionSpec` objects.
+- The registry is an explicit in-memory allowlist built from validated DSL specs.
+- `execute_command()` rejects binary paths, blocked binaries, and non-allowlisted binaries before subprocess execution.
 
 ### Filesystem mitigations
 
+- `/v1/files` exposes UUID-based managed storage instead of arbitrary path-based reads and writes.
 - `sanitize_rel_path()` rejects NUL bytes, control characters, absolute paths, backslashes, empty paths, long paths, and traversal segments.
 - `resolve_in_sandbox()` checks the resolved path against the strict sandbox root boundary.
 - Existing symlink path components are rejected during sandbox resolution.
 - `safe_open_no_follow()` uses `O_NOFOLLOW` when available and verifies that the opened target is a regular file.
-- `validate_path()` and wrappers in `file_access.py` centralize path validation so handlers do not implement their own path logic.
-- `secure_file_destination_validate()` distinguishes conflicting destinations from allowed non-existent destinations.
-- `file_move` preserves file extension and uses `os.replace()` only after validation.
+- Storage helpers keep blobs and metadata rooted under `SEG_ROOT_DIR`.
 
-### Action execution mitigations
+### Action output mitigations
 
-- The registry is an explicit in-memory allowlist built from `ActionSpec` registrations.
-- `get_action()` returns `None` for unknown actions, and the dispatcher maps that to `ACTION_NOT_FOUND`.
-- `GET /v1/actions` and `GET /v1/actions/{action_id}` expose only registry-derived metadata, not alternate execution paths.
-- Handlers raise `SegError` (defined in `src/seg/core/errors.py`) with stable codes instead of leaking raw HTTP errors.
-- The route layer is thin and does not add alternate execution paths around the dispatcher.
+- Stdout and stderr are transformed through the runtime sanitizer before they are returned, by redacting internal file paths.
+- Configurable stdout and stderr size limits can truncate returned output.
+- Declared file outputs are handled through runtime placeholder and output-builder logic instead of trusting client-supplied destination paths.
 
 ### Denial of service mitigations
 
 - `RequestIntegrityMiddleware` enforces request body size limits using `seg_max_file_bytes`.
 - `RateLimitMiddleware` applies a process-local token bucket using `seg_rate_limit_rps`.
 - `TimeoutMiddleware` aborts long running requests using `seg_timeout_ms`.
-- File actions such as checksum and MIME detection also check file size against `seg_max_file_bytes` before reading content.
+- Upload and content-processing paths enforce size-aware behavior before persisting or returning data.
 
 ### Request smuggling mitigations
 
@@ -216,15 +224,13 @@ Authentication coverage is as follows:
 Some risks remain by design or by deployment assumption.
 
 > [!WARNING]
-> `/health`, `/metrics`, and optional docs endpoints can be reached without
-> authentication. Keep SEG on a trusted internal network and leave docs
-> disabled when exposing them is not acceptable.
+> `/health`, `/metrics`, and optional docs endpoints can be reached without authentication. Keep SEG on a trusted internal network and leave docs disabled when exposing them is not acceptable.
 
-- SEG relies on container isolation. If the container runtime is misconfigured or compromised, container level protections may not hold.
-- SEG relies on correct sandbox volume configuration. An incorrect `SEG_ROOT_DIR` mount target weakens the filesystem boundary.
-- `RateLimitMiddleware` is process local. In multi-process or multi-instance deployments, each process keeps an independent token bucket.
-- `/health` and `/metrics` are intentionally unauthenticated. Optional docs endpoints are also unauthenticated when enabled. They increase externally reachable surface inside the internal network.
-- Filesystem race conditions are reduced but not fully eliminated. The code explicitly notes that path resolution before later filesystem operations can still leave TOCTOU windows in some flows.
+- SEG relies on container isolation. If the container runtime is misconfigured or compromised, container-level protections may not hold.
+- SEG relies on correct storage root configuration. An incorrect `SEG_ROOT_DIR` mount target weakens the filesystem boundary.
+- `RateLimitMiddleware` is process-local. In multi-process or multi-instance deployments, each process keeps an independent token bucket.
+- `/health` and `/metrics` are intentionally unauthenticated. Optional docs endpoints are also unauthenticated when enabled. They increase reachable surface inside the internal network.
+- Filesystem race conditions are reduced but not fully eliminated. The code explicitly notes TOCTOU limitations around some path-resolution patterns.
 - Service availability still depends on the underlying container host, mounted volume performance, and upstream request volume.
 
 ## 9. Security Assumptions
@@ -234,7 +240,7 @@ The security model depends on these assumptions:
 - SEG runs on a trusted internal network.
 - The container runtime correctly isolates the SEG process.
 - The API token secret is stored securely and mounted correctly at `/run/secrets/seg_api_token`.
-- `SEG_ROOT_DIR` points to the intended mounted sandbox volume.
+- `SEG_ROOT_DIR` points to the intended mounted storage volume.
 - Upstream services treat SEG as an internal service and do not expose it directly to untrusted public traffic.
 - Operators leave docs endpoints disabled in environments where exposing them is not acceptable.
 
@@ -246,11 +252,16 @@ If these assumptions are violated, the practical security of the service is redu
 flowchart TD
 Client --> HTTPRequest
 HTTPRequest --> MiddlewareStack
-MiddlewareStack --> Dispatcher
-Dispatcher --> FileActions
-FileActions --> SandboxFilesystem
+MiddlewareStack --> Routes
+Routes --> ActionRegistry
+ActionRegistry --> CommandRenderer
+CommandRenderer --> ProcessExecutor
+Routes --> FileService
+ProcessExecutor --> ManagedStorage
+FileService --> ManagedStorage
+ManagedStorage --> SEGRootDir[SEG_ROOT_DIR]
 ```
 
-This flow summarizes the security model. Requests cross the HTTP boundary, pass through layered middleware checks, reach the action dispatcher only after validation, and then access the sandboxed filesystem through hardened helper functions.
+This flow summarizes the security model. Requests cross the HTTP boundary, pass through layered middleware checks, reach either the runtime action path or the managed file path, and interact with storage only through SEG-controlled helpers.
 
 ---

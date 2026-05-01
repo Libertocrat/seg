@@ -35,6 +35,8 @@ Required variables:
 
 If `--env-file` is provided, the required variables are loaded from that file. If `--env-file` is not provided, the required variables must already exist in the shell environment.
 
+In normal local use, pass the same `.env` file that was used to start the Compose stack so the network name, container prefix, and service port stay aligned.
+
 ### Container resolution
 
 - If `--container <name>` is provided, that running container is used
@@ -59,14 +61,16 @@ If `--env-file` is provided, the required variables are loaded from that file. I
 
 ```bash
 docker compose up -d seg
-./scripts/seg-forward.sh --env-file .env.example
+./scripts/seg-forward.sh --env-file .env
 ```
 
 After the forward starts, the local URLs printed by the script include:
 
-- `http://localhost:<PORT>/docs`
-- `http://localhost:<PORT>/openapi.json`
 - `http://localhost:<PORT>/health`
+- `http://localhost:<PORT>/docs` when `SEG_ENABLE_DOCS=true`
+- `http://localhost:<PORT>/openapi.json` when `SEG_ENABLE_DOCS=true`
+
+The forwarding script does not enable docs endpoints by itself. It only forwards traffic to whatever the running SEG container currently exposes.
 
 ### Reference
 

@@ -6,7 +6,7 @@
 
 <p align="center">
   <em>
-    A security-focused execution gateway for automation platforms that replaces arbitrary command execution with strictly allowlisted operations.
+    A security-focused execution gateway for automation platforms that replaces arbitrary command execution with DSL-defined, allowlisted operations.
   </em>
   <br>
   <em>
@@ -65,20 +65,20 @@
 
 ## 1. Overview
 
-Secure Execution Gateway (SEG) is a security-focused FastAPI microservice that exposes a strictly allowlisted set of file operations inside a sandboxed container filesystem.
+Secure Execution Gateway (SEG) is a security-focused FastAPI microservice that exposes a small execution surface for DSL-defined actions together with SEG-managed file lifecycle API endpoints.
 
-SEG acts as an internal execution gateway for automation and platform workflows that need controlled file handling without exposing arbitrary shell execution.
+SEG acts as an internal execution gateway for automation and platform workflows that need controlled command execution and managed file exchange without exposing arbitrary shell access.
 
-The service accepts HTTP requests, validates them through a defense-in-depth middleware stack, resolves a registered action from an explicit in-memory allowlist, and executes that action only inside a configured filesystem sandbox.
+At startup, SEG loads YAML action definitions, validates them, compiles them into immutable runtime specs, and exposes them through authenticated discovery and execution endpoints at `/v1/actions`. File ingestion, retrieval, listing, download, and deletion are handled through the `/v1/files` API.
 
-This design keeps the exposed capability set small and predictable. The API is centered on authenticated action discovery and execution endpoints plus SEG-managed file CRUD endpoints, typed request and response models, stable error codes, and container-oriented deployment. SEG is intended for trusted internal environments and is not a generic command runner.
+In practice, an action is a predefined command template compiled from YAML, not free-form shell submitted by the client. Callers only provide values for the parameters declared by that action.
 
 > [!IMPORTANT]
 > SEG was originally created as a secure alternative to unsafe command execution mechanisms commonly used in workflow automation platforms.
 >
 > Several critical Remote Code Execution vulnerabilities discovered in n8n between late 2025 and early 2026 (for example [CVE-2025-68613](https://nvd.nist.gov/vuln/detail/CVE-2025-68613), [CVE-2026-21858](https://nvd.nist.gov/vuln/detail/CVE-2026-21858), and [CVE-2026-21877](https://nvd.nist.gov/vuln/detail/CVE-2026-21877)) highlighted the risks of exposing arbitrary command execution inside automation systems.
 >
-> SEG addresses this class of problems by replacing free-form command execution with strictly allowlisted operations executed inside a sandboxed environment.
+> SEG addresses this class of problems by replacing free-form command execution with strictly validated DSL action specs and runtime policy checks executed inside a sandboxed environment.
 
 ### Execution Boundary Model
 
@@ -93,14 +93,14 @@ D[Privileged Workflow Automation]
 end
 
 subgraph SEG Execution Gateway
-E[Allowlisted Actions]
-F[Filesystem Sandbox]
-G[Typed API Contracts]
-H[Observability & Auditability]
+E[DSL-defined Actions]
+F[Runtime Policy Enforcement]
+G[Managed File API]
+H[Observability and Auditability]
 end
 
 subgraph Controlled Operations
-I[Deterministic Execution Operations]
+I[Deterministic Command Rendering]
 J[Safe Automation Workflows]
 end
 
@@ -112,7 +112,6 @@ D --> E
 E --> F
 F --> G
 G --> H
-
 H --> I
 I --> J
 ```
@@ -170,38 +169,47 @@ Several critical vulnerabilities discovered in workflow automation platforms bet
 
 ## 3. Key Features
 
-- Strict allowlisted execution model for registered actions only
-- Strict sandbox boundary rooted at `SEG_ROOT_DIR`
-- Persistent storage via Docker volume mounted at `SEG_ROOT_DIR`
-- Automatic non-root permission bootstrap through the ephemeral `seg-init` service
-- File management, API-first, exposed through `/v1/files` endpoints
-- Runtime configuration via environment variables and `.env` files
-- Defense-in-depth middleware for auth, request integrity, rate limiting,
-  timeouts, request IDs, and observability
-- Typed request and response models built with FastAPI and Pydantic
-- Stable JSON response envelope for API consumers
-- Prometheus-compatible metrics and request correlation support
-- Rootless, container-oriented deployment model
-- Automated CI, security scanning, release, and documentation pipelines
+- DSL-defined action model backed by YAML specs
+- Immutable in-memory action registry built at startup from validated specs
+- Runtime command rendering with typed params, flags, defaults, and output declarations
+- Authenticated action discovery and execution through `/v1/actions`
+- API-based file management through `/v1/files`
+- SEG-managed file outputs for actions that declare file results
+- Defense-in-depth middleware for auth, request integrity, rate limiting, timeouts, request IDs, and observability
+- Runtime-aware OpenAPI generation with per-action examples and public contracts
+- Rootless container deployment model
+- Automated CI, security scanning, release, and API docs publication workflows
 
 ## 4. Architecture Overview
 
-At runtime, requests move through a short and explicit execution pipeline. The current high-level architecture is:
+At runtime, requests move through a short and explicit pipeline:
 
 ```mermaid
 flowchart TD
-Client --> SEG
-SEG --> MiddlewareStack
-MiddlewareStack --> Dispatcher
-Dispatcher --> FileActions
-FileActions --> SandboxFilesystem
+Client --> Middleware
+Middleware --> Routes
+Routes --> Registry
+Registry --> Runtime
+Runtime --> Execution
+Runtime --> ManagedFiles
+ManagedFiles --> Storage
 ```
 
-Middleware validates authentication, request integrity, rate limits, timeouts, request IDs, observability, and optional security headers before the request reaches the dispatcher.
+The action system itself is layered:
 
-The dispatcher validates the action name, validates parameters against the registered Pydantic model, executes the action handler, and normalizes success or failure into the standard response envelope.
+```mermaid
+flowchart LR
+Specs[YAML specs] --> Loader
+Loader --> Validator
+Validator --> Builder
+Builder --> Registry
+Registry --> Presentation
+Registry --> Renderer
+Renderer --> Executor
+Executor --> Outputs
+```
 
-For a full architecture walkthrough, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+For a full walkthrough, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## 5. Security Model
 
@@ -209,23 +217,24 @@ SEG is designed around explicit controls rather than broad execution capabilitie
 
 - Bearer token authentication on protected endpoints
 - Request integrity validation at the ASGI boundary
-- Strict in-memory action allowlist
-- Filesystem access limited to `SEG_ROOT_DIR`
-- Path traversal, backslash, NUL byte, and control character rejection
-- Symlink rejection during path resolution and secure file open paths
-- Process-local rate limiting
-- Per-request timeout enforcement
-- Rootless container runtime model
-- Prometheus metrics and request correlation headers for auditability
+- Immutable in-memory registry of DSL-defined actions compiled at startup
+- Startup validation of DSL action spec files and semantic rules
+- Binary allowlisting and blocklisting during action build and execution
+- Filesystem storage rooted and sandboxed at `SEG_ROOT_DIR`
+- Typed file management via `/v1/files` instead of direct path exposure
+- Process-local rate limiting and per-request timeouts
+- Request correlation and Prometheus metrics for auditability
 
-For a complete threat analysis see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+An action ultimately becomes subprocess command execution, but only after SEG validates the DSL, validates request params, renders argv deterministically, enforces binary policy, and sanitizes outputs.
+
+For the full threat analysis, see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## 6. Quick Start
 
-SEG is designed to run inside Docker and to remain an internal service on a shared Docker network.
+SEG is designed to run inside Docker and remain an internal service on a shared Docker network.
 
 > [!IMPORTANT]
-> Before starting the stack, ensure the external Docker network defined by `SHARED_DOCKER_NETWORK` exists and create the secret file at `secrets/seg_api_token.txt`.
+> Before starting the stack, create `secrets/seg_api_token.txt` and ensure the external Docker network named by `SHARED_DOCKER_NETWORK` exists.
 
 Minimal local startup:
 
@@ -262,7 +271,7 @@ docker compose ps
 docker compose logs -f
 ```
 
-To reach the containerized service from the host during development without publishing ports in Compose:
+To reach the service from the host during development without publishing ports in Compose:
 
 ```bash
 ./scripts/seg-forward.sh --env-file .env
@@ -285,28 +294,23 @@ Settings --> Runtime[SEG Runtime Configuration]
 
 Values shown in `.env.example` are placeholder deployment values and do not necessarily represent application defaults or the configuration needed for your particular deployment environment.
 
-### Required variables
-
-| Variable | Description |
-| --- | --- |
-| `SEG_ROOT_DIR` | Absolute sandbox root and persistence mount point used by SEG. |
-| `SHARED_DOCKER_NETWORK` | External Docker network used to connect SEG with internal services. |
-| `NON_ROOT_UID` | Numeric UID used by the SEG container user. |
-| `NON_ROOT_GID` | Numeric GID used for persistent storage permissions. |
-
-### Optional variables
+### Important variables
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `SEG_MAX_FILE_BYTES` | Maximum allowed file size for file-based operations. | `104857600` |
+| `SEG_ROOT_DIR` | Absolute storage root used by SEG for managed blobs and metadata. | `/var/lib/seg` |
+| `SEG_MAX_FILE_BYTES` | Maximum accepted upload size and file-processing size limit. | `104857600` |
+| `SEG_MAX_YML_BYTES` | Maximum size for one DSL spec file. | `102400` |
+| `SEG_MAX_STDOUT_BYTES` | Optional max stdout bytes returned from action execution. | unset |
+| `SEG_MAX_STDERR_BYTES` | Optional max stderr bytes returned from action execution. | unset |
 | `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
-| `SEG_RATE_LIMIT_RPS` | Process-local request rate limit per client. | `10` |
-| `SEG_LOG_LEVEL` | Application log verbosity. | `INFO` |
-| `SEG_APP_VERSION` | Semantic version exposed by the runtime and OpenAPI metadata. | `0.1.0` |
+| `SEG_RATE_LIMIT_RPS` | Process-local requests per second limit. | `10` |
+| `SEG_APP_VERSION` | Version exposed by the runtime and OpenAPI metadata. | `0.1.0` |
 | `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. | `false` |
 | `SEG_ENABLE_SECURITY_HEADERS` | Enables baseline response security headers. | `true` |
-| `SHARED_DOCKER_NETWORK` | External Docker network used to connect SEG with internal services. | `docker-network` |
-| `SEG_PORT` | Internal application listen port inside the container. | `8080` |
+| `SEG_BLOCKED_BINARIES_EXTRA` | Optional CSV of additional blocked binaries. | unset |
+| `SHARED_DOCKER_NETWORK` | External Docker network used by the Compose deployment. | `docker-network` |
+| `SEG_PORT` | Internal listen port inside the container. | `8080` |
 
 > [!IMPORTANT]
 > When deploying SEG inside an existing container environment or microservice stack, the following variables should normally be reviewed and adapted before startup:
@@ -319,133 +323,81 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 >
 > These variables control how SEG integrates with the Docker network, sandbox root, and storage permissions.
 
+The API token is loaded from `/run/secrets/seg_api_token`, with `SEG_API_TOKEN_DEV` used only as a development fallback when the Docker secret is missing.
+
 For container identity, runtime limits, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
 
 ## 8. API Overview
 
-SEG exposes three authenticated action endpoints under `/v1/actions`:
+SEG exposes a purposely small HTTP surface.
 
-- `GET /v1/actions` for discovery and filtering
-- `GET /v1/actions/{action_id}` for public action contract retrieval
-- `POST /v1/actions/{action_id}` for action execution
+### Action endpoints
 
-`/v1/files` remains the exclusive API for SEG-managed file lifecycle management.
+- `GET /v1/actions` lists available actions grouped by module, with optional `q` and `tag` filters
+- `GET /v1/actions/{action_id}` returns the public contract for one DSL-defined action
+- `POST /v1/actions/{action_id}` executes one action with a `params` payload
 
-### Endpoints
+### File endpoints
 
-The public HTTP surface is intentionally small.
+- `POST /v1/files` uploads and persists a managed file
+- `GET /v1/files` lists managed files with cursor pagination and optional filters
+- `GET /v1/files/{id}` retrieves metadata by `file_id`
+- `GET /v1/files/{id}/content` streams file content
+- `DELETE /v1/files/{id}` deletes a managed file
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /v1/actions` | list registered actions grouped by module, with optional filtering |
-| `GET /v1/actions/{action_id}` | retrieve the public contract for one action |
-| `POST /v1/actions/{action_id}` | execute one allowlisted action by `action_id` |
-| `POST /v1/files` | upload and persist a managed file |
-| `GET /v1/files/{id}` | retrieve managed file metadata by `file_id` |
-| `GET /v1/files` | list managed files with cursor pagination |
-| `GET /v1/files/{id}/content` | stream managed file content by `file_id` |
-| `DELETE /v1/files/{id}` | delete a managed file by `file_id` |
-| `GET /health` | service readiness |
-| `GET /metrics` | Prometheus metrics |
+### Public endpoints
 
-Interactive documentation endpoints are available only when `SEG_ENABLE_DOCS=true`:
+- `GET /health`
+- `GET /metrics`
+
+Interactive and dynamically generated OpenAPI docs are available only when `SEG_ENABLE_DOCS=true`:
 
 - `/docs`
 - `/redoc`
 - `/openapi.json`
 
-Hosted API documentation is published at:
+Hosted API documentation by release is published at:
 
-- [https://libertocrat.github.io/seg/api-docs/](https://libertocrat.github.io/seg/api-docs/)
+- [SEG OpenAPI Docs](https://libertocrat.github.io/seg/api-docs)
 
-### Action API model
-
-Action interaction follows a simple discovery-to-execution flow:
-
-- discover available actions with `GET /v1/actions`
-- inspect the public request and response contract with `GET /v1/actions/{action_id}`
-- execute the action with `POST /v1/actions/{action_id}` and an action-specific `params` body
-
-### File management model
-
-All file creation, retrieval, listing, download, and deletion must be performed through `/v1/files`:
-
-- upload file: `POST /v1/files`
-- get metadata: `GET /v1/files/{id}`
-- list files: `GET /v1/files`
-- download file content: `GET /v1/files/{id}/content`
-- delete file: `DELETE /v1/files/{id}`
-
-Example success response:
-
-```json
-{
-  "success": true,
-  "data": {
-    "file": {
-      "id": "2f78b11a-3ac4-4d8f-91ab-3d2d7d2e4b10",
-      "name": "invoice.pdf",
-      "size_bytes": 20480,
-      "content_type": "application/pdf"
-    }
-  },
-  "error": null
-}
-```
+> [!NOTE]
+> This README intentionally does not document the current action catalog. The final public module and action set is still evolving.
 
 ## 9. Observability
 
-SEG exports structured request observability and Prometheus-compatible metrics.
+SEG exports Prometheus-compatible metrics and request correlation metadata.
 
-The `/metrics` endpoint exposes metrics generated from the middleware and route stack, including:
-
-- request counters
-- latency histograms
-- inflight request tracking
-- error class counters
-- request integrity rejection counters
-- rate limit counters
-- timeout counters
-
-The observability layer also propagates or generates `X-Request-Id` so callers can correlate requests across systems.
-
-For implementation details, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+The `/metrics` endpoint includes request counters, duration histograms, inflight gauges, request integrity rejection counters, rate limit counters, and timeout counters. `X-Request-Id` is propagated or generated on every response.
 
 ## 10. Project Structure
 
-The repository layout is intentionally compact and organized around the app package, tests, operational tooling, and project documentation.
+The repository is organized around the application package, tests, documentation, and release tooling.
 
 ```text
 seg/
 |-- src/
 |   `-- seg/
-|       |-- actions/        # registered execution actions
-|       |-- core/           # config, schemas, security, and OpenAPI helpers
-|       |-- middleware/     # security and observability middleware stack
-|       |-- routes/         # HTTP endpoints
-|       `-- app.py          # FastAPI application factory
-|-- tests/                  # smoke, unit, and integration tests
-|-- docs/                   # architecture, testing, CI, and threat model docs
-|-- scripts/                # developer and release helper utilities
-|-- requirements/           # runtime, testing, linting, security, and dev sets
-|-- .github/workflows/      # CI, security, release, and docs publishing
-|-- docker-compose.yml      # local container stack
-|-- Dockerfile              # container image build
-|-- .env.example            # runtime configuration template
-`-- Makefile                # local quality and security workflow entry point
+|       |-- actions/
+|       |   |-- build_engine/    # YAML discovery, validation, and action compilation
+|       |   |-- presentation/    # discovery payloads, contracts, and examples
+|       |   |-- runtime/         # rendering, execution, sanitization, outputs
+|       |   |-- schemas/         # DSL and module schema models
+|       |   |-- specs/           # built-in YAML action specs
+|       |   `-- registry.py      # immutable runtime registry
+|       |-- core/                # config, errors, storage, security, openapi
+|       |-- middleware/          # auth, integrity, observability, timeout, etc.
+|       |-- routes/              # /v1/actions, /v1/files, /health, /metrics
+|       `-- app.py               # FastAPI application factory
+|-- tests/                       # smoke, unit, and integration tests
+|-- docs/                        # architecture, testing, CI, and threat model docs
+|-- scripts/                     # developer and release helper utilities
+|-- requirements/                # runtime, testing, linting, security, and dev sets
+|-- .github/workflows/           # CI, security, release, and docs publishing
+|-- docker-compose.yml           # local container stack
+|-- Dockerfile                   # container image build
+|-- .env.example                 # runtime configuration template
+`-- Makefile                     # local quality and security workflow entry point
 ```
-
-Summary:
-
-- `src/seg/` contains the app factory, middleware, routes, action system, and
-  core helpers
-- `tests/` covers smoke, unit, integration, and security-relevant behavior
-- `docs/` contains architecture, testing, CI, and threat model documents
-- `scripts/` contains helper utilities for local development and docs export
-- `requirements/` separates runtime, testing, linting, security, and aggregate
-  development dependencies
-- `.github/workflows/` contains the CI, security, release, and docs publishing
-  workflows
 
 ## 11. Testing Strategy
 
@@ -453,155 +405,65 @@ The test suite combines smoke tests, unit tests, and integration tests.
 
 Current coverage includes:
 
-- dispatcher and registry behavior
-- file action implementations
-- request and response schemas
-- middleware enforcement
-- route behavior
-- filesystem sandbox protections
-- OpenAPI generation behavior
+- DSL loader, validator, and builder behavior
+- public action catalog, contracts, and serializers
+- runtime renderer, executor, sanitizer, and output builders
+- file upload, listing, metadata, download, and delete behavior
+- settings validation and OpenAPI generation
+- middleware enforcement and security-sensitive HTTP validation
 
-The current test execution model is:
-
-```mermaid
-flowchart TD
-Developer --> Pytest
-Pytest --> UnitTests
-Pytest --> IntegrationTests
-Pytest --> SmokeTests
-IntegrationTests --> AppFactory
-AppFactory --> Middleware
-AppFactory --> Routes
-Routes --> Dispatcher
-Dispatcher --> ActionHandlers
-ActionHandlers --> SandboxHelpers
-```
-
-Run the test suite locally with:
-
-```bash
-make test
-```
-
-For full testing documentation, see [docs/TESTING.md](docs/TESTING.md).
+For full test details, see [docs/TESTING.md](docs/TESTING.md).
 
 ## 12. CI / DevSecOps
 
 SEG uses GitHub Actions plus a Makefile-driven local workflow for repeatable quality and security checks.
 
-The repository currently includes these pipeline categories:
+The repository includes these workflows:
 
-- CI quality gate
-- deep security analysis
-- container release pipeline
-- documentation publishing pipeline
+- [CI quality gate](.github/workflows/ci.yml)
+- [deep security workflow](.github/workflows/security.yml)
+- [container release pipeline](.github/workflows/release.yml)
+- [versioned API docs publishing pipeline](.github/workflows/release-docs.yml)
 
-Tooling used across these workflows includes:
-
-- Ruff
-- Black
-- MyPy
-- pytest
-- Bandit
-- pip-audit
-- Semgrep
-- Trivy
-
-The current CI and release topology is:
-
-```mermaid
-flowchart TD
-
-Developer --> Push
-Developer --> PullRequest
-Developer --> TagPush
-
-Push --> CIWorkflow
-PullRequest --> CIWorkflow
-PullRequest --> SecurityWorkflow
-
-TagPush --> ReleaseWorkflow
-TagPush --> DocsWorkflow
-
-CIWorkflow --> QualityGate
-QualityGate --> DockerBuildValidation
-
-SecurityWorkflow --> Semgrep
-SecurityWorkflow --> TrivyFS
-SecurityWorkflow --> TrivyImage
-
-ReleaseWorkflow --> BuildImage
-BuildImage --> TrivyScan
-TrivyScan --> PushGHCR
-PushGHCR --> GitHubRelease
-GitHubRelease --> OpenAPIAssets
-
-DocsWorkflow --> ExportOpenAPI
-ExportOpenAPI --> BuildDocsSite
-BuildDocsSite --> PublishGHpages
-```
-
-For pipeline details, see [docs/CI.md](docs/CI.md).
+For details, see [docs/CI.md](docs/CI.md).
 
 ## 13. Documentation
 
-The README is the high-level entry point. Detailed design, workflow, and operational material lives in the documents below.
+Detailed design and workflow material lives in:
 
 | Document | Description |
 | --- | --- |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, execution flow, and runtime design |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, DSL action pipeline, runtime execution, and OpenAPI design |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Threat model, trust boundaries, and mitigations |
-| [docs/TESTING.md](docs/TESTING.md) | Testing strategy, suite structure, and local execution |
-| [docs/CI.md](docs/CI.md) | CI, security scanning, release, and docs publishing workflows |
-| [CHANGELOG.md](CHANGELOG.md) | Project release history and notable changes |
+| [docs/TESTING.md](docs/TESTING.md) | Testing strategy, fixtures, and local execution |
+| [docs/CI.md](docs/CI.md) | CI, security scanning, release, and docs publication workflows |
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local development environment and Makefile workflow |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Current contribution policy and project participation status |
-| [SECURITY.md](SECURITY.md) | Vulnerability disclosure and security reporting policy |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Current contribution policy |
+| [SECURITY.md](SECURITY.md) | Vulnerability disclosure policy |
 | [scripts/README.md](scripts/README.md) | Developer and release helper scripts |
 
 ## 14. Development
 
-Local development is documented separately in [DEVELOPMENT.md](DEVELOPMENT.md).
+Local development is documented in [DEVELOPMENT.md](DEVELOPMENT.md).
 
-The development workflow is centered on:
+The main workflow is:
 
-- Python 3.12
-- Docker
-- Makefile targets
-- pre-commit hooks
-- helper scripts under `scripts/`
-
-Typical local quality gate:
-
-```bash
-make ci
-```
-
-Useful developer entry points:
-
-- [DEVELOPMENT.md](DEVELOPMENT.md)
-- [scripts/README.md](scripts/README.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
+- define or edit DSL specs under `src/seg/actions/specs`
+- run the container stack with Docker Compose
+- validate behavior through tests and the authenticated action endpoints
+- export and publish OpenAPI docs through the provided scripts and workflows
 
 ## 15. Contributing
 
-External pull requests are not yet accepted while the project stabilizes its:
+External pull requests are currently paused while the project stabilizes its public API, security model, testing surface, and release process.
 
-- API design
-- security model
-- testing coverage
-- CI workflows
-- release process
-
-Feedback and non-security issue reports are still welcome.
-
-For the current contribution policy, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For the current policy, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## 16. Security Reporting
 
-Please do not report vulnerabilities in public issues.
+Do not report vulnerabilities in public issues.
 
-Use the responsible disclosure process documented in [SECURITY.md](SECURITY.md). For encrypted reporting, the repository also includes [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc).
+Use the coordinated disclosure process documented in [SECURITY.md](SECURITY.md). For encrypted reporting, the repository includes [SECURITY_PGP_KEY.asc](SECURITY_PGP_KEY.asc).
 
 ## 17. License
 

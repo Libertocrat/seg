@@ -213,6 +213,12 @@ def filter_modules(
             )
             continue
 
+        if _matches_query(module.description, query) or _matches_query(
+            module.module_id,
+            query,
+        ):
+            filtered.append(module)
+
     return filtered
 
 

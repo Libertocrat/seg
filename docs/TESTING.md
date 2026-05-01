@@ -18,28 +18,32 @@ The SEG test suite validates both functional correctness and security-critical b
 
 The current tests cover:
 
-- action dispatcher and registry behavior
-- file action implementations
-- filesystem sandbox protections
+- DSL loader, validator, and builder behavior
+- runtime action rendering, execution, sanitization, and output building
+- public action catalog, public contracts, and serializers
+- settings loading and validation
+- request and response schemas
 - middleware enforcement
-- API endpoints
-- request validation and OpenAPI output
-- configuration loading and validation
+- file API behavior and SEG-managed storage lifecycle
+- runtime OpenAPI generation
+- API integration tests for `/v1/actions`, `/v1/files` and public endpoints
 
-The suite combines unit tests, integration tests, and smoke tests. Unit tests focus on isolated modules and deterministic invariants. Integration tests build a full FastAPI application instance and validate the HTTP contract around middleware, routes, and action dispatch.
+The suite combines smoke tests, unit tests, and integration tests.
 
 ```mermaid
 flowchart TD
 Developer --> Pytest
+Pytest --> SmokeTests
 Pytest --> UnitTests
 Pytest --> IntegrationTests
-Pytest --> SmokeTests
+UnitTests --> BuildEngine
+UnitTests --> RuntimeLayers
+UnitTests --> PresentationLayers
 IntegrationTests --> AppFactory
 AppFactory --> Middleware
 AppFactory --> Routes
-Routes --> Dispatcher
-Dispatcher --> ActionHandlers
-ActionHandlers --> SandboxHelpers
+Routes --> ActionsAPI
+Routes --> FileAPI
 ```
 
 ## 2. Testing Philosophy
@@ -47,8 +51,7 @@ ActionHandlers --> SandboxHelpers
 The test suite is designed around deterministic execution and isolation.
 
 > [!IMPORTANT]
-> Tests are intentionally isolated from local shell variables and `.env` files.
-> This prevents machine-specific configuration from changing test outcomes.
+> Tests are intentionally isolated from local shell variables and `.env` files. This prevents machine-specific configuration from changing test outcomes.
 
 The current design goals are:
 
@@ -56,69 +59,63 @@ The current design goals are:
 - strict isolation from local developer environments
 - independence from `.env` files
 - no reliance on test execution order
-- validation of both success paths and failure paths
-- security-focused checks for filesystem and HTTP handling
+- coverage of both success paths and rejection paths
+- direct validation of security-sensitive behavior for filesystem and HTTP handling
 
 `tests/conftest.py` enforces this through the autouse fixture `clean_seg_environment`.
 
 `clean_seg_environment`:
 
-- removes all `SEG_*` environment variables from the process environment
+- removes all `SEG_*` variables from the process environment
 - disables `.env` loading by setting `Settings.model_config["env_file"]` to `None`
 - clears the cached `get_settings()` result before each test
-
-This is necessary because application settings are loaded lazily and cached. Without this fixture, local shell variables or a developer `.env` file could leak into tests, and tests that mutate environment variables could become order-dependent.
-
-The suite also validates both expected and rejected behavior. Many tests assert stable error codes, response envelopes, headers, and metrics, not only successful outcomes.
 
 ## 3. Test Suite Structure
 
 The test suite is organized under `tests/`.
 
 | Path | Purpose |
-| ----- | ----- |
-| `tests/test_app_smoke.py` | Basic smoke coverage for app creation and the `/health` endpoint. |
-| `tests/actions` | Unit tests for dispatcher logic, registry behavior, and file action implementations. |
-| `tests/core` | Unit tests for configuration, request and response schemas, and core security helpers. |
-| `tests/integration` | End-to-end HTTP validation for middleware and route behavior using a full app instance. |
+| --- | --- |
+| `tests/test_app_smoke.py` | Basic smoke coverage for app creation and `/health`. |
+| `tests/actions/test_dispatcher.py` | Unit tests for runtime dispatch invariants, params validation, and propagated execution errors. |
+| `tests/actions/test_registry.py` | Unit tests for registry build, lookup, membership, and deterministic listing behavior. |
+| `tests/actions/build_engine` | Unit tests for DSL loading, validation, and action compilation. |
+| `tests/actions/presentation` | Unit tests for module catalogs, public contracts, and serializers. |
+| `tests/actions/runtime` | Unit tests for execution, rendering, output builders, and sanitization. |
+| `tests/core` | Unit tests for configuration, schemas, and security helpers. |
+| `tests/integration` | End-to-end HTTP validation for middleware, routes, files, and OpenAPI output. |
 
 Within those directories:
 
-- `tests/actions/file` covers `file_checksum`, `file_delete`, `file_mime_detect`, `file_move`, and `file_verify`
-- `tests/core/security` covers path security, HTTP validation helpers, and security header behavior
+- `tests/actions/test_dispatcher.py` covers HTTP-agnostic runtime dispatch behavior once an action has already been compiled into the registry
+- `tests/actions/test_registry.py` covers immutable registry construction from DSL specs and action lookup semantics
+- `tests/integration/routes/actions` covers action discovery, action specs, and action execution
+- `tests/integration/routes/files` covers upload, metadata retrieval, listing, content download, and delete behavior
+- `tests/integration/routes/test_endpoint_openapi.py` covers runtime OpenAPI projection
 - `tests/integration/middleware` covers auth, observability, rate limiting, request IDs, request integrity, security headers, and timeout behavior
-- `tests/integration/routes` covers `/v1/actions`, `/v1/actions/{action_id}`, `/v1/files`, `/health`, `/metrics`, and runtime OpenAPI generation
 
 ## 4. Unit Testing
 
-Unit tests cover isolated behavior in the dispatcher, registry, file actions, schemas, configuration, and path validation helpers.
+Unit tests cover isolated behavior in the DSL engine, runtime layers, presentation layers, settings, schemas, and security helpers.
 
 Current unit coverage includes:
 
-- `tests/actions/test_dispatcher.py` for action lookup, parameter validation, result validation, propagated domain errors, timeout mapping, and unexpected error handling
-- `tests/actions/test_registry.py` for explicit registration, duplicate prevention, lookup, sorted listing, and public registry helpers
-- `tests/actions/file/*.py` for file action behavior and stable error mapping
-- `tests/core/test_schemas_envelope.py` and `tests/core/test_schemas_execute.py` for request and response schema invariants
-- `tests/core/test_settings.py` for environment-backed settings, defaults, required variables, token loading, docs toggles, and validation rules
-- `tests/core/security/test_security_path.py` and `tests/core/security/test_security_http_validation.py` for sandbox and HTTP helper behavior
+- `tests/actions/test_dispatcher.py` for action resolution, params validation, executor handoff, and propagated runtime policy errors
+- `tests/actions/test_registry.py` for registry construction from specs, namespace handling, lookup, membership, and sorted listing
+- `tests/actions/build_engine/test_actions_loader.py` for YAML discovery, safety checks, parsing, and module loading
+- `tests/actions/build_engine/test_actions_validator.py` for semantic DSL rules, uniqueness checks, binary constraints, output rules, and template validation
+- `tests/actions/build_engine/test_actions_builder.py` for runtime `ActionSpec` compilation, generated params models, defaults, command templates, and output definitions
+- `tests/actions/presentation/test_actions_catalog.py` for grouped module discovery and filtering by `q` and `tag`
+- `tests/actions/presentation/test_actions_contracts.py` for params contracts, params examples, response contracts, and response examples
+- `tests/actions/presentation/test_actions_serializers.py` for stable public action and module serialization
+- `tests/actions/runtime/test_actions_renderer.py` for runtime argument resolution, const template interpolation, file input resolution, and output placeholder creation
+- `tests/actions/runtime/test_actions_executor.py` for binary policy checks, subprocess execution, and timeout behavior
+- `tests/actions/runtime/test_actions_outputs_builder.py` for output payload shaping and file finalization
+- `tests/actions/runtime/test_actions_sanitizer.py` for stdout and stderr truncation, redaction, and normalization
+- `tests/core/test_settings.py` for environment-backed settings, defaults, docs toggles, output byte limits, blocked binaries, and token loading rules
+- `tests/core/security/*` for path validation, secure file access helpers, HTTP validation helpers, and security headers
 
-The file action tests are security-oriented unit tests, not only happy path checks. They verify behavior such as:
-
-- supported checksum algorithms and invalid algorithm rejection
-- idempotent delete behavior and rejection of directories or symlinks
-- MIME detection for realistic file types and file size enforcement
-- move overwrite policy, extension preservation, and path restrictions
-- verify policy reporting, checksum validation, and MIME mapping errors
-
-The fixture `clean_action_registry` isolates tests that mutate the global action registry.
-
-`clean_action_registry`:
-
-- snapshots the current registry
-- replaces the active registry with an empty mapping
-- restores the original snapshot after the test
-
-This is necessary because the action registry is global module state. Registry isolation prevents action registration side effects from leaking between tests and keeps dispatcher and registry unit tests deterministic.
+The unit suite does not assume a fixed public action catalog. Most action-specific tests build temporary DSL specs and compile deterministic registries inside the test process.
 
 ## 5. Integration Testing
 
@@ -140,13 +137,11 @@ Route integration coverage includes:
 
 - `GET /v1/actions` discovery, filtering, and grouped response behavior
 - `GET /v1/actions/{action_id}` public contract retrieval and unknown-action handling
-- `POST /v1/actions/{action_id}` request validation, success envelope behavior, and unknown action handling
-- `/v1/files` upload, metadata retrieval, listing, content download, and delete endpoint behavior
+- `POST /v1/actions/{action_id}` request validation, execution success, output encoding, declared outputs, and stable error mapping
+- `/v1/files` upload, metadata retrieval, listing, content download, and delete behavior
 - `/health` success payload validation
-- `/metrics` content type and Prometheus text format validation
-- `/openapi.json` validation, security projection, action schema registration, and response overrides when docs are enabled
-
-These tests validate the assembled application stack rather than individual helper functions.
+- `/metrics` Prometheus text format validation
+- `/openapi.json` validation, public/private route projection, response header docs, and runtime action examples when docs are enabled
 
 ## 6. Security Testing
 
@@ -163,20 +158,25 @@ In `tests/core/security`, the current tests validate:
 - safe opening of regular files without following symlinks
 - strict `Content-Length` parsing and content type normalization
 
-In `tests/integration/middleware`, the current tests validate:
+In `tests/actions/build_engine` and `tests/actions/runtime`, the current tests validate:
+
+- rejection of malformed or unsafe YAML specs
+- enforcement of binary policy rules
+- validation of command token structure and template placeholders
+- runtime rejection of invalid params, forbidden binaries, and bad output declarations
+
+In `tests/integration/middleware` and `tests/integration/routes`, the current tests validate:
 
 - authentication enforcement on protected endpoints
 - correct behavior for unauthenticated exempt endpoints
 - rejection of duplicate `Authorization` headers
 - rejection of malformed request bodies and unsupported content types
 - rejection of conflicting `Content-Length` and `Transfer-Encoding` headers
-- enforcement of body size limits
+- enforcement of body and upload size limits
 - rate limiting under low request budgets
 - timeout enforcement and timeout exemptions for `/health` and `/metrics`
 - request ID propagation on both successful and failing responses
-- security header insertion and fingerprinting header removal
-
-The action unit tests also reinforce security behavior by checking sandbox restrictions, symlink rejection, and stable error mapping inside file operations.
+- file API behavior through typed identifiers rather than direct path access
 
 ## 7. Test Fixtures and Utilities
 
@@ -186,25 +186,26 @@ Shared fixtures in `tests/conftest.py` provide the common test environment.
 
 - `clean_seg_environment` enforces environment isolation for every test
 - `minimal_safe_env` sets a deterministic minimal SEG configuration with `SEG_API_TOKEN_DEV` and `SEG_ROOT_DIR`
-
-### Application fixtures
-
 - `settings` builds a valid `Settings` instance directly with `Settings.model_validate(...)`
+
+### Registry and app fixtures
+
+- `valid_registry` writes temporary DSL specs and builds a deterministic runtime registry for tests
 - `app` creates a FastAPI application through `create_app(settings)`
 - `client` returns a `TestClient` bound to that app
+- `create_upload_app` returns isolated app instances for file route integration tests
 
 ### Authentication helpers
 
 - `api_token` provides a deterministic bearer token for tests
 - `auth_headers` returns `Authorization: Bearer <token>` headers for protected endpoint requests
 
-### Filesystem helpers
+### Filesystem and storage helpers
 
-- `seg_root_dir` creates a temporary sandbox root
+- `seg_root_dir` creates a temporary SEG sandbox root directory
 - `sandbox_file_factory` creates files inside the sandbox root and returns both absolute and sandbox-relative paths
-- `file_factory` creates realistic sample files for MIME-sensitive tests, including text, markdown, CSV, PNG, PDF, ZIP, TAR, GZIP, EXE, ELF, shell, Python, and JavaScript files
-
-These fixtures keep tests reproducible, avoid reliance on machine-local configuration, and provide realistic filesystem inputs without external dependencies.
+- `upload_file_id` uploads files through the real API and returns generated UUIDs
+- `file_factory` creates realistic sample files for MIME-sensitive tests
 
 ## 8. Running Tests Locally
 
@@ -214,15 +215,11 @@ Typical commands are:
 
 ```bash
 make test
-```
-
-This runs:
-
-```bash
 pytest -q tests
+pytest -q tests/integration
 ```
 
-Developers can also run `pytest` directly. Project level pytest configuration in `pyproject.toml` sets:
+Project-level pytest configuration in `pyproject.toml` sets:
 
 - `testpaths = ["tests"]`
 - `pythonpath = ["src"]`
@@ -234,7 +231,7 @@ Testing dependencies are declared in `requirements/testing.txt`, and `requiremen
 
 The same test suite is executed automatically in GitHub Actions.
 
-The CI workflow in `.github/workflows/ci.yml` creates a Python 3.12 virtual environment, installs `requirements/dev.txt`, and runs `make ci`. The `make ci` target includes `make test` as part of the quality gate.
+The CI workflow in `.github/workflows/ci.yml` creates a Python 3.12 virtual environment, installs `requirements/dev.txt`, and runs `make ci`. The `make ci` target includes the full pytest suite as part of the quality gate.
 
 For pipeline details, see [docs/CI.md](./CI.md).
 

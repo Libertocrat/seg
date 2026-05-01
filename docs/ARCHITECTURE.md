@@ -7,7 +7,7 @@
 - [3. FastAPI Application Layer](#3-fastapi-application-layer)
 - [4. Middleware Security Layer](#4-middleware-security-layer)
 - [5. Action Execution Model](#5-action-execution-model)
-- [6. Filesystem Security Model](#6-filesystem-security-model)
+- [6. Managed File and Filesystem Security Model](#6-managed-file-and-filesystem-security-model)
 - [7. Configuration System](#7-configuration-system)
 - [8. Observability and Metrics](#8-observability-and-metrics)
 - [9. API Documentation System](#9-api-documentation-system)
@@ -16,17 +16,41 @@
 
 ## 1. System Overview
 
-Secure Execution Gateway (SEG) is a FastAPI-based internal microservice that exposes a small allowlisted action execution surface together with SEG-managed file CRUD endpoints. It is designed to run inside trusted container infrastructure and to operate only inside a configured sandbox directory.
+Secure Execution Gateway (SEG) is a FastAPI-based internal microservice that exposes a small authenticated execution surface together with a SEG-managed file service accessible through `/v1/files`.
 
-The service is not a generic command runner. Requests enter through HTTP, pass through a defense-in-depth middleware stack, and then reach a dispatcher that resolves a registered action implementation. File actions apply centralized path and filesystem controls before touching the sandboxed filesystem.
+The service is not a generic shell gateway. At startup, SEG discovers YAML-based Action DSL specifications, validates them, compiles them into immutable runtime `ActionSpec` objects, and stores them in an in-memory registry. At request time, clients can only execute those predeclared actions through `/v1/actions/{action_id}`.
+
+An action is therefore best understood as predefined command execution, but with SEG controls around it:
+
+- only DSL-declared binaries, args, flags, and outputs are accepted
+- request params are validated against generated Pydantic models
+- command rendering is deterministic and template-constrained
+- binary policy checks are enforced both at build time and at execution time
+- stdout, stderr, and declared file outputs are sanitized before they are returned
+
+SEG also exposes `/v1/files`, which provides the supported external lifecycle for uploaded and generated files. Storage is rooted under `SEG_ROOT_DIR`, and callers interact with UUID-based file identifiers rather than raw filesystem paths.
 
 ```mermaid
 flowchart TD
-Client --> SEG
-SEG --> MiddlewareStack
-MiddlewareStack --> Dispatcher
-Dispatcher --> FileActions
-FileActions --> SandboxFilesystem
+
+subgraph Startup["Startup Phase (Build-Time)"]
+    ActionDSLSpecs["Action DSL Specs"] --> DSLBuildEngine["DSL Build Engine"]
+    DSLBuildEngine --> ActionRegistry["Action Registry"]
+end
+
+subgraph Runtime["Request Flow (Runtime)"]
+    Client --> MiddlewareStack["Middleware Stack"]
+    MiddlewareStack --> APIRoutes["API Routes"]
+    APIRoutes --> ActionRegistry
+    APIRoutes --> FileService["File Service"]
+    ActionRegistry --> CommandRenderer["Command Renderer"]
+    CommandRenderer --> ProcessExecutor["Process Executor"]
+    ProcessExecutor --> OutputProcessor["Output Processor"]
+end
+
+FileService --> ManagedStorage["Managed Storage"]
+OutputProcessor --> ManagedStorage
+ManagedStorage --> SEGRootDir["SEG_ROOT_DIR"]
 ```
 
 ## 2. Repository Structure
@@ -35,48 +59,51 @@ The main implementation lives under `src/seg`.
 
 | Path | Role |
 | --- | --- |
-| `src/seg` | Application package containing the app factory, core helpers, routes, middleware, and action system. |
-| `src/seg/actions` | Dispatcher, registry, action discovery, domain exceptions, and concrete action modules. |
-| `src/seg/middleware` | HTTP middleware for authentication, request hygiene, observability, rate limiting, timeout control, request IDs, and response security headers. |
-| `src/seg/core` | Shared configuration, error definitions, OpenAPI generation, response schemas, and security utilities. |
-| `src/seg/routes` | Thin FastAPI route handlers for `/v1/actions`, `/v1/files`, `/health`, and `/metrics`. |
-| `tests` | Smoke, unit, and integration tests covering application startup, schemas, security helpers, middleware, routes, dispatcher behavior, and file actions. |
-
-Within `src/seg/actions/file`, each supported file capability is implemented in its own module: `checksum.py`, `delete.py`, `mime_detect.py`, `move.py`, and `verify.py`. Shared action request and response models live in `src/seg/actions/file/schemas.py`.
+| `src/seg` | Application package containing the app factory, routes, middleware, shared core helpers, and the DSL-backed action system. |
+| `src/seg/actions/build_engine` | DSL spec discovery, YAML safety checks, semantic validation, and runtime action compilation. |
+| `src/seg/actions/runtime` | Runtime command rendering, subprocess execution, stdout/stderr sanitization, output handling, and file placeholder management. |
+| `src/seg/actions/presentation` | Public action catalog, request/response contract generation, and OpenAPI-facing serializers. |
+| `src/seg/actions/specs` | Built-in YAML action modules that define the shipped action catalog. |
+| `src/seg/middleware` | Authentication, request integrity, request ID, observability, rate limiting, timeout, and optional security headers. |
+| `src/seg/core` | Settings, errors, OpenAPI generation, storage utilities, security helpers, and shared response schemas. |
+| `src/seg/routes` | Thin HTTP handlers for `/v1/actions`, `/v1/files`, `/health`, and `/metrics`. |
+| `tests` | Smoke, unit, and integration tests covering startup, settings, middleware, action build/runtime layers, file APIs, and OpenAPI behavior. |
+| `scripts` | Helper scripts for OpenAPI export, docs site generation, and local port forwarding. |
 
 ## 3. FastAPI Application Layer
 
-The application is built in `src/seg/app.py` by `create_app()`. The factory loads `Settings`, configures documentation URLs, stores settings on `app.state`, discovers action modules, registers middleware, installs global exception handlers, and includes the route modules.
+The application is built in `src/seg/app.py` by `create_app()`.
 
 ### Application initialization
 
-Key application behaviors in `app.py`:
+Key startup behaviors are:
 
-- `SEGApp` subclasses `FastAPI` and overrides `openapi()` to build and cache a custom OpenAPI document through `build_openapi_schema()`.
-- `create_app()` accepts an optional prebuilt `Settings` instance, which keeps tests isolated from process environment state.
-- Interactive documentation endpoints are enabled only when `seg_enable_docs` is true. In that case `/docs`, `/redoc`, and `/openapi.json` are registered; otherwise they are disabled.
-- Action modules are discovered at startup by `discover_and_register()`, which imports submodules under `seg.actions` so they can register themselves.
+- load `Settings` through `get_settings()` unless a test provides one explicitly
+- create storage directories through `ensure_storage_dirs(settings)`
+- enable or disable `/docs`, `/redoc`, and `/openapi.json` from `seg_enable_docs`
+- build the immutable runtime action registry through `build_registry_from_specs(settings)`
+- attach both `settings` and `action_registry` to `app.state`
+- register middleware, exception handlers, and routers
+
+`SEGApp` subclasses `FastAPI` and overrides `openapi()` so the application can lazily build and cache a runtime-aware schema through `build_openapi_schema()`.
 
 ### Router registration
 
 The app includes four route modules:
 
-- `/v1/actions`: authenticated action discovery endpoint.
-- `/v1/actions/{action_id}`: authenticated action contract retrieval and execution endpoints.
-- `/v1/files`: SEG-managed file CRUD and content streaming endpoints.
-- `/health`: readiness endpoint that returns `{"status": "ok"}` inside the standard response envelope.
-- `/metrics`: Prometheus exposition endpoint.
+- `/v1/actions`: authenticated discovery, contract retrieval, and execution for DSL-defined actions
+- `/v1/files`: SEG-managed upload, metadata retrieval, listing, content streaming, and deletion
+- `/health`: readiness endpoint that returns `{"status": "ok"}` in the standard response envelope
+- `/metrics`: Prometheus exposition endpoint
 
 ### Exception handling
 
-Two global handlers are registered:
+Two global handlers are installed:
 
-- `http_exception_handler` maps Starlette HTTP exceptions to SEG error codes and preserves `X-Request-Id` when present.
-- `generic_exception_handler` logs unhandled exceptions and returns a generic 500 response envelope.
+- `http_exception_handler` maps Starlette HTTP exceptions into SEG envelopes while preserving `X-Request-Id`
+- `generic_exception_handler` logs unhandled exceptions and returns a generic structured 500 response
 
-### Endpoint model
-
-The `/v1/actions` routes are intentionally thin. `GET /v1/actions` reads the in-memory registry and returns grouped action summaries. `GET /v1/actions/{action_id}` returns the public contract for one registered action. `POST /v1/actions/{action_id}` validates the body against `ExecuteActionRequest`, delegates execution to `execute_action_handler()`, and returns the typed execution result as a JSON response envelope. `/v1/files` exposes typed handlers for upload, metadata retrieval, listing, content download, and deletion using `file_id` identifiers. Health and metrics are separated into dedicated routes and do not contain business logic.
+The route layer is intentionally thin. It resolves application state, delegates to runtime or storage handlers, and maps domain exceptions to stable SEG error codes.
 
 ## 4. Middleware Security Layer
 
@@ -163,53 +190,84 @@ If security headers are disabled, the pipeline starts at `RequestIDMiddleware`.
 
 ## 5. Action Execution Model
 
-The action system lives in `src/seg/actions` and separates action discovery, registration, dispatch, and implementation.
+The action system lives in `src/seg/actions` and is split into build-time, presentation, and runtime layers.
 
-### Registration model
+### Build-time pipeline
 
-- `discover_and_register()` recursively imports modules under `seg.actions`.
-- Each action module registers itself at import time by calling `register_action(ActionSpec(...))`.
-- `ActionSpec` defines the action name, input model, async handler, optional result model, and OpenAPI metadata.
-- The registry is an explicit allowlist stored in memory. Duplicate registrations are rejected.
+At startup, `build_registry_from_specs()` performs the following steps:
 
-### Dispatch model
+1. `load_module_specs()` discovers YAML-based Action DSL specifications from the configured spec directories.
+2. Loader safety checks reject invalid file sizes, invalid extensions, NUL bytes, disallowed control characters, and dangerous YAML patterns.
+3. `validate_modules()` enforces semantic DSL rules such as module uniqueness, supported DSL version, binary declarations, identifier format, and action structure.
+4. `build_actions()` compiles validated modules into immutable runtime `ActionSpec` objects with generated `params_model` classes, command templates, defaults, output declarations, and binary execution policy.
+5. `ActionRegistry` stores the final action mapping and precomputes presentation summaries.
 
-`dispatch_action()` performs the runtime action flow:
+This is the allowlist boundary. If a spec is invalid, the registry is not built and the application fails to start.
 
-1. Look up the action by `action_id` in the registry.
-2. Validate `req.params` with the action-specific Pydantic `params_model`.
-3. Execute the async handler.
-4. Validate the returned payload with `result_model` when one is defined.
-5. Normalize expected and unexpected failures into a `ResponseEnvelope` plus HTTP status.
+### Runtime execution path
 
-Known domain failures are transported through `SegError` (defined in `src/seg/core/errors.py`), which carries a stable SEG error code, HTTP status, message, and optional details.
+`POST /v1/actions/{action_id}` eventually reaches `dispatch_action()`, which performs the runtime flow:
+
+1. Resolve the action from `ActionRegistry`.
+2. Validate request params using the action-specific generated Pydantic model.
+3. Render the final argv list with `render_command()`.
+4. Resolve `file_id` args and output placeholders through the managed file layer.
+5. Re-check binary policy and execute the argv with `asyncio.create_subprocess_exec()` in `execute_command()`.
+6. Process stdout and stderr through the output pipeline, including sanitization and declared output handling.
 
 ```mermaid
-flowchart TD
-ActionIdPath --> Dispatcher
-ExecuteActionRequest --> Dispatcher
-Dispatcher --> ActionRegistry
-ActionRegistry --> ActionImplementation
-ActionImplementation --> Result
+flowchart LR
+
+subgraph BuildTime["Build-Time Pipeline"]
+    Specs["Action DSL Specs"] --> Loader
+    Loader --> Validator
+    Validator --> Builder
+    Builder --> Registry["Action Registry"]
+    Registry --> Presentation["Presentation Layer"]
+end
+
+subgraph Runtime["Runtime Execution"]
+    Registry --> Dispatcher
+    Dispatcher --> CommandRenderer["Command Renderer"]
+    CommandRenderer --> ProcessExecutor["Process Executor"]
+    ProcessExecutor --> OutputProcessor["Output Processor"]
+end
+
+OutputProcessor --> ManagedStorage["Managed Storage"]
 ```
 
-### File action modules
+### What an action means in SEG
 
-Current action implementations are:
+An action is not arbitrary shell submitted by the client.
 
-- `file_checksum`: secure checksum computation with size enforcement and timeout wrapping.
-- `file_delete`: safe deletion of regular files, including idempotent behavior when `require_exists` is false.
-- `file_mime_detect`: content-based MIME detection using `python-magic`.
-- `file_move`: sandboxed move using `os.replace()` with overwrite policy and extension preservation.
-- `file_verify`: composite verification that reuses `file_mime_detect()` and `file_checksum()`.
+An action is a predeclared command template whose binary, accepted params, flag mapping, output declarations, and public contract are all defined in YAML and compiled before the service accepts traffic. Clients only provide values for the declared parameter surface.
 
-`file_verify` is the only composite action. It validates the path once, detects MIME type, applies optional extension and MIME policies, and optionally compares a checksum.
+In SEG, an action is safer than direct command execution because the command shape is frozen by the DSL and enforced by validation, rendering, policy checks, and response sanitization.
 
-## 6. Filesystem Security Model
+## 6. Managed File and Filesystem Security Model
 
-Filesystem security is implemented primarily in `src/seg/core/security/paths.py` and `src/seg/core/security/file_access.py`.
+SEG supports two related file surfaces:
 
-### Path validation and sandbox enforcement
+- the external managed file API under `/v1/files`
+- internal filesystem security helpers used by runtime storage and security-sensitive operations
+
+### Managed file API
+
+`src/seg/routes/files/router.py` exposes the supported external file lifecycle:
+
+- `POST /v1/files` uploads a file, validates it, and persists blob plus metadata
+- `GET /v1/files` lists files with cursor pagination and filtering
+- `GET /v1/files/{id}` returns metadata only
+- `GET /v1/files/{id}/content` streams persisted blob content
+- `DELETE /v1/files/{id}` deletes a managed file
+
+The file API is UUID-based. Clients do not provide raw filesystem paths to retrieve stored content. Uploaded files are persisted as immutable blobs with metadata sidecars under storage rooted at `SEG_ROOT_DIR`.
+
+Action outputs can also be materialized into SEG-managed storage. Runtime output placeholders are created before subprocess execution and finalized into managed file records after successful output handling.
+
+### Filesystem security primitives
+
+Lower-level path protections exist in `src/seg/core/security/paths.py` and related helpers.
 
 `sanitize_rel_path()` rejects:
 
@@ -228,41 +286,16 @@ Filesystem security is implemented primarily in `src/seg/core/security/paths.py`
 - normalizes the candidate path with `os.path.normpath()`
 - verifies the final candidate stays inside the sandbox with `os.path.commonpath()`
 
-### Safe file opening
+`safe_open_no_follow()` opens the final component with `O_NOFOLLOW` when the platform supports it and verifies that the target is a regular file.
 
-`safe_open_no_follow()` opens the final path component with `O_NOFOLLOW` when the platform supports it, then uses `os.fstat()` to ensure the target is a regular file. This reduces symlink attacks on the final component.
-
-`validate_path()` combines sandbox resolution, existence checks, optional regular-file checks, and optional secure open behavior. `file_access.py` builds on it with wrappers for secure read-only access, validation-only checks, and destination validation for move operations.
-
-### Destination handling
-
-`secure_file_destination_validate()` distinguishes between:
-
-- a valid non-existent destination
-- an existing regular file destination (`DestinationExistsError`)
-- an existing non-regular destination (`DestinationNotRegularError`)
-
-This lets `file_move` enforce overwrite policy without bypassing sandbox checks.
-
-### MIME mapping support
-
-`src/seg/core/security/mime_map.py` contains a fixed extension-to-MIME allowlist used by `file_verify` when the caller does not supply `expected_mime`. MIME validation itself is performed by the action layer, not by middleware.
-
-```mermaid
-flowchart TD
-UserInputPath --> PathValidation
-PathValidation --> SandboxRoot
-SandboxRoot --> SandboxBoundary
-SandboxBoundary --> FileOperation
-```
+These helpers remain relevant because SEG still treats `SEG_ROOT_DIR` as a hardened storage boundary, even though the public API prefers managed `file_id` references over direct path exposure.
 
 ## 7. Configuration System
 
 Configuration is defined in `src/seg/core/config.py` with a Pydantic `BaseSettings` model.
 
 > [!IMPORTANT]
-> `SEG_ROOT_DIR` must be configured before SEG can start. If this value is
-> missing or invalid, configuration loading aborts the process.
+> `SEG_ROOT_DIR` must be configured before SEG can start. If this value is missing or invalid, configuration loading aborts the process. Its default and recommended value is `/var/lib/seg`
 
 ### Loading behavior
 
@@ -280,11 +313,13 @@ Required settings include:
 Validated runtime controls include:
 
 - `SEG_MAX_FILE_BYTES`
+- `SEG_MAX_YML_BYTES`
 - `SEG_TIMEOUT_MS`
 - `SEG_RATE_LIMIT_RPS`
 - `SEG_APP_VERSION`
 - `SEG_ENABLE_DOCS`
 - `SEG_ENABLE_SECURITY_HEADERS`
+- `SEG_BLOCKED_BINARIES_EXTRA`
 
 ### API token loading
 
@@ -301,7 +336,7 @@ The API token is not read directly from the settings model. `get_settings()` cal
 
 - non-root container identity
 - Docker and Compose integration
-- strict sandbox root location
+- strict sandboxed storage root location
 - body size, timeout, and rate-limit controls
 - logging and application version
 - docs toggle and security-header toggle
@@ -341,7 +376,7 @@ MetricsRoute --> Scraper
 
 ## 9. API Documentation System
 
-SEG generates OpenAPI dynamically from the live application, action registry, and file route contracts.
+SEG generates OpenAPI dynamically from the live application, the runtime action registry, and the file route contracts.
 
 ### Runtime schema generation
 
@@ -362,7 +397,7 @@ The docs endpoints `/docs`, `/redoc`, and `/openapi.json` are controlled by `seg
 
 ### Export pipeline
 
-`scripts/export_openapi.py` creates a documentation-only `Settings` object, enables docs, builds the app, generates the schema, and writes `docs/api-docs/output/openapi.json`.
+`scripts/export_openapi.py` creates a documentation-specific `Settings` object, enables docs, builds the app, generates the schema, and writes `docs/api-docs/output/openapi.json`.
 
 `scripts/build_docs_site.py` takes that exported schema, copies a Swagger UI distribution into a versioned site directory, installs the project template as `index.html`, and creates redirects for the latest published version.
 
@@ -383,6 +418,7 @@ The image:
 - creates a deterministic non-root user and group from build args
 - installs runtime Python dependencies from `requirements/runtime.txt`
 - copies the application source into `/app`
+- removes group and other write permissions from `/app`
 - starts Uvicorn with `uvicorn --factory seg.app:create_app`
 - exposes `SEG_PORT`
 - runs a healthcheck against `http://localhost:${SEG_PORT}/health`
@@ -400,18 +436,18 @@ The Compose service:
 - does not publish a host port in the provided Compose file
 - restarts with `unless-stopped`
 
-`seg-init` applies ownership and permission bootstrap (`NON_ROOT_UID:NON_ROOT_GID` with writable group permissions) on the mounted root before runtime startup.
+`seg-init` creates the root directory, assigns ownership to the non-root runtime user, and normalizes directory and file permissions on the mounted storage volume before the API service starts.
 
-This matches the internal-service deployment model: SEG is intended to be reachable from other trusted containers on the shared network, not from a public edge.
+This matches the intended internal-service deployment model: SEG is meant to be reachable from other trusted containers on the shared network, not from a public edge.
 
 ## 11. Testing Architecture
 
 Testing is organized by scope:
 
 - `tests/test_app_smoke.py` covers basic application startup and health behavior.
-- `tests/actions` covers the dispatcher, registry, and file action modules.
-- `tests/core` covers schemas, settings, and security helpers.
+- `tests/actions` covers registry construction, DSL loader and validator behavior, runtime dispatch, presentation helpers, and execution-related slices.
+- `tests/core` covers schemas, settings, OpenAPI helpers, and security utilities.
 - `tests/integration/middleware` exercises middleware behavior end to end.
-- `tests/integration/routes` exercises route-level behavior for `/v1/actions`, `/v1/actions/{action_id}`, `/v1/files`, `/health`, and `/metrics`.
+- `tests/integration/routes` exercises route-level behavior for `/v1/actions`, `/v1/files`, `/health`, `/metrics`, and `/openapi.json`.
 
-The test layout separates unit-level validation of the action and security primitives from integration-level checks of the HTTP surface.
+The test layout separates unit-level validation of the DSL and security primitives from integration-level checks of the HTTP surface and generated documentation.
