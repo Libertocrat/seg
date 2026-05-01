@@ -45,6 +45,7 @@ It explains how to:
 
 - set up a local development environment
 - run SEG locally
+- develop and validate DSL-defined actions
 - execute quality checks
 - reproduce CI pipelines
 - use helper utilities in `scripts/` and the `Makefile`
@@ -61,6 +62,12 @@ The current development workflow is built around:
 - quality, testing, and security tooling
 
 The `Makefile` provides a consistent interface between local development and the CI pipelines. It also includes local DX commands such as `deps`, `deps-local`, and `fmt`.
+
+Most day-to-day SEG changes fall into one of three loops:
+
+- application and middleware work under `src/seg`
+- DSL action work under `src/seg/actions/specs`
+- documentation and OpenAPI export work through `scripts/export_openapi.py` and `scripts/build_docs_site.py`
 
 ```mermaid
 flowchart TD
@@ -202,7 +209,7 @@ The repository is organized into a small number of top-level directories.
 
 | Directory | Purpose |
 | --- | --- |
-| `src/` | SEG application source code |
+| `src/` | SEG application source code, including the DSL build engine, runtime execution layers, file API, and middleware |
 | `tests/` | smoke, unit, and integration tests |
 | `scripts/` | developer and release helper utilities |
 | `docs/` | technical documentation |
@@ -215,6 +222,20 @@ Detailed technical references are documented in:
 - [docs/TESTING.md](docs/TESTING.md)
 - [docs/CI.md](docs/CI.md)
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+
+### Action development workflow
+
+In SEG, new action behavior is defined through YAML specs and then compiled into runtime action definitions at startup.
+
+The normal workflow is:
+
+1. Add or update a module spec under `src/seg/actions/specs`.
+2. Let the loader, validator, and builder compile it into the runtime registry during application startup.
+3. Inspect the public contract through `GET /v1/actions` or `GET /v1/actions/{action_id}`.
+4. Execute it through `POST /v1/actions/{action_id}` with a `params` payload.
+5. Use `/v1/files` when the action consumes uploaded files or returns managed file outputs.
+
+This is important when reasoning about SEG locally: an action is a controlled command template with a fixed contract, not an arbitrary shell command accepted from the API.
 
 ## 4. Environment Setup
 
@@ -304,6 +325,14 @@ Common authenticated API routes during local development include:
 
 > [!NOTE]
 > The compose stack includes an ephemeral `seg-init` service that prepares ownership and permissions on `SEG_ROOT_DIR` before the `seg` service starts.
+
+When validating action behavior locally, prefer these checks:
+
+- inspect the generated catalog with `GET /v1/actions`
+- inspect one public contract with `GET /v1/actions/{action_id}`
+- execute one action with `POST /v1/actions/{action_id}`
+- upload or retrieve supporting files through `/v1/files`
+- enable docs temporarily when you need `/openapi.json`, `/docs`, or `/redoc`
 
 ## 5. Dependency Sets
 
