@@ -63,7 +63,7 @@ SEG protects these assets:
 
 SEG has three primary trust boundaries.
 
-1. HTTP boundary. Requests cross from other internal services into the SEG application.
+1. HTTP boundary. Requests cross from trusted Docker-network peers or trusted host-local clients into the SEG application.
 2. Application to storage boundary. Validated API input is converted into managed file operations and controlled subprocess execution rooted in `SEG_ROOT_DIR`.
 3. Container boundary. SEG relies on the container runtime to isolate the process from the rest of the host environment.
 
@@ -77,7 +77,7 @@ ManagedStorage --> SEGRootDir[SEG_ROOT_DIR]
 
 Trust assumptions exist at each boundary:
 
-- clients are expected to be internal services, but requests are still treated as untrusted input
+- clients are expected to come from trusted Docker-network peers or trusted host-local access paths, but requests are still treated as untrusted input
 - the SEG root directory is treated as the permitted storage boundary
 - container isolation and Docker secret mounting are assumed to work correctly
 
@@ -93,7 +93,7 @@ The application exposes these HTTP entry points:
 - `/v1/files/{id}/content` via GET. This endpoint streams file content by `file_id`.
 - `/health` via GET. This endpoint is unauthenticated.
 - `/metrics` via GET. This endpoint is unauthenticated.
-- `/docs`, `/redoc`, and `/openapi.json` when `seg_enable_docs` is enabled. These endpoints are also unauthenticated when enabled.
+- `/docs`, `/redoc`, and `/openapi.json` while `seg_enable_docs` remains enabled. These endpoints are enabled by default and are also unauthenticated while exposed.
 
 Attack inputs include:
 
@@ -112,7 +112,7 @@ Authentication coverage is as follows:
 - `/v1/files`, `/v1/files/{id}`, and `/v1/files/{id}/content` require bearer authentication
 - `/health` does not require authentication
 - `/metrics` does not require authentication
-- docs endpoints do not require authentication when they are enabled
+- docs endpoints do not require authentication while they are enabled
 
 ## 6. Threat Categories
 
@@ -121,7 +121,7 @@ Authentication coverage is as follows:
 - token guessing against the bearer token check
 - missing or malformed `Authorization` headers
 - duplicate `Authorization` headers intended to confuse downstream handling
-- exposure of unauthenticated endpoints such as `/health`, `/metrics`, and optional docs endpoints
+- exposure of unauthenticated endpoints such as `/health`, `/metrics`, and docs endpoints when they remain enabled
 - action enumeration through authenticated discovery routes
 - abuse of authenticated `/v1/files` endpoints through high-volume upload, listing, and download requests
 
@@ -224,12 +224,12 @@ Authentication coverage is as follows:
 Some risks remain by design or by deployment assumption.
 
 > [!WARNING]
-> `/health`, `/metrics`, and optional docs endpoints can be reached without authentication. Keep SEG on a trusted internal network and leave docs disabled when exposing them is not acceptable.
+> `/health`, `/metrics`, and OpenAPI docs endpoints can be reached without authentication while docs are enabled. Keep SEG within trusted network boundaries, keep localhost-only publishing by default unless a wider bind is intentional, and set `SEG_ENABLE_DOCS=false` when exposing docs is not acceptable.
 
 - SEG relies on container isolation. If the container runtime is misconfigured or compromised, container-level protections may not hold.
 - SEG relies on correct storage root configuration. An incorrect `SEG_ROOT_DIR` mount target weakens the filesystem boundary.
 - `RateLimitMiddleware` is process-local. In multi-process or multi-instance deployments, each process keeps an independent token bucket.
-- `/health` and `/metrics` are intentionally unauthenticated. Optional docs endpoints are also unauthenticated when enabled. They increase reachable surface inside the internal network.
+- `/health` and `/metrics` are intentionally unauthenticated. Docs endpoints are also unauthenticated while enabled and increase reachable surface inside the trusted network boundary.
 - Filesystem race conditions are reduced but not fully eliminated. The code explicitly notes TOCTOU limitations around some path-resolution patterns.
 - Service availability still depends on the underlying container host, mounted volume performance, and upstream request volume.
 
@@ -237,11 +237,11 @@ Some risks remain by design or by deployment assumption.
 
 The security model depends on these assumptions:
 
-- SEG runs on a trusted internal network.
+- SEG runs within trusted network boundaries.
 - The container runtime correctly isolates the SEG process.
 - The API token secret is stored securely and mounted correctly at `/run/secrets/seg_api_token`.
 - `SEG_ROOT_DIR` points to the intended mounted storage volume.
-- Upstream services treat SEG as an internal service and do not expose it directly to untrusted public traffic.
+- Upstream services and operators treat SEG as a trusted internal component and do not expose it directly to untrusted public traffic.
 - Operators leave docs endpoints disabled in environments where exposing them is not acceptable.
 
 If these assumptions are violated, the practical security of the service is reduced even if the application code itself is unchanged.

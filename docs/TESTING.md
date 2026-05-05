@@ -141,7 +141,7 @@ Route integration coverage includes:
 - `/v1/files` upload, metadata retrieval, listing, content download, and delete behavior
 - `/health` success payload validation
 - `/metrics` Prometheus text format validation
-- `/openapi.json` validation, public/private route projection, response header docs, and runtime action examples when docs are enabled
+- `/openapi.json` validation, public/private route projection, response header docs, and runtime action examples from the generated docs surface
 
 ## 6. Security Testing
 

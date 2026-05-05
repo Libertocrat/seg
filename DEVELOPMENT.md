@@ -313,6 +313,8 @@ docker compose logs -f
 docker compose ps
 ```
 
+With the default Compose settings, SEG is published to localhost on `http://localhost:${SEG_HOST_PORT}` while remaining reachable to internal Docker consumers at `http://seg:${SEG_PORT}`.
+
 Common authenticated API routes during local development include:
 
 - `GET /v1/actions`
@@ -332,7 +334,7 @@ When validating action behavior locally, prefer these checks:
 - inspect one public contract with `GET /v1/actions/{action_id}`
 - execute one action with `POST /v1/actions/{action_id}`
 - upload or retrieve supporting files through `/v1/files`
-- enable docs temporarily when you need `/openapi.json`, `/docs`, or `/redoc`
+- inspect `/openapi.json`, `/docs`, or `/redoc` directly; set `SEG_ENABLE_DOCS=false` only when you explicitly want them disabled
 
 ## 5. Dependency Sets
 
@@ -472,12 +474,14 @@ Purpose:
 
 Create a temporary localhost port forward to a running SEG container.
 
+This helper is optional with the default Compose configuration and is mainly useful when host publishing is disabled or when a temporary alternate local port is needed.
+
 Common uses:
 
 - access Swagger UI
 - send `curl` requests
 - run host-side integration checks against the containerized service
-- inspect API behavior without publishing ports in Compose
+- inspect API behavior when Compose host publishing is disabled
 
 The script uses a temporary `alpine/socat` container on the shared Docker network.
 

@@ -231,7 +231,7 @@ For the full threat analysis, see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 
 ## 6. Quick Start
 
-SEG is designed to run inside Docker and remain an internal service on a shared Docker network.
+SEG is designed to run inside Docker, stay reachable on the shared Docker network, and be published to localhost by default for local development and demos.
 
 > [!IMPORTANT]
 > Before starting the stack, create `secrets/seg_api_token.txt` and ensure the external Docker network named by `SHARED_DOCKER_NETWORK` exists.
@@ -256,10 +256,11 @@ docker compose up -d --build
 
 Notes:
 
-- `docker-compose.yml` does not publish SEG publicly
+- by default, `docker-compose.yml` publishes SEG to `127.0.0.1:${SEG_HOST_PORT}`
 - runtime configuration is defined by the environment variables set in `.env`
   - check the `.env.example` file for detailed information about env variables
 - the container joins the external network defined by `SHARED_DOCKER_NETWORK`
+- internal Docker consumers should use `http://seg:${SEG_PORT}`
 - the external Docker network must exist before `docker compose up`
 - `seg-init` prepares ownership and permissions on `SEG_ROOT_DIR` before `seg` starts
 - the runtime API token is loaded from `secrets/seg_api_token.txt` through the Docker secret mount
@@ -271,11 +272,31 @@ docker compose ps
 docker compose logs -f
 ```
 
-To reach the service from the host during development without publishing ports in Compose:
+If host publishing is disabled in Compose and you still need temporary localhost access during development:
 
 ```bash
 ./scripts/seg-forward.sh --env-file .env
 ```
+
+With the default Compose settings, SEG is available at:
+
+- `http://localhost:8080`
+
+Healthcheck:
+
+```bash
+curl http://localhost:8080/health
+```
+
+Docs are enabled by default:
+
+- `http://localhost:8080/docs`
+
+Set `SEG_ENABLE_DOCS=false` when the OpenAPI docs are not needed, especially in production deployments.
+
+To publish SEG on a different host port, set `SEG_HOST_PORT` in `.env` (for example `SEG_HOST_PORT=8090`) and use `http://localhost:8090`.
+
+By default, SEG binds to `127.0.0.1` on the host. To expose it on all host interfaces, set `SEG_HOST_BIND_ADDRESS=0.0.0.0` intentionally and ensure proper network controls.
 
 The local development workflow is documented in [DEVELOPMENT.md](DEVELOPMENT.md).
 
@@ -306,11 +327,13 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 | `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
 | `SEG_RATE_LIMIT_RPS` | Process-local requests per second limit. | `10` |
 | `SEG_APP_VERSION` | Version exposed by the runtime and OpenAPI metadata. | `0.1.0` |
-| `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. | `false` |
+| `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. Disable it when docs are not needed. | `true` |
 | `SEG_ENABLE_SECURITY_HEADERS` | Enables baseline response security headers. | `true` |
 | `SEG_BLOCKED_BINARIES_EXTRA` | Optional CSV of additional blocked binaries. | unset |
 | `SHARED_DOCKER_NETWORK` | External Docker network used by the Compose deployment. | `docker-network` |
-| `SEG_PORT` | Internal listen port inside the container. | `8080` |
+| `SEG_HOST_BIND_ADDRESS` | Host interface used by Compose when publishing SEG. | `127.0.0.1` |
+| `SEG_HOST_PORT` | Host port used by Compose for localhost access. | `8080` |
+| `SEG_PORT` | Internal listen port inside the container (reachable as `http://seg:8080`). | `8080` |
 
 > [!IMPORTANT]
 > When deploying SEG inside an existing container environment or microservice stack, the following variables should normally be reviewed and adapted before startup:
@@ -350,7 +373,7 @@ SEG exposes a purposely small HTTP surface.
 - `GET /health`
 - `GET /metrics`
 
-Interactive and dynamically generated OpenAPI docs are available only when `SEG_ENABLE_DOCS=true`:
+Interactive and dynamically generated OpenAPI docs are enabled by default and can be disabled with `SEG_ENABLE_DOCS=false`:
 
 - `/docs`
 - `/redoc`

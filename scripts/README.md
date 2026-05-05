@@ -9,13 +9,15 @@ This directory contains helper scripts used for local development, release artif
 
 | Script | Purpose |
 | --- | --- |
-| `scripts/seg-forward.sh` | Forward a localhost port to a running SEG container without publishing ports in Compose |
+| `scripts/seg-forward.sh` | Forward a localhost port to a running SEG container when Compose port publishing is disabled or not desired |
 | `scripts/export_openapi.py` | Build the FastAPI app and write the OpenAPI schema to disk |
 | `scripts/build_docs_site.py` | Build a versioned Swagger UI site for GitHub Pages from the exported schema |
 
 ## seg-forward.sh
 
 Creates a temporary localhost port forward to a running SEG container.
+
+This script is optional when using the default Compose mapping (`SEG_HOST_BIND_ADDRESS` + `SEG_HOST_PORT`), and is mainly useful when host publishing is disabled and access is needed only for temporary local testing.
 
 The script starts an ephemeral `alpine/socat` container on the same Docker network as SEG. The forward binds to `127.0.0.1`, not to all host interfaces.
 
@@ -67,8 +69,8 @@ docker compose up -d seg
 After the forward starts, the local URLs printed by the script include:
 
 - `http://localhost:<PORT>/health`
-- `http://localhost:<PORT>/docs` when `SEG_ENABLE_DOCS=true`
-- `http://localhost:<PORT>/openapi.json` when `SEG_ENABLE_DOCS=true`
+- `http://localhost:<PORT>/docs` by default, unless `SEG_ENABLE_DOCS=false`
+- `http://localhost:<PORT>/openapi.json` by default, unless `SEG_ENABLE_DOCS=false`
 
 The forwarding script does not enable docs endpoints by itself. It only forwards traffic to whatever the running SEG container currently exposes.
 
@@ -96,7 +98,7 @@ Builds the SEG application and writes the generated OpenAPI schema to `docs/api-
 ### Behavior
 
 - The script strips a leading `v` before storing the version in settings
-- The generated settings enable docs endpoints during schema export
+- The generated settings set `seg_enable_docs=True` explicitly so export behavior stays stable regardless of runtime defaults
 - The output directory is created automatically if needed
 - The JSON file is written with indentation and a trailing newline
 

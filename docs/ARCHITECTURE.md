@@ -80,7 +80,7 @@ Key startup behaviors are:
 
 - load `Settings` through `get_settings()` unless a test provides one explicitly
 - create storage directories through `ensure_storage_dirs(settings)`
-- enable or disable `/docs`, `/redoc`, and `/openapi.json` from `seg_enable_docs`
+- register `/docs`, `/redoc`, and `/openapi.json` by default unless `seg_enable_docs` is set to false
 - build the immutable runtime action registry through `build_registry_from_specs(settings)`
 - attach both `settings` and `action_registry` to `app.state`
 - register middleware, exception handlers, and routers
@@ -393,7 +393,7 @@ SEG generates OpenAPI dynamically from the live application, the runtime action 
 - removes internal-only schemas from the published document
 - overrides the generated contracts for `/health` and `/metrics`
 
-The docs endpoints `/docs`, `/redoc`, and `/openapi.json` are controlled by `seg_enable_docs` in `app.py`.
+The docs endpoints `/docs`, `/redoc`, and `/openapi.json` are enabled by default and controlled by `seg_enable_docs` in `app.py`.
 
 ### Export pipeline
 
