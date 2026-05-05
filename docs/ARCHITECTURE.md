@@ -26,7 +26,7 @@ An action is therefore best understood as predefined command execution, but with
 - request params are validated against generated Pydantic models
 - command rendering is deterministic and template-constrained
 - binary policy checks are enforced both at build time and at execution time
-- stdout, stderr, and declared file outputs are sanitized before they are returned
+- stdout and stderr are sanitized before they are returned, and file outputs may be materialized either from declared command placeholders or from sanitized stdout when `stdout_as_file` is requested and allowed
 
 SEG also exposes `/v1/files`, which provides the supported external lifecycle for uploaded and generated files. Storage is rooted under `SEG_ROOT_DIR`, and callers interact with UUID-based file identifiers rather than raw filesystem paths.
 
@@ -199,7 +199,7 @@ At startup, `build_registry_from_specs()` performs the following steps:
 1. `load_module_specs()` discovers YAML-based Action DSL specifications from the configured spec directories.
 2. Loader safety checks reject invalid file sizes, invalid extensions, NUL bytes, disallowed control characters, and dangerous YAML patterns.
 3. `validate_modules()` enforces semantic DSL rules such as module uniqueness, supported DSL version, binary declarations, identifier format, and action structure.
-4. `build_actions()` compiles validated modules into immutable runtime `ActionSpec` objects with generated `params_model` classes, command templates, defaults, output declarations, and binary execution policy.
+4. `build_actions()` compiles validated modules into immutable runtime `ActionSpec` objects with generated `params_model` classes, command templates, defaults, output declarations, stdout file policy, and binary execution policy.
 5. `ActionRegistry` stores the final action mapping and precomputes presentation summaries.
 
 This is the allowlist boundary. If a spec is invalid, the registry is not built and the application fails to start.
@@ -209,11 +209,11 @@ This is the allowlist boundary. If a spec is invalid, the registry is not built 
 `POST /v1/actions/{action_id}` eventually reaches `dispatch_action()`, which performs the runtime flow:
 
 1. Resolve the action from `ActionRegistry`.
-2. Validate request params using the action-specific generated Pydantic model.
+2. Validate request params and execution options, including `stdout_as_file` policy checks.
 3. Render the final argv list with `render_command()`.
 4. Resolve `file_id` args and output placeholders through the managed file layer.
 5. Re-check binary policy and execute the argv with `asyncio.create_subprocess_exec()` in `execute_command()`.
-6. Process stdout and stderr through the output pipeline, including sanitization and declared output handling.
+6. Process stdout and stderr through the output pipeline, including sanitization, declared command-output handling, and optional `stdout_file` materialization from sanitized stdout.
 
 ```mermaid
 flowchart LR
@@ -263,7 +263,7 @@ SEG supports two related file surfaces:
 
 The file API is UUID-based. Clients do not provide raw filesystem paths to retrieve stored content. Uploaded files are persisted as immutable blobs with metadata sidecars under storage rooted at `SEG_ROOT_DIR`.
 
-Action outputs can also be materialized into SEG-managed storage. Runtime output placeholders are created before subprocess execution and finalized into managed file records after successful output handling.
+Action outputs can also be materialized into SEG-managed storage. Declared `file + command` outputs use runtime placeholders created before subprocess execution and finalized into managed file records after successful output handling. Sanitized stdout can also be materialized into the reserved `outputs.stdout_file` entry when the client requests `stdout_as_file=true` and the selected action allows it.
 
 ### Filesystem security primitives
 

@@ -232,7 +232,7 @@ The normal workflow is:
 1. Add or update a module spec under `src/seg/actions/specs`.
 2. Let the loader, validator, and builder compile it into the runtime registry during application startup.
 3. Inspect the public contract through `GET /v1/actions` or `GET /v1/actions/{action_id}`.
-4. Execute it through `POST /v1/actions/{action_id}` with a `params` payload.
+4. Execute it through `POST /v1/actions/{action_id}` with a `params` payload and optional request-level execution options such as `stdout_as_file`.
 5. Use `/v1/files` when the action consumes uploaded files or returns managed file outputs.
 
 This is important when reasoning about SEG locally: an action is a controlled command template with a fixed contract, not an arbitrary shell command accepted from the API.
@@ -332,7 +332,7 @@ When validating action behavior locally, prefer these checks:
 
 - inspect the generated catalog with `GET /v1/actions`
 - inspect one public contract with `GET /v1/actions/{action_id}`
-- execute one action with `POST /v1/actions/{action_id}`
+- execute one action with `POST /v1/actions/{action_id}` and enable `stdout_as_file` when validating stdout-to-file materialization
 - upload or retrieve supporting files through `/v1/files`
 - inspect `/openapi.json`, `/docs`, or `/redoc` directly; set `SEG_ENABLE_DOCS=false` only when you explicitly want them disabled
 
