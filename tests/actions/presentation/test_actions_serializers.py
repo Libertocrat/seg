@@ -37,6 +37,12 @@ def sample_action_spec() -> ActionSpec:
     """Build a minimal ActionSpec for serializer tests."""
 
     class Params(BaseModel):
+        """Test params model used by serializer fixtures.
+
+        Attributes:
+            value: Integer input used by the sample action.
+        """
+
         value: int
 
     return ActionSpec(
@@ -64,11 +70,12 @@ def sample_action_spec() -> ActionSpec:
         outputs={
             "result": OutputDef(
                 type=OutputType.FILE,
-                source=OutputSource.STDOUT,
+                source=OutputSource.COMMAND,
                 description="result",
             )
         },
         defaults={"value": 10, "verbose": False},
+        allow_stdout_as_file=True,
         summary="summary",
         description="description",
     )
@@ -138,6 +145,7 @@ def test_to_action_public_spec_maps_fields(sample_action_spec: ActionSpec) -> No
     assert len(result.args) == 1
     assert len(result.flags) == 1
     assert len(result.outputs) == 1
+    assert result.allow_stdout_as_file is True
     assert result.args[0]["name"] == "value"
     assert result.flags[0]["name"] == "verbose"
     assert "value" not in result.flags[0]

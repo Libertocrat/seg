@@ -10,7 +10,16 @@ from seg.actions.models import ParamType
 
 
 class ArgSpec(BaseModel):
-    """Definition of an argument in the SEG DSL."""
+    """Definition of an argument in the SEG DSL.
+
+    Attributes:
+        type: Logical argument type.
+        items: Item type when `type` is `list`.
+        required: Whether the argument is required.
+        default: Default value for optional arguments.
+        constraints: Optional argument constraints.
+        description: Human-readable argument description.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -24,7 +33,13 @@ class ArgSpec(BaseModel):
 
 
 class FlagSpec(BaseModel):
-    """Definition of a flag in the SEG DSL."""
+    """Definition of a flag in the SEG DSL.
+
+    Attributes:
+        value: Literal flag token injected into argv.
+        default: Default boolean state for the flag.
+        description: Human-readable flag description.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -34,7 +49,11 @@ class FlagSpec(BaseModel):
 
 
 class BinaryCmd(BaseModel):
-    """DSL token representing the selected binary."""
+    """DSL token representing the selected binary.
+
+    Attributes:
+        binary: Binary name to execute.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -42,7 +61,11 @@ class BinaryCmd(BaseModel):
 
 
 class ArgCmd(BaseModel):
-    """DSL token referencing a defined argument."""
+    """DSL token referencing a defined argument.
+
+    Attributes:
+        arg: Referenced argument name.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -50,7 +73,11 @@ class ArgCmd(BaseModel):
 
 
 class FlagCmd(BaseModel):
-    """DSL token referencing a defined flag."""
+    """DSL token referencing a defined flag.
+
+    Attributes:
+        flag: Referenced flag name.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +85,11 @@ class FlagCmd(BaseModel):
 
 
 class OutputCmd(BaseModel):
-    """DSL token referencing a defined output."""
+    """DSL token referencing a defined output.
+
+    Attributes:
+        output: Referenced output name.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -66,7 +97,13 @@ class OutputCmd(BaseModel):
 
 
 class OutputSpec(BaseModel):
-    """Definition of one output in the SEG DSL."""
+    """Definition of one output in the SEG DSL.
+
+    Attributes:
+        type: Logical output type.
+        source: Runtime source used to materialize the output.
+        description: Human-readable output description.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

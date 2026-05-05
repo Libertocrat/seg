@@ -76,10 +76,32 @@ def test_get_action_specs_contains_required_fields(action_specs_client, auth_hea
     assert "args" in data
     assert "flags" in data
     assert "outputs" in data
+    assert "allow_stdout_as_file" in data
     assert isinstance(data["params_contract"], dict)
     assert isinstance(data["params_example"], dict)
     assert isinstance(data["response_contract"], dict)
     assert isinstance(data["response_example"], dict)
+
+
+def test_get_action_spec_includes_allow_stdout_as_file(
+    action_specs_client,
+    auth_headers,
+):
+    """
+    GIVEN a registered action
+    WHEN its public action spec is requested
+    THEN the response includes allow_stdout_as_file
+    """
+
+    response = action_specs_client.get(
+        "/v1/actions/test_runtime.ping",
+        headers=auth_headers,
+    )
+
+    data = response.json()["data"]
+
+    assert response.status_code == 200
+    assert data["allow_stdout_as_file"] is True
 
 
 def test_get_action_specs_envelope(action_specs_client, auth_headers):

@@ -77,6 +77,39 @@ def _get_action_registry(request: Request) -> ActionRegistry:
     return registry
 
 
+def _validate_stdout_as_file_option(
+    registry: ActionRegistry,
+    action_id: str,
+    stdout_as_file: bool,
+) -> None:
+    """Validate request-level stdout file materialization option.
+
+    Args:
+        registry: Runtime action registry.
+        action_id: Requested action identifier.
+        stdout_as_file: Request-level stdout file option.
+
+    Raises:
+        ActionNotFoundError: If action does not exist.
+        SegError: If stdout_as_file is requested but action disallows it.
+    """
+
+    if not stdout_as_file:
+        return
+
+    spec = registry.get(action_id)
+    if spec.allow_stdout_as_file:
+        return
+
+    raise SegError(
+        INVALID_PARAMS,
+        details={
+            "reason": "Action does not allow stdout_as_file.",
+            "action_id": action_id,
+        },
+    )
+
+
 async def execute_action_handler(
     request: Request,
     action_id: str,
@@ -101,12 +134,20 @@ async def execute_action_handler(
     cfg = settings if isinstance(settings, Settings) else get_settings()
 
     try:
+        _validate_stdout_as_file_option(
+            registry,
+            action_id,
+            payload.stdout_as_file,
+        )
+
         result = await dispatch_action(
             registry,
             action_id,
             payload.params,
             settings=cfg,
         )
+    except SegError:
+        raise
     except ActionNotFoundError as exc:
         raise SegError(
             ACTION_NOT_FOUND,
@@ -169,6 +210,7 @@ async def execute_action_handler(
         result.rendered,
         result.execution,
         safe,
+        stdout_as_file=payload.stdout_as_file,
         settings=cfg,
     )
 

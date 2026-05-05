@@ -11,7 +11,13 @@ T = TypeVar("T")
 
 
 class ErrorInfo(BaseModel):
-    """Standard error payload returned on failed requests."""
+    """Standard error payload returned on failed requests.
+
+    Attributes:
+        code: Machine-readable error code.
+        message: Human-readable error message.
+        details: Optional structured details payload.
+    """
 
     code: str = Field(..., description="Machine-readable error code.")
     message: str = Field(..., description="Human-readable error message.")
@@ -26,6 +32,11 @@ class ResponseEnvelope(GenericModel, Generic[T]):
     Fields follow the README contract: `success`, `data`, and `error`.
     Request correlation is performed via the `X-Request-Id` header injected
     by middleware; the JSON body deliberately omits `request_id`.
+
+    Attributes:
+        success: Whether the request completed successfully.
+        data: Success payload when available.
+        error: Structured error payload when request fails.
     """
 
     success: bool = Field(..., description="Success flag.")

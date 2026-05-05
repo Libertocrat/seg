@@ -143,7 +143,7 @@ def _build_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
         Outputs example mapping or None if the action has no outputs.
     """
 
-    if not spec.outputs:
+    if not spec.outputs and not spec.allow_stdout_as_file:
         return None
 
     outputs_example: dict[str, Any] = {}
@@ -153,20 +153,19 @@ def _build_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
             outputs_example[output_name] = None
             continue
 
-        if output_def.source.value == "stdout":
-            outputs_example[output_name] = _build_file_metadata_example(
-                original_filename=f"action.{output_name}.txt",
-                mime_type="text/plain",
-                extension=".txt",
-                size_bytes=16,
-            )
-            continue
-
         outputs_example[output_name] = _build_file_metadata_example(
             original_filename=f"action.{output_name}.bin",
             mime_type="application/octet-stream",
             extension=".bin",
             size_bytes=1024,
+        )
+
+    if spec.allow_stdout_as_file:
+        outputs_example["stdout_file"] = _build_file_metadata_example(
+            original_filename=f"{spec.action}.stdout.txt",
+            mime_type="text/plain",
+            extension=".txt",
+            size_bytes=16,
         )
 
     return outputs_example
@@ -216,6 +215,16 @@ def build_params_contract(spec: ActionSpec) -> dict[str, Any]:
 
     return {
         "params": params,
+        "stdout_as_file": {
+            "type": "bool",
+            "required": False,
+            "default": False,
+            "allowed": spec.allow_stdout_as_file,
+            "description": (
+                "When true, SEG stores sanitized stdout as a managed text file "
+                "under outputs.stdout_file if the action allows it."
+            ),
+        },
         "required": required,
     }
 
@@ -265,7 +274,7 @@ def build_response_contract(spec: ActionSpec) -> dict[str, Any]:
 
     outputs_contract: dict[str, Any] | None = None
 
-    if spec.outputs:
+    if spec.outputs or spec.allow_stdout_as_file:
         outputs_contract = {}
         for output_name, output_def in spec.outputs.items():
             output_type = (
@@ -278,6 +287,18 @@ def build_response_contract(spec: ActionSpec) -> dict[str, Any]:
                 "source": output_def.source.value,
                 "description": output_def.description,
                 "nullable": True,
+            }
+
+        if spec.allow_stdout_as_file:
+            outputs_contract["stdout_file"] = {
+                "type": "FileMetadata",
+                "source": "stdout",
+                "description": (
+                    "Managed text file created from sanitized stdout when "
+                    "request option stdout_as_file is true."
+                ),
+                "nullable": True,
+                "reserved": True,
             }
 
     return {

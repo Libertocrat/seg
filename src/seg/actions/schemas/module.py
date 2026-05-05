@@ -10,7 +10,19 @@ from .action import ActionSpecInput
 
 
 class ModuleSpec(BaseModel):
-    """Root DSL module definition."""
+    """Root DSL module definition.
+
+    Attributes:
+        _namespace: Runtime namespace metadata injected by the loader.
+        _source: Runtime source label injected by the loader.
+        version: DSL module version.
+        module: Bare DSL module name.
+        description: Human-readable module description.
+        authors: Optional module authors list.
+        tags: Optional module tags encoded as CSV.
+        binaries: Allowed binaries for actions in this module.
+        actions: Mapping of action name to action definitions.
+    """
 
     _namespace: tuple[str, ...] = PrivateAttr(default_factory=tuple)
     _source: str = PrivateAttr(default="core")

@@ -25,6 +25,7 @@ def test_execute_request_valid_minimal_payload():
     req = ExecuteActionRequest()
 
     assert req.params == {}
+    assert req.stdout_as_file is False
 
 
 def test_execute_request_accepts_params_dict():
@@ -49,6 +50,30 @@ def test_execute_request_accepts_empty_params_by_default():
     req = ExecuteActionRequest()
 
     assert req.params == {}
+
+
+def test_execute_action_request_defaults_stdout_as_file_to_false():
+    """
+    GIVEN an execute action request without stdout_as_file
+    WHEN the request model is validated
+    THEN stdout_as_file defaults to false
+    """
+
+    req = ExecuteActionRequest()
+
+    assert req.stdout_as_file is False
+
+
+def test_execute_request_accepts_stdout_as_file_true():
+    """
+    GIVEN an execution request with stdout_as_file enabled
+    WHEN the ExecuteActionRequest schema is validated
+    THEN stdout_as_file is preserved as true
+    """
+
+    req = ExecuteActionRequest(stdout_as_file=True)
+
+    assert req.stdout_as_file is True
 
 
 # ============================================================================
@@ -97,3 +122,4 @@ def test_execute_request_has_stable_shape():
     req = ExecuteActionRequest()
 
     assert hasattr(req, "params")
+    assert hasattr(req, "stdout_as_file")

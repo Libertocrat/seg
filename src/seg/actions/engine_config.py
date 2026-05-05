@@ -72,6 +72,9 @@ CONST_TEMPLATE_ALLOWED_ARG_TYPES: tuple[ParamType, ...] = (
     ParamType.FLOAT,
 )
 
+# Reserved output names used by runtime-generated outputs.
+RESERVED_OUTPUT_NAMES: tuple[str, ...] = ("stdout_file",)
+
 # ------------------------------------------------------------------
 # ERROR MASKING LABELS
 # ------------------------------------------------------------------

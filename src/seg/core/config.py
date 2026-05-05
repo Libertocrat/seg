@@ -115,12 +115,16 @@ class Settings(BaseSettings):
         seg_root_dir: Root directory acting as the single SEG filesystem sandbox.
         seg_max_file_bytes: Maximum allowed bytes for file operations.
         seg_max_yml_bytes: Maximum allowed bytes per DSL YAML spec file.
+        seg_max_stdout_bytes: Optional max bytes kept from sanitized stdout.
+        seg_max_stderr_bytes: Optional max bytes kept from sanitized stderr.
         seg_timeout_ms: Per-request timeout (milliseconds).
         seg_rate_limit_rps: Rate limit in requests-per-second.
         seg_log_level: Logging verbosity.
         seg_app_version: Application semantic version (x.y.z).
         seg_enable_docs: Enable OpenAPI docs endpoints. Defaults to enabled.
         seg_enable_security_headers: Enable baseline response security headers.
+        seg_blocked_binaries_extra: Optional CSV string with extra blocked
+            binaries merged into the default blocklist.
     """
 
     # Loaded from Docker secret in `get_settings`, not from environment.

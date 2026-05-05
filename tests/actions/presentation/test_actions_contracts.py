@@ -99,19 +99,25 @@ actions:
 
     outputs_dynamic_action:
         description: "Action with dynamic output contracts"
+        allow_stdout_as_file: true
         outputs:
-            stdout_file:
-                type: file
-                source: stdout
-                description: "Output materialized from stdout"
             cmd_file:
                 type: file
                 source: command
                 description: "Output materialized from command placeholder"
-            report:
-                type: data
-                source: stdout
-                description: "Structured report from stdout"
+        command:
+            - binary: echo
+            - "outputs"
+            - output: cmd_file
+
+    outputs_without_stdout_option:
+        description: "Action with command output but stdout file disabled"
+        allow_stdout_as_file: false
+        outputs:
+            cmd_file:
+                type: file
+                source: command
+                description: "Output materialized from command placeholder"
         command:
             - binary: echo
             - "outputs"
@@ -158,7 +164,7 @@ def test_build_params_contract_shape(valid_registry) -> None:
 
     result = build_params_contract(spec)
 
-    assert set(result.keys()) == {"params", "required"}
+    assert set(result.keys()) == {"params", "stdout_as_file", "required"}
     assert isinstance(result["params"], dict)
     assert isinstance(result["required"], list)
 
@@ -179,6 +185,26 @@ def test_build_params_contract_maps_args(valid_registry) -> None:
     assert result["params"]["count"]["required"] is True
     assert result["params"]["count"]["default"] is None
     assert result["params"]["count"]["description"] == "Number to echo"
+
+
+def test_action_params_contract_includes_stdout_as_file_request_option(
+    valid_registry,
+) -> None:
+    """
+    GIVEN a registered action
+    WHEN its params contract is built
+    THEN stdout_as_file appears as a request-level option outside params
+    """
+
+    spec = valid_registry.get("test_runtime.ping")
+
+    result = build_params_contract(spec)
+
+    assert "stdout_as_file" in result
+    assert "stdout_as_file" not in result["params"]
+    assert result["stdout_as_file"]["type"] == "bool"
+    assert result["stdout_as_file"]["default"] is False
+    assert result["stdout_as_file"]["allowed"] is True
 
 
 def test_build_params_contract_maps_flags(contracts_special_registry) -> None:
@@ -418,7 +444,9 @@ def test_build_response_contract_outputs_null(valid_registry) -> None:
 
     result = build_response_contract(spec)
 
-    assert result["data"]["outputs"] is None
+    outputs = result["data"]["outputs"]
+    assert outputs is not None
+    assert set(outputs.keys()) == {"stdout_file"}
 
 
 def test_build_response_contract_outputs_dynamic(sample_action_spec) -> None:
@@ -432,7 +460,24 @@ def test_build_response_contract_outputs_dynamic(sample_action_spec) -> None:
 
     outputs = result["data"]["outputs"]
     assert isinstance(outputs, dict)
-    assert set(outputs.keys()) == {"stdout_file", "cmd_file", "report"}
+    assert set(outputs.keys()) == {"cmd_file", "stdout_file"}
+
+
+def test_action_response_contract_includes_stdout_file_when_allowed(
+    sample_action_spec,
+) -> None:
+    """
+    GIVEN an action that allows stdout file materialization
+    WHEN its response contract is built
+    THEN outputs includes the reserved stdout_file contract
+    """
+
+    result = build_response_contract(sample_action_spec)
+
+    outputs = result["data"]["outputs"]
+    assert outputs is not None
+    assert "stdout_file" in outputs
+    assert outputs["stdout_file"]["source"] == "stdout"
 
 
 def test_build_response_contract_output_fields(sample_action_spec) -> None:
@@ -447,9 +492,41 @@ def test_build_response_contract_output_fields(sample_action_spec) -> None:
     outputs = result["data"]["outputs"]
     assert outputs is not None
 
-    for output in outputs.values():
-        assert set(output.keys()) == {"type", "source", "description", "nullable"}
-        assert output["nullable"] is True
+    cmd_file = outputs["cmd_file"]
+    stdout_file = outputs["stdout_file"]
+
+    assert set(cmd_file.keys()) == {"type", "source", "description", "nullable"}
+    assert cmd_file["nullable"] is True
+
+    assert set(stdout_file.keys()) == {
+        "type",
+        "source",
+        "description",
+        "nullable",
+        "reserved",
+    }
+    assert stdout_file["nullable"] is True
+    assert stdout_file["reserved"] is True
+
+
+def test_action_response_contract_omits_stdout_file_when_disallowed(
+    contracts_special_registry,
+) -> None:
+    """
+    GIVEN an action that disables stdout file materialization
+    WHEN its response contract is built
+    THEN outputs does not include stdout_file
+    """
+
+    spec = contracts_special_registry.get(
+        "contracts_runtime.outputs_without_stdout_option"
+    )
+
+    result = build_response_contract(spec)
+
+    outputs = result["data"]["outputs"]
+    assert outputs is not None
+    assert set(outputs.keys()) == {"cmd_file"}
 
 
 # ============================================================================
@@ -486,7 +563,9 @@ def test_build_response_example_outputs_null(valid_registry) -> None:
 
     result = build_response_example(spec)
 
-    assert result["data"]["outputs"] is None
+    outputs = result["data"]["outputs"]
+    assert outputs is not None
+    assert set(outputs.keys()) == {"stdout_file"}
 
 
 def test_build_response_example_outputs_present(sample_action_spec) -> None:
@@ -531,7 +610,7 @@ def test_build_response_example_output_source_variants(sample_action_spec) -> No
     stdout_file = outputs["stdout_file"]
     cmd_file = outputs["cmd_file"]
 
-    assert stdout_file["original_filename"] == "action.stdout_file.txt"
+    assert stdout_file["original_filename"] == "outputs_dynamic_action.stdout.txt"
     assert stdout_file["mime_type"] == "text/plain"
     assert stdout_file["extension"] == ".txt"
     assert stdout_file["size_bytes"] == 16

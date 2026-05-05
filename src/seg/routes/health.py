@@ -11,7 +11,11 @@ router = APIRouter(prefix="", tags=["health"])
 
 
 class HealthResult(BaseModel):
-    """Readiness payload returned by the health endpoint."""
+    """Readiness payload returned by the health endpoint.
+
+    Attributes:
+        status: Health status value expected to be `ok`.
+    """
 
     status: Literal["ok"]
 

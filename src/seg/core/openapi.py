@@ -491,6 +491,7 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
             "action_id": "test_runtime.ping",
             "summary": "Ping",
             "description": "Return deterministic hello output",
+            "allow_stdout_as_file": True,
             "args": [],
             "flags": [],
             "outputs": [],
@@ -575,6 +576,14 @@ def _build_action_request_markdown(public_spec: ActionPublicSpec) -> str:
     else:
         lines.append("- _No flags_")
 
+    lines.extend(["", "#### Request Options", ""])
+    lines.append(
+        "- `stdout_as_file` (`bool`): Store sanitized stdout as "
+        "`outputs.stdout_file` when enabled and allowed by the action; "
+        "default: `false`; allowed: "
+        f"`{str(public_spec.allow_stdout_as_file).lower()}`"
+    )
+
     return "\n".join(lines)
 
 
@@ -604,7 +613,15 @@ def _build_action_response_markdown(public_spec: ActionPublicSpec) -> str:
                 f"- `{output_name}` (`{output_type}`): "
                 f"{output_description}; source: `{output_source}`"
             )
-    else:
+
+    if public_spec.allow_stdout_as_file:
+        lines.append(
+            "- `stdout_file` (`FileMetadata`): Managed text file created from "
+            "sanitized stdout when `stdout_as_file=true`; source: `stdout`; "
+            "reserved output name"
+        )
+
+    if not public_spec.outputs and not public_spec.allow_stdout_as_file:
         lines.append("- _No outputs_")
 
     return "\n".join(lines)
@@ -688,6 +705,7 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
             "description": request_markdown,
             "value": {
                 "params": public_spec.params_example,
+                "stdout_as_file": False,
             },
         }
 
@@ -700,8 +718,11 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     }
 
     request_body["description"] = (
-        "Request body containing action-specific `params`.\n\n"
+        "Request body containing action-specific `params` and request-level "
+        "execution options.\n\n"
         "The target action is selected via the `action_id` path parameter. "
+        "Use `stdout_as_file=true` to store sanitized stdout as "
+        "`outputs.stdout_file` when the selected action allows it. "
         "Select an example below to inspect parameter contracts per action."
     )
 

@@ -286,16 +286,6 @@ def test_build_actions_compiles_output_definitions(
                 "source": "command",
                 "description": "Command output file",
             },
-            "stdout_file": {
-                "type": "file",
-                "source": "stdout",
-                "description": "Stdout materialized file",
-            },
-            "data_out": {
-                "type": "data",
-                "source": "stdout",
-                "description": "Structured stdout payload",
-            },
         },
         command=[{"binary": "echo"}, {"output": "cmd_file"}],
     )
@@ -303,12 +293,51 @@ def test_build_actions_compiles_output_definitions(
 
     spec = build_actions([module], _test_settings())["test_module.test_action"]
 
-    assert set(spec.outputs.keys()) == {"cmd_file", "stdout_file", "data_out"}
+    assert set(spec.outputs.keys()) == {"cmd_file"}
     assert spec.outputs["cmd_file"].type.value == "file"
     assert spec.outputs["cmd_file"].source.value == "command"
     assert spec.outputs["cmd_file"].description == "Command output file"
-    assert spec.outputs["stdout_file"].source.value == "stdout"
-    assert spec.outputs["data_out"].type.value == "data"
+
+
+def test_build_action_defaults_allow_stdout_as_file_to_true(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a valid DSL action without allow_stdout_as_file
+    WHEN the runtime action spec is built
+    THEN the action allows stdout file materialization by default
+    """
+
+    action = make_action_spec_input(command=[{"binary": "echo"}, "ok"])
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.allow_stdout_as_file is True
+
+
+def test_build_action_preserves_allow_stdout_as_file_false(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN a valid DSL action with allow_stdout_as_file set to false
+    WHEN the runtime action spec is built
+    THEN the compiled action spec disables stdout file materialization
+    """
+
+    action = make_action_spec_input(
+        allow_stdout_as_file=False,
+        command=[{"binary": "echo"}, "ok"],
+    )
+    module = make_module_spec(make_module_payload(actions={"test_action": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.test_action"]
+
+    assert spec.allow_stdout_as_file is False
 
 
 # ============================================================================

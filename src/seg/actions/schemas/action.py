@@ -10,10 +10,22 @@ from .dsl import ArgSpec, CommandElement, FlagSpec, OutputSpec
 
 
 class ActionSpecInput(BaseModel):
-    """Raw action definition as declared in the DSL."""
+    """Raw action definition as declared in the DSL.
+
+    Attributes:
+        description: Long description for the action.
+        summary: Optional short summary.
+        allow_stdout_as_file: Whether runtime stdout may be materialized as a
+            managed file.
+        args: Optional mapping of argument definitions.
+        flags: Optional mapping of flag definitions.
+        outputs: Optional mapping of output definitions.
+        command: Ordered command template elements.
+    """
 
     description: str
     summary: Optional[str] = None
+    allow_stdout_as_file: bool = True
 
     args: Optional[Dict[str, ArgSpec]] = None
     flags: Optional[Dict[str, FlagSpec]] = None
