@@ -137,7 +137,7 @@ Route integration coverage includes:
 
 - `GET /v1/actions` discovery, filtering, and grouped response behavior
 - `GET /v1/actions/{action_id}` public contract retrieval and unknown-action handling
-- `POST /v1/actions/{action_id}` request validation, execution success, output encoding, declared outputs, and stable error mapping
+- `POST /v1/actions/{action_id}` request validation, execution success, output encoding, declared command outputs, `stdout_as_file` behavior, and stable error mapping
 - `/v1/files` upload, metadata retrieval, listing, content download, and delete behavior
 - `/health` success payload validation
 - `/metrics` Prometheus text format validation

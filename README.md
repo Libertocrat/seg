@@ -174,7 +174,7 @@ Several critical vulnerabilities discovered in workflow automation platforms bet
 - Runtime command rendering with typed params, flags, defaults, and output declarations
 - Authenticated action discovery and execution through `/v1/actions`
 - API-based file management through `/v1/files`
-- SEG-managed file outputs for actions that declare file results
+- SEG-managed file outputs for declared command outputs and optional sanitized stdout materialization via `stdout_as_file`
 - Defense-in-depth middleware for auth, request integrity, rate limiting, timeouts, request IDs, and observability
 - Runtime-aware OpenAPI generation with per-action examples and public contracts
 - Rootless container deployment model
@@ -358,7 +358,7 @@ SEG exposes a purposely small HTTP surface.
 
 - `GET /v1/actions` lists available actions grouped by module, with optional `q` and `tag` filters
 - `GET /v1/actions/{action_id}` returns the public contract for one DSL-defined action
-- `POST /v1/actions/{action_id}` executes one action with a `params` payload
+- `POST /v1/actions/{action_id}` executes one action with a `params` payload and optional request-level execution options such as `stdout_as_file`
 
 ### File endpoints
 
