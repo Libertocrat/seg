@@ -119,7 +119,7 @@ class Settings(BaseSettings):
         seg_rate_limit_rps: Rate limit in requests-per-second.
         seg_log_level: Logging verbosity.
         seg_app_version: Application semantic version (x.y.z).
-        seg_enable_docs: Enable OpenAPI docs endpoints.
+        seg_enable_docs: Enable OpenAPI docs endpoints. Defaults to enabled.
         seg_enable_security_headers: Enable baseline response security headers.
     """
 
@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     seg_rate_limit_rps: int = Field(10)
     seg_log_level: str = Field("INFO")
     seg_app_version: str = Field("0.1.0")
-    seg_enable_docs: bool = Field(False)
+    seg_enable_docs: bool = Field(True)
     seg_enable_security_headers: bool = Field(True)
     seg_blocked_binaries_extra: str | None = Field(None)
 

@@ -28,6 +28,8 @@ services:
     env_file: .env
     secrets:
       - seg_api_token
+    ports:
+      - "${SEG_HOST_BIND_ADDRESS:-127.0.0.1}:${SEG_HOST_PORT:-8080}:${SEG_PORT:-8080}"
     volumes:
       - seg_data:${SEG_ROOT_DIR}
     depends_on:
