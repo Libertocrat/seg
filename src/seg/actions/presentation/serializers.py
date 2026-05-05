@@ -82,6 +82,7 @@ def to_action_public_spec(spec: ActionSpec) -> ActionPublicSpec:
         action=spec.action,
         summary=spec.summary,
         description=spec.description,
+        allow_stdout_as_file=spec.allow_stdout_as_file,
         args=args,
         flags=flags,
         outputs=outputs,

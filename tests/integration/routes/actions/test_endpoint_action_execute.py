@@ -422,11 +422,7 @@ actions:
 
     stdout_to_output:
         description: "Create stdout-derived file output"
-        outputs:
-            stdout_file:
-                type: file
-                source: stdout
-                description: "File materialized from stdout bytes"
+        allow_stdout_as_file: true
         command:
             - binary: echo
             - "HELLO_STDOUT"
@@ -444,19 +440,23 @@ actions:
 
     copy_with_stdout_output:
         description: "Emit command and stdout outputs together"
+        allow_stdout_as_file: true
         outputs:
             cmd_out_file:
                 type: file
                 source: command
                 description: "Primary command output file"
-            stdout_file:
-                type: file
-                source: stdout
-                description: "Secondary stdout-derived output file"
         command:
             - binary: echo
             - "MULTI_OUTPUT"
             - output: cmd_out_file
+
+    stdout_option_blocked:
+        description: "Action that disallows stdout_as_file"
+        allow_stdout_as_file: false
+        command:
+            - binary: echo
+            - "NO_STDOUT_FILE"
 """.strip(),
         encoding="utf-8",
     )
@@ -543,9 +543,41 @@ def test_execute__returns_file_stdout_output(
     settings,
 ):
     """
-    GIVEN action with file+stdout output
-    WHEN the endpoint is called
+    GIVEN an action that allows stdout_as_file
+    WHEN the endpoint is called with stdout_as_file enabled
     THEN response contains stdout-derived output metadata
+    """
+
+    client.app.state.action_registry = _build_outputs_registry(
+        specs_root=tmp_path,
+        monkeypatch=monkeypatch,
+        settings=settings,
+    )
+
+    response = client.post(
+        "/v1/actions/outputs_runtime.stdout_to_output",
+        headers=auth_headers,
+        json={"params": {}, "stdout_as_file": True},
+    )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["data"]["outputs"] is not None
+    assert body["data"]["outputs"]["stdout_file"] is not None
+
+
+def test_execute__omits_stdout_file_when_not_requested(
+    client,
+    auth_headers,
+    tmp_path,
+    monkeypatch,
+    settings,
+):
+    """
+    GIVEN an action that allows stdout file materialization
+    WHEN the endpoint is called without stdout_as_file
+    THEN no stdout_file output is returned
     """
 
     client.app.state.action_registry = _build_outputs_registry(
@@ -563,8 +595,7 @@ def test_execute__returns_file_stdout_output(
     body = response.json()
 
     assert response.status_code == 200
-    assert body["data"]["outputs"] is not None
-    assert body["data"]["outputs"]["stdout_file"] is not None
+    assert body["data"]["outputs"] is None
 
 
 def test_execute__stdout_file_contains_stdout(
@@ -589,7 +620,7 @@ def test_execute__stdout_file_contains_stdout(
     response = client.post(
         "/v1/actions/outputs_runtime.stdout_to_output",
         headers=auth_headers,
-        json={"params": {}},
+        json={"params": {}, "stdout_as_file": True},
     )
     body = response.json()
     output_id = body["data"]["outputs"]["stdout_file"]["id"]
@@ -691,7 +722,7 @@ def test_execute__multiple_outputs_are_returned(
     response = client.post(
         "/v1/actions/outputs_runtime.copy_with_stdout_output",
         headers=auth_headers,
-        json={"params": {}},
+        json={"params": {}, "stdout_as_file": True},
     )
 
     body = response.json()
@@ -725,10 +756,53 @@ def test_execute__output_order_is_preserved(
     response = client.post(
         "/v1/actions/outputs_runtime.copy_with_stdout_output",
         headers=auth_headers,
-        json={"params": {}},
+        json={"params": {}, "stdout_as_file": True},
     )
 
     body = response.json()
 
     assert response.status_code == 200
     assert list(body["data"]["outputs"].keys()) == ["cmd_out_file", "stdout_file"]
+
+
+def test_execute_action_rejects_stdout_as_file_when_action_disallows_it(
+    client,
+    auth_headers,
+    tmp_path,
+    monkeypatch,
+    settings,
+):
+    """
+    GIVEN an action with allow_stdout_as_file disabled
+    WHEN the client requests stdout_as_file
+    THEN the handler returns INVALID_PARAMS without executing the action
+    """
+
+    client.app.state.action_registry = _build_outputs_registry(
+        specs_root=tmp_path,
+        monkeypatch=monkeypatch,
+        settings=settings,
+    )
+
+    async def _unexpected_dispatch(*_args, **_kwargs):
+        """Fail test if execution dispatch is reached unexpectedly."""
+
+        raise AssertionError("dispatch_action should not be called")
+
+    monkeypatch.setattr(
+        "seg.routes.actions.handlers.execute_action.dispatch_action",
+        _unexpected_dispatch,
+    )
+
+    response = client.post(
+        "/v1/actions/outputs_runtime.stdout_option_blocked",
+        headers=auth_headers,
+        json={"params": {}, "stdout_as_file": True},
+    )
+
+    body = response.json()
+
+    assert response.status_code == 400
+    assert body["success"] is False
+    assert body["error"]["code"] == "INVALID_PARAMS"
+    assert body["error"]["details"]["reason"] == "Action does not allow stdout_as_file."

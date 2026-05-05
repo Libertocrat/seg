@@ -39,6 +39,9 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         app: ASGI application to wrap.
         timeout_ms: Optional explicit timeout override in milliseconds.
             When omitted, the value is resolved from `app.state.settings`.
+
+    Attributes:
+        _MIN_TIMEOUT_MS: Minimum accepted timeout value in milliseconds.
     """
 
     _MIN_TIMEOUT_MS = 100

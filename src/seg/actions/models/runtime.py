@@ -8,7 +8,15 @@ from uuid import UUID
 
 @dataclass(frozen=True, slots=True)
 class ActionExecutionResult:
-    """Execution result returned by the SEG runtime executor."""
+    """Execution result returned by the SEG runtime executor.
+
+    Attributes:
+        returncode: Process return code.
+        stdout: Raw stdout bytes.
+        stderr: Raw stderr bytes.
+        exec_time: Total execution time in seconds.
+        pid: Process identifier when available.
+    """
 
     returncode: int
     stdout: bytes
@@ -19,7 +27,17 @@ class ActionExecutionResult:
 
 @dataclass(frozen=True, slots=True)
 class ActionExecutionOutput:
-    """Sanitized execution result safe for external exposure."""
+    """Sanitized execution result safe for external exposure.
+
+    Attributes:
+        returncode: Process return code.
+        stdout: Sanitized stdout bytes.
+        stderr: Sanitized stderr bytes.
+        exec_time: Total execution time in seconds.
+        pid: Process identifier when available.
+        truncated: Whether stdout or stderr was truncated.
+        redacted: Whether output redaction was applied.
+    """
 
     returncode: int
     stdout: bytes

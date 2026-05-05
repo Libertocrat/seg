@@ -144,6 +144,14 @@ class ArgDef:
 
     This avoids over-engineering the runtime model with many specialized
     subclasses while still preserving strong typing and clear semantics.
+
+    Attributes:
+        type: Logical runtime parameter type.
+        items: Item type when `type` is `list`.
+        required: Whether the argument is required.
+        default: Default value for optional arguments.
+        constraints: Optional runtime constraints.
+        description: Human-readable argument description.
     """
 
     type: ParamType
@@ -157,7 +165,13 @@ class ArgDef:
 
 @dataclass(frozen=True, slots=True)
 class FlagDef:
-    """Typed internal definition of an action flag."""
+    """Typed internal definition of an action flag.
+
+    Attributes:
+        value: Literal flag token injected into argv when enabled.
+        default: Default boolean state.
+        description: Human-readable flag description.
+    """
 
     value: str
     default: bool
@@ -166,7 +180,13 @@ class FlagDef:
 
 @dataclass(frozen=True, slots=True)
 class OutputDef:
-    """Typed internal definition of an action output."""
+    """Typed internal definition of an action output.
+
+    Attributes:
+        type: Logical output type.
+        source: Runtime source used to materialize output data.
+        description: Human-readable output description.
+    """
 
     type: OutputType
     source: OutputSource
@@ -190,6 +210,9 @@ class ActionSpec:
         arg_defs: Runtime argument definitions keyed by arg name.
         flag_defs: Runtime flag definitions keyed by flag name.
         defaults: Flattened runtime defaults for args and flags.
+        outputs: Runtime output definitions keyed by output name.
+        allow_stdout_as_file: Whether this action allows sanitized stdout to be
+            stored as a managed file.
         authors: Optional module authors metadata.
         tags: Optional normalized module tags.
         summary: Optional short action summary.
@@ -214,6 +237,7 @@ class ActionSpec:
     flag_defs: dict[str, FlagDef]
     defaults: dict[str, Any]
     outputs: dict[str, OutputDef] = field(default_factory=dict)
+    allow_stdout_as_file: bool = True
 
     authors: tuple[str, ...] | None = None
     tags: tuple[str, ...] = ()
@@ -268,6 +292,7 @@ class ActionSpec:
             "arg_defs": self.arg_defs,
             "flag_defs": self.flag_defs,
             "outputs": self.outputs,
+            "allow_stdout_as_file": self.allow_stdout_as_file,
             "defaults": self.defaults,
             "authors": self.authors,
             "tags": self.tags,

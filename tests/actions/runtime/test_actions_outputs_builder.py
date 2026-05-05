@@ -549,25 +549,21 @@ def test_outputs_builder__cleanup_is_not_duplicated(monkeypatch):
 
 
 # ============================================================================
-# FILE + STDOUT
+# STDOUT AS FILE OPTION
 # ============================================================================
 
 
-def test_outputs_builder__file_stdout_creates_file(tmp_path, monkeypatch):
+def test_build_outputs_omits_stdout_file_when_not_requested(tmp_path, monkeypatch):
     """
-    GIVEN stdout output
-    WHEN build_outputs runs
-    THEN file is created
+    GIVEN an action that allows stdout file materialization
+    WHEN outputs are built without stdout_as_file
+    THEN no stdout_file output is returned
     """
 
     cfg = _make_settings(tmp_path)
     _patch_storage_to_settings(monkeypatch, cfg)
 
-    spec = _make_spec(
-        outputs={
-            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
-        }
-    )
+    spec = _make_spec(outputs={})
     rendered = RenderedAction(argv=["echo"], output_files={})
 
     result = build_outputs(
@@ -577,94 +573,85 @@ def test_outputs_builder__file_stdout_creates_file(tmp_path, monkeypatch):
         _make_sanitized_output(stdout=b"HELLO\n"),
     )
 
-    metadata = result["stdout_file"]
-    assert metadata is not None
-    assert get_blob_path(metadata.id, cfg).exists()
+    assert result == {}
 
 
-def test_outputs_builder__file_stdout_uses_stdout_bytes(tmp_path, monkeypatch):
+def test_build_outputs_creates_stdout_file_when_requested(tmp_path, monkeypatch):
     """
-    GIVEN sanitized stdout
-    WHEN build_outputs runs
-    THEN blob content equals stdout
+    GIVEN a successful action execution with sanitized stdout
+    WHEN outputs are built with stdout_as_file enabled
+    THEN sanitized stdout is stored as a managed text file output
     """
 
     cfg = _make_settings(tmp_path)
     _patch_storage_to_settings(monkeypatch, cfg)
 
     stdout_bytes = b"SEG_STDOUT_BYTES\n"
-    spec = _make_spec(
-        outputs={
-            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
-        }
-    )
-
     result = build_outputs(
-        spec,
+        _make_spec(outputs={}),
         RenderedAction(argv=["echo"], output_files={}),
         _make_execution_result(returncode=0),
         _make_sanitized_output(stdout=stdout_bytes),
+        stdout_as_file=True,
     )
 
     metadata = result["stdout_file"]
     assert metadata is not None
+    assert metadata.status == "ready"
+    assert metadata.extension == ".txt"
+    assert metadata.mime_type == "text/plain"
     assert get_blob_path(metadata.id, cfg).read_bytes() == stdout_bytes
 
 
-def test_outputs_builder__file_stdout_sets_ready_status(tmp_path, monkeypatch):
+def test_build_outputs_creates_empty_stdout_file_for_empty_stdout(
+    tmp_path,
+    monkeypatch,
+):
     """
-    GIVEN stdout output
-    WHEN build_outputs runs
-    THEN metadata status is "ready"
-    """
-
-    cfg = _make_settings(tmp_path)
-    _patch_storage_to_settings(monkeypatch, cfg)
-
-    spec = _make_spec(
-        outputs={
-            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
-        }
-    )
-
-    result = build_outputs(
-        spec,
-        RenderedAction(argv=["echo"], output_files={}),
-        _make_execution_result(returncode=0),
-        _make_sanitized_output(stdout=b"x"),
-    )
-
-    assert result["stdout_file"] is not None
-    assert result["stdout_file"].status == "ready"
-
-
-def test_outputs_builder__file_stdout_sets_text_metadata(tmp_path, monkeypatch):
-    """
-    GIVEN stdout output
-    WHEN build_outputs runs
-    THEN metadata uses text extension and mime type
+    GIVEN a successful action execution with empty sanitized stdout
+    WHEN outputs are built with stdout_as_file enabled
+    THEN an empty managed text file is created
     """
 
     cfg = _make_settings(tmp_path)
     _patch_storage_to_settings(monkeypatch, cfg)
 
-    spec = _make_spec(
-        outputs={
-            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT)
-        }
-    )
-
     result = build_outputs(
-        spec,
+        _make_spec(outputs={}),
         RenderedAction(argv=["echo"], output_files={}),
         _make_execution_result(returncode=0),
-        _make_sanitized_output(stdout=b"x"),
+        _make_sanitized_output(stdout=b""),
+        stdout_as_file=True,
     )
 
     metadata = result["stdout_file"]
     assert metadata is not None
-    assert metadata.extension == ".txt"
-    assert metadata.mime_type == "text/plain"
+    assert metadata.size_bytes == 0
+    assert metadata.sha256 == EMPTY_SHA256
+
+
+def test_build_outputs_returns_null_stdout_file_on_failed_command(
+    tmp_path,
+    monkeypatch,
+):
+    """
+    GIVEN a failed action execution
+    WHEN outputs are built with stdout_as_file enabled
+    THEN stdout_file is returned as null
+    """
+
+    cfg = _make_settings(tmp_path)
+    _patch_storage_to_settings(monkeypatch, cfg)
+
+    result = build_outputs(
+        _make_spec(outputs={}),
+        RenderedAction(argv=["echo"], output_files={}),
+        _make_execution_result(returncode=1),
+        _make_sanitized_output(stdout=b"HELLO\n"),
+        stdout_as_file=True,
+    )
+
+    assert result == {"stdout_file": None}
 
 
 # ============================================================================
@@ -690,7 +677,6 @@ def test_outputs_builder__preserves_output_order(tmp_path, monkeypatch):
     spec = _make_spec(
         outputs={
             "cmd_out": OutputDef(type=OutputType.FILE, source=OutputSource.COMMAND),
-            "stdout_file": OutputDef(type=OutputType.FILE, source=OutputSource.STDOUT),
         }
     )
     rendered = RenderedAction(argv=["echo"], output_files={"cmd_out": placeholder.id})
@@ -700,6 +686,7 @@ def test_outputs_builder__preserves_output_order(tmp_path, monkeypatch):
         rendered,
         _make_execution_result(returncode=0),
         _make_sanitized_output(stdout=b"x"),
+        stdout_as_file=True,
     )
 
     assert list(result.keys()) == ["cmd_out", "stdout_file"]

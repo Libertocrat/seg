@@ -409,6 +409,35 @@ def test_validate_modules_rejects_missing_file_command_output_reference(
         validate_modules([module])
 
 
+def test_validate_modules_rejects_reserved_output_name(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN a DSL action declaring an output named stdout_file
+    WHEN modules are semantically validated
+    THEN validation fails because stdout_file is a reserved output name
+    """
+
+    action = make_action_payload(
+        outputs={
+            "stdout_file": {
+                "type": "file",
+                "source": "command",
+                "description": "Reserved output name",
+            }
+        },
+        command=[{"binary": "echo"}, {"output": "stdout_file"}],
+    )
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(
+        ActionSpecsParseError, match="stdout_file.*reserved|reserved.*stdout_file"
+    ):
+        validate_modules([module])
+
+
 def test_validate_modules_rejects_stderr_output_source(
     make_module_payload,
     make_action_payload,
@@ -480,8 +509,9 @@ def test_validator__rejects_unknown_output_source(make_valid_module):
     [
         ("file", "stderr"),
         ("data", "command"),
+        ("data", "stdout"),
     ],
-    ids=["file_stderr", "data_command"],
+    ids=["file_stderr", "data_command", "data_stdout"],
 )
 def test_validator__rejects_invalid_type_source_combination(
     make_valid_module,
@@ -575,30 +605,30 @@ def test_validator__file_command_rejects_multiple_references(
         validate_modules([module])
 
 
-def test_validator__file_stdout_rejects_reference(
+def test_validate_modules_rejects_file_stdout_output_combination(
     make_module_payload,
     make_action_payload,
     make_module_spec,
 ):
     """
-    GIVEN an action with file+stdout output declaration
-    WHEN command references that output
-    THEN ActionSpecsParseError is raised
+    GIVEN a DSL action declaring a file output sourced from stdout
+    WHEN modules are semantically validated
+    THEN validation fails because file+stdout outputs are no longer supported
     """
 
     action = make_action_payload(
         outputs={
-            "stdout_file": {
+            "stdout_text": {
                 "type": "file",
                 "source": "stdout",
                 "description": "Stdout materialized file",
             }
         },
-        command=[{"binary": "echo"}, {"output": "stdout_file"}],
+        command=[{"binary": "echo"}, "ok"],
     )
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
-    with pytest.raises(ActionSpecsParseError, match="must not be referenced"):
+    with pytest.raises(ActionSpecsParseError, match="unsupported type/source"):
         validate_modules([module])
 
 

@@ -59,6 +59,8 @@ class ActionPublicSpec:
         action_id: Fully qualified runtime action name.
         summary: Optional short summary.
         description: Optional long description.
+        allow_stdout_as_file: Whether this action allows sanitized stdout to be
+            stored as a managed file.
         args: Serialized argument definitions.
         flags: Serialized flag definitions.
         outputs: Serialized output definitions.
@@ -72,6 +74,7 @@ class ActionPublicSpec:
     action_id: str
     summary: str | None
     description: str | None
+    allow_stdout_as_file: bool
 
     args: list[dict[str, Any]]
     flags: list[dict[str, Any]]

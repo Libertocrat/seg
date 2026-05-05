@@ -152,6 +152,7 @@ def _build_action(
             flag_defs=flag_defs,
             defaults=defaults,
             outputs=output_defs,
+            allow_stdout_as_file=action.allow_stdout_as_file,
             authors=_parse_authors(module.authors),
             tags=_parse_tags(module.tags),
             summary=action.summary or action.description,

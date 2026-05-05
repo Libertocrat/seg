@@ -21,37 +21,16 @@ class SegError(Exception):
     - Safe to serialize into API responses via ResponseEnvelope
 
     Attributes:
-        error:
-            The ErrorDef defining the canonical error code, HTTP status,
-            and default message.
-
-        code:
-            Stable SEG error code derived from ErrorDef.
-
-        http_status:
-            HTTP status code associated with this error.
-
-        message:
-            Final, normalized message exposed to the client.
-            Guaranteed to be a non-empty string.
-
-        details:
-            Optional structured metadata for the error.
-            Must be safe for client exposure.
-
-    Usage:
-        Raised in handler layer to represent expected failures.
-
-        Example:
-            raise SegError(
-                errors.FILE_NOT_FOUND,
-                details={"file_id": file_id}
-            )
+        error: Error definition used as canonical source for code and status.
+        message: Final normalized message exposed to the client.
+        details: Optional structured metadata safe for client exposure.
 
     Notes:
         - Helpers must NOT raise SegError (only standard exceptions).
         - Routes are responsible for mapping this exception to HTTP responses.
         - `details` must never contain sensitive or internal-only information.
+                - `code` and `http_status` are derived runtime attributes copied from
+                    `error` during initialization.
     """
 
     error: ErrorDef
@@ -83,7 +62,14 @@ class SegError(Exception):
 
 @dataclass(frozen=True, slots=True)
 class ErrorDef:
-    """Definition of a stable SEG error contract."""
+    """Definition of a stable SEG error contract.
+
+    Attributes:
+        code: Stable machine-readable error code.
+        http_status: Canonical HTTP status for this error.
+        default_message: Default client-facing message.
+        category: Error family label used for grouping.
+    """
 
     code: str
     http_status: int

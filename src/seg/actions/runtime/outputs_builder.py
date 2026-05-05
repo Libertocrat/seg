@@ -26,6 +26,8 @@ def build_outputs(
     rendered: RenderedAction,
     execution_result: ActionExecutionResult,
     sanitized_output: ActionExecutionOutput,
+    *,
+    stdout_as_file: bool = False,
     settings: Settings | None = None,
 ) -> dict[str, Any]:
     """Build final action outputs mapping from runtime execution state.
@@ -35,6 +37,8 @@ def build_outputs(
             rendered: Rendered action state with output placeholder references.
             execution_result: Raw execution result.
             sanitized_output: Sanitized execution output.
+            stdout_as_file: Whether sanitized stdout should be materialized as
+                `outputs.stdout_file` when allowed by action policy.
 
     Returns:
             Deterministic mapping of output name to `FileMetadata` or `None`.
@@ -43,7 +47,7 @@ def build_outputs(
             ActionRuntimeOutputError: If output materialization fails unexpectedly.
     """
 
-    if not spec.outputs:
+    if not spec.outputs and not stdout_as_file:
         return {}
 
     outputs: dict[str, FileMetadata | None] = {}
@@ -57,6 +61,8 @@ def build_outputs(
                 if file_id is not None:
                     cleanup_output_file(file_id, settings=settings)
             outputs[output_name] = None
+        if stdout_as_file:
+            outputs["stdout_file"] = None
         return outputs
 
     try:
@@ -79,15 +85,14 @@ def build_outputs(
                 )
                 continue
 
-            if output_def.source == OutputSource.STDOUT:
-                outputs[output_name] = create_ready_file_from_bytes(
-                    original_filename=f"{spec.action}.{output_name}.txt",
-                    content=sanitized_output.stdout,
-                    extension=".txt",
-                    mime_type="text/plain",
-                    settings=settings,
-                )
-                continue
+        if stdout_as_file:
+            outputs["stdout_file"] = create_ready_file_from_bytes(
+                original_filename=f"{spec.action}.stdout.txt",
+                content=sanitized_output.stdout,
+                extension=".txt",
+                mime_type="text/plain",
+                settings=settings,
+            )
 
     except ActionRuntimeOutputError:
         _cleanup_known_outputs(outputs, rendered, settings=settings)

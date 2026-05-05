@@ -30,6 +30,7 @@ def make_action_spec_input():
         *,
         description: str = "test action",
         summary: str | None = None,
+        allow_stdout_as_file: bool | None = None,
         args: dict[str, Any] | None = None,
         flags: dict[str, Any] | None = None,
         outputs: dict[str, Any] | None = None,
@@ -40,6 +41,7 @@ def make_action_spec_input():
         Args:
             description: Action description text.
             summary: Optional short action summary.
+            allow_stdout_as_file: Optional explicit stdout materialization policy.
             args: Optional argument definitions payload.
             flags: Optional flag definitions payload.
             outputs: Optional outputs definitions payload.
@@ -49,7 +51,7 @@ def make_action_spec_input():
             Action payload dictionary compatible with ActionSpecInput.
         """
 
-        return {
+        payload: dict[str, Any] = {
             "description": description,
             "summary": summary,
             "args": args,
@@ -57,6 +59,11 @@ def make_action_spec_input():
             "outputs": outputs,
             "command": [{"binary": "echo"}] if command is None else command,
         }
+
+        if allow_stdout_as_file is not None:
+            payload["allow_stdout_as_file"] = allow_stdout_as_file
+
+        return payload
 
     return _make
 

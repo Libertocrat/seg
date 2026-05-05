@@ -26,6 +26,7 @@ from seg.actions.engine_config import (
     CONST_TEMPLATE_ALLOWED_ARG_TYPES,
     IDENTIFIER_NAME_PATTERN,
     MIME_LIKE_PATTERN,
+    RESERVED_OUTPUT_NAMES,
 )
 from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.models.core import ParamType
@@ -392,6 +393,13 @@ def _validate_output_names(
         )
 
     for output_name in outputs.keys():
+        if output_name in RESERVED_OUTPUT_NAMES:
+            _raise_action_error(
+                module_name,
+                action_name,
+                f"output name '{output_name}' is reserved",
+            )
+
         _validate_identifier(
             module_name=module_name,
             identifier_kind="output",
@@ -440,8 +448,6 @@ def _is_supported_output_combination(output_spec: OutputSpec) -> bool:
 
     valid_combinations = {
         ("file", "command"),
-        ("file", "stdout"),
-        ("data", "stdout"),
     }
     return (output_spec.type, output_spec.source) in valid_combinations
 
@@ -762,9 +768,6 @@ def _validate_unused_definitions(
     used_flags = {
         element.flag for element in action.command if isinstance(element, FlagCmd)
     }
-    used_outputs = {
-        element.output for element in action.command if isinstance(element, OutputCmd)
-    }
     output_reference_counts: dict[str, int] = {}
     for element in action.command:
         if isinstance(element, OutputCmd):
@@ -804,17 +807,6 @@ def _validate_unused_definitions(
                     action_name,
                     f"output '{output_name}' with type 'file' and source 'command' "
                     "must be referenced exactly once in command",
-                )
-
-        if (output_spec.type == "file" and output_spec.source == "stdout") or (
-            output_spec.type == "data" and output_spec.source == "stdout"
-        ):
-            if output_name in used_outputs:
-                _raise_action_error(
-                    module_name,
-                    action_name,
-                    f"output '{output_name}' with source 'stdout' must not be "
-                    "referenced in command",
                 )
 
 

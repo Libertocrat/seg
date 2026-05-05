@@ -174,9 +174,11 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     sha256_description = sha256_example["description"]
     sha256_params = sha256_example["value"]["params"]
     assert "action" not in sha256_example["value"]
+    assert sha256_example["value"]["stdout_as_file"] is False
 
     assert "#### Args" in sha256_description
     assert "#### Flags" in sha256_description
+    assert "#### Request Options" in sha256_description
     assert "#### Outputs" not in sha256_description
     assert "`file` (`file_id`)" in sha256_description
     assert "required" in sha256_description
@@ -190,6 +192,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     token_hex_description = token_hex_example["description"]
     token_hex_params = token_hex_example["value"]["params"]
     assert "action" not in token_hex_example["value"]
+    assert token_hex_example["value"]["stdout_as_file"] is False
 
     assert "`bytes` (`int`)" in token_hex_description
     assert "default: `16`" in token_hex_description
@@ -199,6 +202,7 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
     uuid_description = uuid_example["description"]
     uuid_params = uuid_example["value"]["params"]
     assert "action" not in uuid_example["value"]
+    assert uuid_example["value"]["stdout_as_file"] is False
 
     assert "- _No args_" in uuid_description
     assert "- _No flags_" in uuid_description
@@ -216,7 +220,7 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
     GIVEN docs are enabled
     WHEN generating the OpenAPI schema
     THEN response examples for actions with outputs include `data.outputs`
-    AND actions without outputs do not advertise synthetic outputs.
+    AND actions allowing stdout_as_file document reserved `stdout_file` output.
 
     Args:
         minimal_safe_env: Fixture that provides required SEG environment vars.
@@ -256,7 +260,7 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
 
     stdout_example = examples["outputs_runtime.stdout_to_output"]["value"]["data"]
     stdout_file = stdout_example["outputs"]["stdout_file"]
-    assert stdout_file["original_filename"] == "action.stdout_file.txt"
+    assert stdout_file["original_filename"] == "stdout_to_output.stdout.txt"
     assert stdout_file["mime_type"] == "text/plain"
 
 
