@@ -111,7 +111,7 @@ Current unit coverage includes:
 - `tests/actions/runtime/test_actions_renderer.py` for runtime argument resolution, const template interpolation, file input resolution, and output placeholder creation
 - `tests/actions/runtime/test_actions_executor.py` for binary policy checks, subprocess execution, and timeout behavior
 - `tests/actions/runtime/test_actions_outputs_builder.py` for output payload shaping and file finalization
-- `tests/actions/runtime/test_actions_sanitizer.py` for stdout and stderr truncation, redaction, and normalization
+- `tests/actions/runtime/test_actions_sanitizer.py` for stdout and stderr truncation, sensitive-prefix path redaction, and normalization
 - `tests/core/test_settings.py` for environment-backed settings, defaults, docs toggles, output byte limits, blocked binaries, and token loading rules
 - `tests/core/security/*` for path validation, secure file access helpers, HTTP validation helpers, and security headers
 

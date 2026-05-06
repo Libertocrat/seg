@@ -43,7 +43,7 @@ class ExecuteActionData(BaseModel):
         exec_time: Total execution time in seconds.
         pid: Process identifier when available.
         truncated: Whether stdout or stderr was truncated.
-        redacted: Whether output was redacted.
+        redacted: Whether sensitive path redaction was applied.
         outputs: Materialized file outputs, if any.
     """
 

@@ -36,7 +36,7 @@ class ActionExecutionOutput:
         exec_time: Total execution time in seconds.
         pid: Process identifier when available.
         truncated: Whether stdout or stderr was truncated.
-        redacted: Whether output redaction was applied.
+        redacted: Whether sensitive path redaction was applied.
     """
 
     returncode: int

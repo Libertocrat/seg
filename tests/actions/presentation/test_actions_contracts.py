@@ -496,6 +496,7 @@ def test_build_response_contract_output_fields(sample_action_spec) -> None:
     stdout_file = outputs["stdout_file"]
 
     assert set(cmd_file.keys()) == {"type", "source", "description", "nullable"}
+    assert cmd_file["type"] == "FileMetadata"
     assert cmd_file["nullable"] is True
 
     assert set(stdout_file.keys()) == {
@@ -505,6 +506,7 @@ def test_build_response_contract_output_fields(sample_action_spec) -> None:
         "nullable",
         "reserved",
     }
+    assert stdout_file["type"] == "FileMetadata"
     assert stdout_file["nullable"] is True
     assert stdout_file["reserved"] is True
 
@@ -556,7 +558,7 @@ def test_build_response_example_outputs_null(valid_registry) -> None:
     """
     GIVEN an action without outputs
     WHEN building response example
-    THEN outputs must be null
+    THEN outputs must be an empty mapping
     """
 
     spec = valid_registry.get("test_runtime.ping")
@@ -564,8 +566,7 @@ def test_build_response_example_outputs_null(valid_registry) -> None:
     result = build_response_example(spec)
 
     outputs = result["data"]["outputs"]
-    assert outputs is not None
-    assert set(outputs.keys()) == {"stdout_file"}
+    assert outputs == {}
 
 
 def test_build_response_example_outputs_present(sample_action_spec) -> None:
@@ -579,9 +580,10 @@ def test_build_response_example_outputs_present(sample_action_spec) -> None:
 
     outputs = result["data"]["outputs"]
     assert outputs is not None
+    assert set(outputs.keys()) == {"cmd_file"}
 
-    stdout_file = outputs["stdout_file"]
-    assert set(stdout_file.keys()) == {
+    cmd_file = outputs["cmd_file"]
+    assert set(cmd_file.keys()) == {
         "id",
         "original_filename",
         "stored_filename",
@@ -593,32 +595,6 @@ def test_build_response_example_outputs_present(sample_action_spec) -> None:
         "updated_at",
         "status",
     }
-
-
-def test_build_response_example_output_source_variants(sample_action_spec) -> None:
-    """
-    GIVEN outputs with different sources
-    WHEN building response example
-    THEN stdout and command outputs must produce different metadata patterns
-    """
-
-    result = build_response_example(sample_action_spec)
-
-    outputs = result["data"]["outputs"]
-    assert outputs is not None
-
-    stdout_file = outputs["stdout_file"]
-    cmd_file = outputs["cmd_file"]
-
-    assert stdout_file["original_filename"] == "outputs_dynamic_action.stdout.txt"
-    assert stdout_file["mime_type"] == "text/plain"
-    assert stdout_file["extension"] == ".txt"
-    assert stdout_file["size_bytes"] == 16
-
-    assert cmd_file["original_filename"] == "action.cmd_file.bin"
-    assert cmd_file["mime_type"] == "application/octet-stream"
-    assert cmd_file["extension"] == ".bin"
-    assert cmd_file["size_bytes"] == 1024
 
 
 # ============================================================================

@@ -220,7 +220,8 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
     GIVEN docs are enabled
     WHEN generating the OpenAPI schema
     THEN response examples for actions with outputs include `data.outputs`
-    AND actions allowing stdout_as_file document reserved `stdout_file` output.
+    AND actions allowing stdout_as_file document reserved `stdout_file` output
+    without forcing it into examples when `stdout_as_file` is false.
 
     Args:
         minimal_safe_env: Fixture that provides required SEG environment vars.
@@ -249,6 +250,7 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
     outputs_description = examples["outputs_runtime.copy_cmd_output"]["description"]
     assert "#### Outputs" in outputs_description
     assert "File produced by command output placeholder" in outputs_description
+    assert "`cmd_out_file` (`FileMetadata`)" in outputs_description
 
     outputs_example = examples["outputs_runtime.copy_cmd_output"]["value"]["data"]
     assert "outputs" in outputs_example
@@ -258,10 +260,11 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
     assert copied_file["mime_type"] == "application/octet-stream"
     assert copied_file["status"] == "ready"
 
+    stdout_description = examples["outputs_runtime.stdout_to_output"]["description"]
+    assert "`stdout_file` (`FileMetadata`)" in stdout_description
+
     stdout_example = examples["outputs_runtime.stdout_to_output"]["value"]["data"]
-    stdout_file = stdout_example["outputs"]["stdout_file"]
-    assert stdout_file["original_filename"] == "stdout_to_output.stdout.txt"
-    assert stdout_file["mime_type"] == "text/plain"
+    assert stdout_example["outputs"] == {}
 
 
 def test_openapi_helpers_support_list_arg_docs_and_examples():

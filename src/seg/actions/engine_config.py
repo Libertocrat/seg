@@ -9,6 +9,7 @@ These values are part of the system design and must remain deterministic.
 from __future__ import annotations
 
 import re
+import tempfile
 from pathlib import Path
 
 from seg.actions.models.core import ParamType
@@ -74,6 +75,46 @@ CONST_TEMPLATE_ALLOWED_ARG_TYPES: tuple[ParamType, ...] = (
 
 # Reserved output names used by runtime-generated outputs.
 RESERVED_OUTPUT_NAMES: tuple[str, ...] = ("stdout_file",)
+
+# ------------------------------------------------------------------
+# RUNTIME OUTPUT SANITIZATION CONSTANTS
+# ------------------------------------------------------------------
+
+# Maximum default stdout/stderr sizes before truncation.
+DEFAULT_MAX_STDOUT_BYTES = 64 * 1024
+DEFAULT_MAX_STDERR_BYTES = 64 * 1024
+
+# Marker appended when sanitized output is truncated.
+TRUNCATION_MARKER = b"\n[SEG OUTPUT TRUNCATED]\n"
+
+# Marker used when sensitive filesystem paths are redacted from output.
+PATH_REDACTION = "[REDACTED_PATH]"
+
+# Token characters that should prevent path matching when adjacent to `/`.
+# This avoids false positives inside compact tokens such as base64/base64url.
+PATH_BOUNDARY_CHARS = r"A-Za-z0-9+/=_-"
+
+# Static sensitive path prefixes that should be redacted from subprocess output.
+# The runtime SEG_ROOT_DIR value is added dynamically by the sanitizer layer.
+STATIC_SENSITIVE_PATH_PREFIXES: tuple[str, ...] = (
+    "/app",
+    "/etc/seg",
+    "/var/lib/seg",
+    "/run/secrets",
+    # The path below, resolves to /tmp or similar, to prevent DevSecOps pipeline errors
+    Path(tempfile.gettempdir()).as_posix(),
+    "/proc",
+    "/sys",
+    "/dev",
+    "/root",
+    "/home",
+)
+
+# ANSI escape sequence matcher used to strip terminal formatting from output.
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+# Unsafe control characters removed from subprocess output.
+UNSAFE_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 # ------------------------------------------------------------------
 # ERROR MASKING LABELS

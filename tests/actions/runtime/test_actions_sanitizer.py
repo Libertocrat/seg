@@ -57,6 +57,145 @@ def test_sanitize_output_normalizes_newlines():
     assert sanitize_output(b"a\r\nb\rc\n") == b"a\nb\nc\n"
 
 
+def test_sanitize_output_does_not_redact_base64_token_with_slashes():
+    """GIVEN a base64 token containing slash characters
+    WHEN sanitize_output is called
+    THEN the token is preserved and no path redaction marker is inserted
+    """
+
+    token = b"eUBIM0eZTc8nGfi9/is7sz52KDaEWn16R4xzcBqo5LFgL6x/" b"pZoVeSyu4GaWZ2c8="
+
+    out = sanitize_output(token)
+
+    assert out == token
+    assert PATH_REDACTION.encode("utf-8") not in out
+
+
+def test_sanitize_output_does_not_redact_base64_fragment_between_newlines():
+    """GIVEN a base64-like fragment that starts with slash between newlines
+    WHEN sanitize_output is called
+    THEN the fragment is preserved because it is not under a sensitive prefix
+    """
+
+    raw = b"abc\n/T0DUuphNjR8T/hiMuEQeaOxh5kv\nxyz\n"
+
+    out = sanitize_output(raw)
+
+    assert out == raw
+    assert PATH_REDACTION.encode("utf-8") not in out
+
+
+def test_transform_output_does_not_mark_base64_token_as_redacted():
+    """GIVEN stdout containing a base64 token with slash characters
+    WHEN transform_output is called
+    THEN redacted remains false and stdout is preserved
+    """
+
+    token = b"eUBIM0eZTc8nGfi9/is7sz52KDaEWn16R4xzcBqo5LFgL6x/" b"pZoVeSyu4GaWZ2c8=\n"
+    result = _make_result(stdout=token)
+
+    safe = transform_output(result, max_stdout=1024, max_stderr=1024)
+
+    assert safe.redacted is False
+    assert safe.stdout == token
+
+
+def test_transform_output_redacts_configured_seg_root_dir(settings):
+    """GIVEN stdout containing the configured SEG root directory
+    WHEN transform_output is called with runtime settings
+    THEN redacted is true and the configured path is replaced
+    """
+
+    custom_settings = settings.model_copy(update={"seg_root_dir": "/custom/seg/root"})
+    result = _make_result(stdout=b"blob=/custom/seg/root/blobs/file_123.bin\n")
+
+    safe = transform_output(
+        result,
+        max_stdout=1024,
+        max_stderr=1024,
+        settings=custom_settings,
+    )
+
+    assert safe.redacted is True
+    assert safe.stdout == b"blob=[REDACTED_PATH]\n"
+
+
+def test_sanitize_output_redacts_absolute_path_with_boundary():
+    """GIVEN a sensitive absolute path surrounded by non-token boundaries
+    WHEN sanitize_output is called
+    THEN the sensitive path is replaced with the path redaction marker
+    """
+
+    out = sanitize_output(b"created=/tmp/seg/out.txt\n")
+
+    assert out == b"created=[REDACTED_PATH]\n"
+
+
+def test_sanitize_output_redacts_absolute_path_without_extension():
+    """GIVEN a sensitive absolute path without a file extension
+    WHEN sanitize_output is called
+    THEN the sensitive path is still replaced with the path redaction marker
+    """
+
+    out = sanitize_output(b"secret path: /run/secrets/seg_api_token\n")
+
+    assert out == b"secret path: [REDACTED_PATH]\n"
+
+
+def test_sanitize_output_redacts_static_sensitive_path_prefixes():
+    """GIVEN output containing known static sensitive filesystem paths
+    WHEN sanitize_output is called
+    THEN those paths are replaced with the path redaction marker
+    """
+
+    raw = (
+        b"app=/app/seg/app.py\n"
+        b"spec=/etc/seg/actions.d/custom.yml\n"
+        b"secret=/run/secrets/seg_api_token\n"
+        b"tmp=/tmp/seg/out.txt\n"
+        b"proc=/proc/self/environ\n"
+    )
+
+    out = sanitize_output(raw)
+
+    assert b"/app/seg/app.py" not in out
+    assert b"/etc/seg/actions.d/custom.yml" not in out
+    assert b"/run/secrets/seg_api_token" not in out
+    assert b"/tmp/seg/out.txt" not in out
+    assert b"/proc/self/environ" not in out
+    assert out.count(PATH_REDACTION.encode("utf-8")) == 5
+
+
+def test_sanitize_output_does_not_redact_non_sensitive_absolute_paths():
+    """GIVEN output containing non-sensitive absolute paths
+    WHEN sanitize_output is called
+    THEN those paths are preserved because they are outside sensitive prefixes
+    """
+
+    raw = b"binary=/usr/bin/openssl\nlib=/lib/x86_64-linux-gnu/libc.so.6\n"
+
+    out = sanitize_output(raw)
+
+    assert out == raw
+    assert PATH_REDACTION.encode("utf-8") not in out
+
+
+def test_sanitize_output_redacts_configured_seg_root_dir(settings):
+    """GIVEN output containing the configured SEG root directory
+    WHEN sanitize_output is called with runtime settings
+    THEN the configured SEG root path is replaced with the redaction marker
+    """
+
+    custom_settings = settings.model_copy(update={"seg_root_dir": "/custom/seg/root"})
+
+    out = sanitize_output(
+        b"blob=/custom/seg/root/blobs/file_123.bin\n",
+        settings=custom_settings,
+    )
+
+    assert out == b"blob=[REDACTED_PATH]\n"
+
+
 def test_truncate_output_below_limit_keeps_data():
     """GIVEN output smaller than limit
     WHEN truncate_output is called
@@ -125,8 +264,8 @@ def test_postprocess_output_sets_truncated_flag_when_any_stream_is_truncated():
     assert safe.truncated is True
 
 
-def test_redacted_only_when_path_present():
-    """GIVEN output without paths but with normalization changes
+def test_redacted_only_when_no_sensitive_path_present():
+    """GIVEN output without sensitive paths but with normalization changes
     WHEN postprocessed
     THEN redacted is False
     """
@@ -138,8 +277,8 @@ def test_redacted_only_when_path_present():
     assert safe.redacted is False
 
 
-def test_redacted_when_path_present():
-    """GIVEN output with absolute path
+def test_redacted_when_sensitive_path_present():
+    """GIVEN output with a sensitive absolute path
     WHEN postprocessed
     THEN redacted is True
     """
@@ -170,7 +309,7 @@ def test_postprocess_output_processes_stdout_and_stderr_and_aggregates_flags():
     """
 
     result = _make_result(
-        stdout=b"/very/long/path/that/should/be/redacted\n" + (b"A" * 200),
+        stdout=b"/tmp/very/long/path/that/should/be/redacted\n" + (b"A" * 200),
         stderr=b"\x1b[31mERR\x1b[0m\x00",
     )
 

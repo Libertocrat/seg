@@ -203,6 +203,7 @@ async def execute_action_handler(
         result.execution,
         max_stdout=max_stdout,
         max_stderr=max_stderr,
+        settings=cfg,
     )
 
     outputs_payload = build_outputs(

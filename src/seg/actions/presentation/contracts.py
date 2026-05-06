@@ -134,13 +134,14 @@ def _build_file_metadata_example(
 
 
 def _build_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
-    """Build an outputs example payload for one action.
+    """Build an outputs example payload for declared action outputs.
 
     Args:
         spec: Runtime action specification.
 
     Returns:
-        Outputs example mapping or None if the action has no outputs.
+        Outputs example mapping for YAML-declared outputs, or None when the
+        action has no declared outputs.
     """
 
     if not spec.outputs and not spec.allow_stdout_as_file:
@@ -158,14 +159,6 @@ def _build_outputs_example(spec: ActionSpec) -> dict[str, Any] | None:
             mime_type="application/octet-stream",
             extension=".bin",
             size_bytes=1024,
-        )
-
-    if spec.allow_stdout_as_file:
-        outputs_example["stdout_file"] = _build_file_metadata_example(
-            original_filename=f"{spec.action}.stdout.txt",
-            mime_type="text/plain",
-            extension=".txt",
-            size_bytes=16,
         )
 
     return outputs_example
