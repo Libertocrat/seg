@@ -607,6 +607,7 @@ def _build_action_response_markdown(public_spec: ActionPublicSpec) -> str:
         for output in public_spec.outputs:
             output_name = str(output.get("name", ""))
             output_type = str(output.get("type", "unknown"))
+            output_type = "FileMetadata" if output_type == "file" else output_type
             output_description = str(output.get("description") or "")
             output_source = str(output.get("source") or "unknown")
             lines.append(

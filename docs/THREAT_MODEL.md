@@ -203,7 +203,7 @@ Authentication coverage is as follows:
 
 ### Action output mitigations
 
-- Stdout and stderr are transformed through the runtime sanitizer before they are returned, by redacting internal file paths.
+- Stdout and stderr are transformed through the runtime sanitizer before they are returned, by redacting sensitive filesystem paths under static internal prefixes and the runtime `SEG_ROOT_DIR`.
 - Configurable stdout and stderr size limits can truncate returned output.
 - Declared file outputs are handled through runtime placeholder and output-builder logic instead of trusting client-supplied destination paths.
 
