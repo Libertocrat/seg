@@ -29,8 +29,8 @@ class SegError(Exception):
         - Helpers must NOT raise SegError (only standard exceptions).
         - Routes are responsible for mapping this exception to HTTP responses.
         - `details` must never contain sensitive or internal-only information.
-                - `code` and `http_status` are derived runtime attributes copied from
-                    `error` during initialization.
+            - `code` and `http_status` are derived runtime attributes copied from
+                `error` during initialization.
     """
 
     error: ErrorDef

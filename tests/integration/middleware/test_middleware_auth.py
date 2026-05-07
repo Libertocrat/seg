@@ -17,6 +17,8 @@ import pytest
 
 from seg.core.errors import UNAUTHORIZED
 
+TEST_ACTION_ID = "test_runtime.ping"
+
 # ============================================================================
 # Exempt Endpoints
 # ============================================================================
@@ -82,6 +84,7 @@ def test_auth_is_ignored_for_exempt_endpoints(
 )
 def test_protected_endpoint_rejects_missing_or_invalid_auth(
     client,
+    valid_registry,
     headers,
 ):
     """
@@ -89,8 +92,10 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
     WHEN it is called without a token or with an invalid token
     THEN the request is rejected with HTTP 401
     """
+    client.app.state.action_registry = valid_registry
+
     response = client.post(
-        "/v1/actions/random_gen.uuid",
+        f"/v1/actions/{TEST_ACTION_ID}",
         json={},
         headers=headers,
     )
@@ -104,18 +109,21 @@ def test_protected_endpoint_rejects_missing_or_invalid_auth(
 def test_protected_endpoint_allows_valid_auth(
     client,
     auth_headers,
+    valid_registry,
 ):
     """
     GIVEN a protected endpoint
     WHEN it is called with a valid Authorization header
     THEN the request is allowed to proceed
     """
+    client.app.state.action_registry = valid_registry
+
     payload = {
         "params": {},
     }
 
     response = client.post(
-        "/v1/actions/random_gen.uuid",
+        f"/v1/actions/{TEST_ACTION_ID}",
         json=payload,
         headers=auth_headers,
     )
@@ -130,13 +138,16 @@ def test_protected_endpoint_allows_valid_auth(
 
 def test_unauthorized_response_uses_response_envelope_failure(
     client,
+    valid_registry,
 ):
     """
     GIVEN a protected endpoint
     WHEN authentication fails
     THEN the response body follows the ResponseEnvelope failure contract
     """
-    response = client.post("/v1/actions/random_gen.uuid", json={})
+    client.app.state.action_registry = valid_registry
+
+    response = client.post(f"/v1/actions/{TEST_ACTION_ID}", json={})
 
     assert response.status_code == 401
 
@@ -152,13 +163,16 @@ def test_unauthorized_response_uses_response_envelope_failure(
 
 def test_unauthorized_response_sets_www_authenticate_header(
     client,
+    valid_registry,
 ):
     """
     GIVEN a protected endpoint
     WHEN authentication fails
     THEN the WWW-Authenticate header is set to indicate Bearer authentication
     """
-    response = client.post("/v1/actions/random_gen.uuid", json={})
+    client.app.state.action_registry = valid_registry
+
+    response = client.post(f"/v1/actions/{TEST_ACTION_ID}", json={})
 
     assert response.status_code == 401
     assert response.headers.get("WWW-Authenticate") == "Bearer"

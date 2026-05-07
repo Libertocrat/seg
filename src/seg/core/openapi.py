@@ -576,13 +576,15 @@ def _build_action_request_markdown(public_spec: ActionPublicSpec) -> str:
     else:
         lines.append("- _No flags_")
 
-    lines.extend(["", "#### Request Options", ""])
-    lines.append(
-        "- `stdout_as_file` (`bool`): Store sanitized stdout as "
-        "`outputs.stdout_file` when enabled and allowed by the action; "
-        "default: `false`; allowed: "
-        f"`{str(public_spec.allow_stdout_as_file).lower()}`"
-    )
+    if public_spec.allow_stdout_as_file:
+        stdout_as_file_spec = public_spec.params_contract["stdout_as_file"]
+        lines.extend(["", "#### Request Options", ""])
+        lines.append(
+            "- `stdout_as_file` (`bool`): Store sanitized stdout as "
+            "`outputs.stdout_file` when enabled and allowed by the action; "
+            "default: "
+            f"`{str(stdout_as_file_spec.get("default", False)).lower()}`;"
+        )
 
     return "\n".join(lines)
 
@@ -668,7 +670,6 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
     if not post:
         return
 
-    # post["tags"] = ["Actions"]
     registry = getattr(app.state, "action_registry", None)
     if not isinstance(registry, ActionRegistry):
         return
@@ -701,13 +702,14 @@ def _patch_execute_contract(schema: dict[str, Any], app: FastAPI) -> None:
             public_spec.summary or public_spec.description or "Execute action"
         )
 
+        request_value: dict[str, Any] = {"params": public_spec.params_example}
+        if public_spec.allow_stdout_as_file:
+            request_value["stdout_as_file"] = False
+
         request_examples[name] = {
             "summary": f"{name}: {action_summary}",
             "description": request_markdown,
-            "value": {
-                "params": public_spec.params_example,
-                "stdout_as_file": False,
-            },
+            "value": request_value,
         }
 
     request_body = post.setdefault("requestBody", {})

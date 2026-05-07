@@ -16,6 +16,8 @@ import uuid
 
 import pytest
 
+TEST_ACTION_ID = "test_runtime.ping"
+
 # ============================================================================
 # Generation Behavior
 # ============================================================================
@@ -84,7 +86,7 @@ def test_request_id_is_preserved_when_valid(client):
     [
         "/health",
         "/metrics",
-        "/v1/actions/random_gen.uuid",
+        f"/v1/actions/{TEST_ACTION_ID}",
     ],
     ids=[
         "health",
@@ -92,20 +94,27 @@ def test_request_id_is_preserved_when_valid(client):
         "v1_actions_action_id",
     ],
 )
-def test_request_id_is_present_across_endpoints(client, auth_headers, path):
+def test_request_id_is_present_across_endpoints(
+    client,
+    auth_headers,
+    valid_registry,
+    path,
+):
     """
     GIVEN a request to any public or protected endpoint
     WHEN the request is processed
     THEN a request id is always included in the response
     """
+    client.app.state.action_registry = valid_registry
+
     kwargs = {}
-    if path == "/v1/actions/random_gen.uuid":
+    if path == f"/v1/actions/{TEST_ACTION_ID}":
         kwargs["headers"] = auth_headers
         kwargs["json"] = {}
 
     response = (
         client.get(path, **kwargs)
-        if path != "/v1/actions/random_gen.uuid"
+        if path != f"/v1/actions/{TEST_ACTION_ID}"
         else client.post(path, **kwargs)
     )
 

@@ -1,0 +1,172 @@
+version: 1
+
+module: analyze
+description: "Inspection and lightweight analysis utilities for previewing, searching, and measuring managed files"
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+tags: "analysis, inspection, search, preview, text, file"
+
+binaries:
+  - head
+  - tail
+  - grep
+  - wc
+  - file
+
+actions:
+
+  preview_file_start:
+    description: "Preview the first lines of a managed file"
+    summary: "Preview file start lines"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to preview"
+
+      lines:
+        type: int
+        required: false
+        default: 10
+        constraints:
+          min: 1
+          max: 10000
+        description: "Number of lines to return from the beginning of the file"
+
+    command:
+      - binary: head
+      - "-n"
+      - arg: lines
+      - arg: input_file
+
+
+  preview_file_end:
+    description: "Preview the last lines of a managed file"
+    summary: "Preview file end lines"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to preview"
+
+      lines:
+        type: int
+        required: false
+        default: 10
+        constraints:
+          min: 1
+          max: 10000
+        description: "Number of lines to return from the end of the file"
+
+    command:
+      - binary: tail
+      - "-n"
+      - arg: lines
+      - arg: input_file
+
+
+  search_file_lines:
+    description: "Search matching lines in a managed file using grep semantics"
+    summary: "Search lines in a file"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to inspect"
+
+      pattern:
+        type: string
+        required: true
+        constraints:
+          min_length: 1
+        description: "Search pattern passed directly to grep"
+
+    flags:
+      ignore_case:
+        value: "-i"
+        default: false
+        description: "Perform case-insensitive matching"
+
+      add_line_numbers:
+        value: "-n"
+        default: false
+        description: "Prefix each match with its line number"
+
+      invert_match:
+        value: "-v"
+        default: false
+        description: "Return non-matching lines instead of matches"
+
+    command:
+      - binary: grep
+      - flag: ignore_case
+      - flag: add_line_numbers
+      - flag: invert_match
+      - arg: pattern
+      - arg: input_file
+
+
+  count_file_lines:
+    description: "Count lines in a managed file"
+    summary: "Count file lines"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to measure"
+
+    command:
+      - binary: wc
+      - "-l"
+      - arg: input_file
+
+
+  count_file_words:
+    description: "Count words in a managed file"
+    summary: "Count file words"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to measure"
+
+    command:
+      - binary: wc
+      - "-w"
+      - arg: input_file
+
+
+  count_file_chars:
+    description: "Count characters in a managed file"
+    summary: "Count file characters"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to measure"
+
+    command:
+      - binary: wc
+      - "-m"
+      - arg: input_file
+
+
+  inspect_file_type:
+    description: "Inspect file type information using the file utility"
+    summary: "Inspect file type"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to inspect"
+
+    command:
+      - binary: file
+      - arg: input_file
