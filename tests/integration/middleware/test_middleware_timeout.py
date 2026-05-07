@@ -32,6 +32,8 @@ from seg.core.schemas.envelope import ResponseEnvelope
 from seg.middleware.timeout import TIMEOUTS_TOTAL
 from seg.routes.actions.schemas import ExecuteActionData
 
+TEST_ACTION_ID = "test_runtime.ping"
+
 # ============================================================================
 # Helpers
 # ============================================================================
@@ -84,7 +86,7 @@ def low_timeout_settings(api_token, seg_root_dir) -> Settings:
 
 
 @pytest.fixture
-def low_timeout_app(low_timeout_settings):
+def low_timeout_app(low_timeout_settings, valid_registry):
     """Create app configured with 100ms timeout for deterministic tests.
 
     Args:
@@ -93,7 +95,9 @@ def low_timeout_app(low_timeout_settings):
     Returns:
         FastAPI application configured for timeout tests.
     """
-    return create_app(low_timeout_settings)
+    app = create_app(low_timeout_settings)
+    app.state.action_registry = valid_registry
+    return app
 
 
 @pytest.fixture
@@ -293,10 +297,11 @@ def test_slow_execute_success_is_intercepted_by_timeout(
 
     payload = {"params": {}}
 
-    before = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
+    action_path = f"/v1/actions/{TEST_ACTION_ID}"
+    before = _timeout_metric_value(action_path, "POST")
 
     response = low_timeout_client.post(
-        "/v1/actions/random_gen.uuid",
+        action_path,
         json=payload,
         headers=auth_headers,
     )
@@ -308,7 +313,7 @@ def test_slow_execute_success_is_intercepted_by_timeout(
     assert body["error"] is not None
     assert body["error"]["code"] == TIMEOUT.code
 
-    after = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
+    after = _timeout_metric_value(action_path, "POST")
     assert after == before + 1.0
 
 
@@ -325,10 +330,11 @@ def test_slow_execute_error_is_intercepted_by_timeout(
 
     payload = {"params": {}}
 
-    before = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
+    action_path = f"/v1/actions/{TEST_ACTION_ID}"
+    before = _timeout_metric_value(action_path, "POST")
 
     response = low_timeout_client.post(
-        "/v1/actions/random_gen.uuid",
+        action_path,
         json=payload,
         headers=auth_headers,
     )
@@ -341,7 +347,7 @@ def test_slow_execute_error_is_intercepted_by_timeout(
     assert body["error"]["code"] == TIMEOUT.code
     assert body["error"]["code"] != INVALID_REQUEST.code
 
-    after = _timeout_metric_value("/v1/actions/random_gen.uuid", "POST")
+    after = _timeout_metric_value(action_path, "POST")
     assert after == before + 1.0
 
 

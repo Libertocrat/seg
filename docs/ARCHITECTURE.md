@@ -26,7 +26,7 @@ An action is therefore best understood as predefined command execution, but with
 - request params are validated against generated Pydantic models
 - command rendering is deterministic and template-constrained
 - binary policy checks are enforced both at build time and at execution time
-- stdout and stderr are sanitized before they are returned, and file outputs may be materialized either from declared command placeholders or from sanitized stdout when `stdout_as_file` is requested and allowed
+- stdout and stderr are sanitized before they are returned, and file outputs may be materialized either from declared command placeholders or from sanitized stdout when `stdout_as_file` is `true` and allowed
 
 SEG also exposes `/v1/files`, which provides the supported external lifecycle for uploaded and generated files. Storage is rooted under `SEG_ROOT_DIR`, and callers interact with UUID-based file identifiers rather than raw filesystem paths.
 

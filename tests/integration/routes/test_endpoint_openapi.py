@@ -25,7 +25,11 @@ from tests.integration.routes.actions.test_endpoint_action_execute import (
 # ============================================================================
 
 
-def _openapi_document(minimal_safe_env, monkeypatch) -> dict:
+def _openapi_document(
+    minimal_safe_env,
+    monkeypatch,
+    action_registry=None,
+) -> dict:
     """Fetch the generated OpenAPI document.
 
     GIVEN a valid minimal SEG runtime environment
@@ -42,6 +46,8 @@ def _openapi_document(minimal_safe_env, monkeypatch) -> dict:
 
     del monkeypatch
     app = create_app()
+    if action_registry is not None:
+        app.state.action_registry = action_registry
     with TestClient(app) as client:
         response = client.get("/openapi.json")
     assert response.status_code == 200
@@ -153,6 +159,7 @@ def test_openapi_execute_contract_includes_integrity_and_request_id_headers(
 def test_openapi_execute_examples_include_enriched_markdown_and_params(
     minimal_safe_env,
     monkeypatch,
+    valid_registry,
 ):
     """Validate enriched action docs and params examples for the execute route.
 
@@ -166,47 +173,88 @@ def test_openapi_execute_examples_include_enriched_markdown_and_params(
         monkeypatch: Pytest helper used to set test-only environment values.
     """
 
-    schema = _openapi_document(minimal_safe_env, monkeypatch)
+    schema = _openapi_document(
+        minimal_safe_env,
+        monkeypatch,
+        action_registry=valid_registry,
+    )
     post = schema["paths"]["/v1/actions/{action_id}"]["post"]
     examples = post["requestBody"]["content"]["application/json"]["examples"]
 
-    sha256_example = examples["checksum.sha256"]
-    sha256_description = sha256_example["description"]
-    sha256_params = sha256_example["value"]["params"]
-    assert "action" not in sha256_example["value"]
-    assert sha256_example["value"]["stdout_as_file"] is False
+    repeat_example = examples["test_runtime.repeat"]
+    repeat_description = repeat_example["description"]
+    repeat_params = repeat_example["value"]["params"]
+    assert "action" not in repeat_example["value"]
+    assert repeat_example["value"]["stdout_as_file"] is False
 
-    assert "#### Args" in sha256_description
-    assert "#### Flags" in sha256_description
-    assert "#### Request Options" in sha256_description
-    assert "#### Outputs" not in sha256_description
-    assert "`file` (`file_id`)" in sha256_description
-    assert "required" in sha256_description
-    assert "`binary_output`" in sha256_description
-    assert "default: `false`" in sha256_description
+    assert "#### Args" in repeat_description
+    assert "#### Flags" in repeat_description
+    assert "#### Request Options" in repeat_description
+    assert "#### Outputs" not in repeat_description
+    assert "`count` (`int`)" in repeat_description
+    assert "required" in repeat_description
+    assert "- _No flags_" in repeat_description
+    assert repeat_params["count"] == 1
 
-    assert sha256_params["file"] == "3fa85f64-5717-4562-b3fc-2c963f66afa6"
-    assert sha256_params["binary_output"] is False
+    default_example = examples["test_runtime.default_test"]
+    default_description = default_example["description"]
+    default_params = default_example["value"]["params"]
+    assert "action" not in default_example["value"]
+    assert default_example["value"]["stdout_as_file"] is False
 
-    token_hex_example = examples["random_gen.token_hex"]
-    token_hex_description = token_hex_example["description"]
-    token_hex_params = token_hex_example["value"]["params"]
-    assert "action" not in token_hex_example["value"]
-    assert token_hex_example["value"]["stdout_as_file"] is False
+    assert "`value` (`int`)" in default_description
+    assert "default: `5`" in default_description
+    assert default_params["value"] == 5
 
-    assert "`bytes` (`int`)" in token_hex_description
-    assert "default: `16`" in token_hex_description
-    assert token_hex_params["bytes"] == 16
+    ping_example = examples["test_runtime.ping"]
+    ping_description = ping_example["description"]
+    ping_params = ping_example["value"]["params"]
+    assert "action" not in ping_example["value"]
+    assert ping_example["value"]["stdout_as_file"] is False
 
-    uuid_example = examples["random_gen.uuid"]
-    uuid_description = uuid_example["description"]
-    uuid_params = uuid_example["value"]["params"]
-    assert "action" not in uuid_example["value"]
-    assert uuid_example["value"]["stdout_as_file"] is False
+    assert "- _No args_" in ping_description
+    assert "- _No flags_" in ping_description
+    assert ping_params == {}
 
-    assert "- _No args_" in uuid_description
-    assert "- _No flags_" in uuid_description
-    assert uuid_params == {}
+
+def test_openapi_execute_examples_omit_stdout_as_file_when_disallowed(
+    minimal_safe_env,
+    monkeypatch,
+    settings,
+    tmp_path,
+):
+    """
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema for an action that disallows stdout file
+        materialization
+    THEN the request example omits stdout_as_file entirely
+    AND the markdown description does not show Request Options.
+    """
+
+    del minimal_safe_env
+
+    app = create_app()
+    app.state.action_registry = _build_outputs_registry(
+        specs_root=tmp_path,
+        monkeypatch=monkeypatch,
+        settings=app.state.settings,
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+
+    post = response.json()["paths"]["/v1/actions/{action_id}"]["post"]
+    examples = post["requestBody"]["content"]["application/json"]["examples"]
+
+    blocked_example = examples["outputs_runtime.stdout_option_blocked"]
+    blocked_description = blocked_example["description"]
+    blocked_value = blocked_example["value"]
+
+    assert "#### Request Options" not in blocked_description
+    assert "stdout_as_file" not in blocked_value
+    assert blocked_value["params"] == {}
 
 
 def test_openapi_execute_response_examples_include_outputs_when_declared(
@@ -376,6 +424,7 @@ def test_openapi_applies_public_endpoint_response_overrides(
 def test_openapi_registers_action_models_and_prunes_internal_schemas(
     minimal_safe_env,
     monkeypatch,
+    valid_registry,
 ):
     """Validate component schema registration/pruning for runtime OpenAPI.
 
@@ -388,18 +437,20 @@ def test_openapi_registers_action_models_and_prunes_internal_schemas(
         minimal_safe_env: Fixture that provides required SEG environment vars.
         monkeypatch: Pytest helper used to set test-only environment values.
     """
-    schema = _openapi_document(minimal_safe_env, monkeypatch)
+    schema = _openapi_document(
+        minimal_safe_env,
+        monkeypatch,
+        action_registry=valid_registry,
+    )
 
     components = schema["components"]["schemas"]
     for model_name in (
         "ExecuteActionRequest",
         "ExecuteActionData",
-        "ChecksumSha256Params",
-        "ChecksumMd5Params",
-        "ChecksumSha1Params",
-        "RandomGenUuidParams",
-        "RandomGenTokenHexParams",
-        "RandomGenTokenBase64Params",
+        "TestRuntimePingParams",
+        "TestRuntimeRepeatParams",
+        "TestRuntimeRangeTestParams",
+        "TestRuntimeDefaultTestParams",
     ):
         assert model_name in components
 

@@ -1,0 +1,147 @@
+version: 1
+
+module: crypto
+description: "Cryptographic primitives for hashing, integrity checks, and file encryption workflows"
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+tags: "crypto, security, hashing, encryption, integrity, files"
+
+binaries:
+  - openssl
+  - sha256sum
+
+actions:
+
+  hash_file:
+    description: "Compute a cryptographic digest for a managed file using a selectable OpenSSL hash algorithm"
+    summary: "Hash a file with a selected algorithm"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to hash"
+
+      algorithm:
+        type: string
+        required: false
+        default: sha256
+        constraints:
+          allowed_values:
+            - blake2b512
+            - blake2s256
+            - md5
+            - sha1
+            - sha224
+            - sha256
+            - sha384
+            - sha512
+        description: "Digest algorithm to apply"
+
+    command:
+      - binary: openssl
+      - "dgst"
+      - "-{algorithm}"
+      - arg: input_file
+
+
+  sha256_file:
+    description: "Compute the SHA-256 digest of one managed file using sha256sum"
+    summary: "Hash one file with SHA-256"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to hash"
+
+    command:
+      - binary: sha256sum
+      - arg: input_file
+
+
+  sha256_files:
+    description: "Compute SHA-256 digests for multiple managed files in a single action"
+    summary: "Hash multiple files with SHA-256"
+
+    args:
+      input_files:
+        type: list
+        items: file_id
+        constraints:
+          min_items: 2
+        description: "Ordered list of managed file IDs to hash"
+
+    command:
+      - binary: sha256sum
+      - arg: input_files
+
+
+  encrypt_file_aes256:
+    description: "Encrypt a managed file using AES-256-CBC with PBKDF2-derived key material"
+    summary: "Encrypt a file with AES-256"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed file ID to encrypt"
+
+      password:
+        type: string
+        required: true
+        description: "Password used to derive the encryption key"
+
+    outputs:
+      encrypted_file:
+        type: file
+        source: command
+        description: "Managed output file containing encrypted bytes"
+
+    command:
+      - binary: openssl
+      - "enc"
+      - "-aes-256-cbc"
+      - "-salt"
+      - "-pbkdf2"
+      - "-in"
+      - arg: input_file
+      - "-out"
+      - output: encrypted_file
+      - "-pass"
+      - "pass:{password}"
+
+
+  decrypt_file_aes256:
+    description: "Decrypt an AES-256-CBC managed file using the same passphrase used during encryption"
+    summary: "Decrypt a file encrypted with AES-256"
+
+    args:
+      input_file:
+        type: file_id
+        required: true
+        description: "Managed encrypted file ID to decrypt"
+
+      password:
+        type: string
+        required: true
+        description: "Password used to derive the decryption key"
+
+    outputs:
+      decrypted_file:
+        type: file
+        source: command
+        description: "Managed output file containing decrypted bytes"
+
+    command:
+      - binary: openssl
+      - "enc"
+      - "-d"
+      - "-aes-256-cbc"
+      - "-pbkdf2"
+      - "-in"
+      - arg: input_file
+      - "-out"
+      - output: decrypted_file
+      - "-pass"
+      - "pass:{password}"

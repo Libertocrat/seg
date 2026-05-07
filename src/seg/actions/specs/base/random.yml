@@ -1,0 +1,91 @@
+version: 1
+
+module: random
+description: "Randomness and identifier utilities for UUIDs, tokens, and binary entropy generation"
+authors:
+  - "Libertocrat <libertocrat@proton.me>"
+tags: "random, entropy, tokens, identifiers, security"
+
+binaries:
+  - cat
+  - openssl
+
+actions:
+
+  gen_uuid:
+    description: "Generate a UUIDv4 from the Linux kernel random UUID interface"
+    summary: "Generate a kernel-backed UUIDv4"
+
+    command:
+      - binary: cat
+      - "/proc/sys/kernel/random/uuid"
+
+
+  gen_token_hex:
+    description: "Generate a random hexadecimal token using OpenSSL"
+    summary: "Generate a random hex token"
+
+    args:
+      bytes:
+        type: int
+        required: false
+        default: 16
+        constraints:
+          min: 1
+          max: 128
+        description: "Number of random bytes to generate before hex encoding"
+
+    command:
+      - binary: openssl
+      - "rand"
+      - "-hex"
+      - arg: bytes
+
+
+  gen_token_base64:
+    description: "Generate a random Base64 token using OpenSSL"
+    summary: "Generate a random Base64 token"
+
+    args:
+      bytes:
+        type: int
+        required: false
+        default: 16
+        constraints:
+          min: 1
+          max: 128
+        description: "Number of random bytes to generate before Base64 encoding"
+
+    command:
+      - binary: openssl
+      - "rand"
+      - "-base64"
+      - arg: bytes
+
+
+  gen_bytes_file:
+    description: "Generate random bytes and store them as a managed output file"
+    summary: "Generate random bytes as file"
+
+    args:
+      bytes:
+        type: int
+        required: false
+        default: 32
+        constraints:
+          min: 1
+          max: 4096
+        description: "Number of random bytes to write to the output file"
+
+    outputs:
+      random_bytes_file:
+        type: file
+        source: command
+        description: "Managed output file containing raw random bytes"
+
+    command:
+      - binary: openssl
+      - "rand"
+      - "-out"
+      - output: random_bytes_file
+      - arg: bytes
