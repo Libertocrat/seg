@@ -50,7 +50,7 @@ async def list_actions_handler(
     Args:
         request: Incoming FastAPI request.
         q: Optional free-text filter for action fields.
-        tag: Optional module tag filter.
+        tag: Optional effective action tag filter.
 
     Returns:
         Typed discovery payload for module summaries.

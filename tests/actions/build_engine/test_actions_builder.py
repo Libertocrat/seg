@@ -746,7 +746,7 @@ def test_params_model_name_generation(
 # ============================================================================
 
 
-def test_tags_normalization(
+def test_build_actions_normalizes_module_tags(
     make_module_payload,
     make_module_spec,
 ):
@@ -762,6 +762,44 @@ def test_tags_normalization(
     spec = build_actions([module], _test_settings())["test_module.ping"]
 
     assert spec.tags == ("a", "b", "c")
+
+
+def test_build_actions_merges_module_and_action_tags(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN module tags and action-specific tags with duplicates
+    WHEN build_actions is called
+    THEN ActionSpec tags contain effective deduplicated tags
+    """
+    action = make_action_spec_input(tags="files, aes-256, encryption")
+    payload = make_module_payload(actions={"encrypt_file": action})
+    payload["tags"] = "crypto, files, security"
+    module = make_module_spec(payload)
+
+    spec = build_actions([module], _test_settings())["test_module.encrypt_file"]
+
+    assert spec.tags == ("crypto", "files", "security", "aes-256", "encryption")
+
+
+def test_build_actions_uses_action_tags_without_module_tags(
+    make_module_payload,
+    make_module_spec,
+    make_action_spec_input,
+):
+    """
+    GIVEN action-specific tags and no module tags
+    WHEN build_actions is called
+    THEN ActionSpec tags include normalized action tags
+    """
+    action = make_action_spec_input(tags="aes-256, encryption")
+    module = make_module_spec(make_module_payload(actions={"encrypt_file": action}))
+
+    spec = build_actions([module], _test_settings())["test_module.encrypt_file"]
+
+    assert spec.tags == ("aes-256", "encryption")
 
 
 # ============================================================================

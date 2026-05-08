@@ -76,6 +76,7 @@ def sample_action_spec() -> ActionSpec:
         },
         defaults={"value": 10, "verbose": False},
         allow_stdout_as_file=True,
+        tags=("crypto", "aes-256"),
         summary="summary",
         description="description",
     )
@@ -90,6 +91,7 @@ def sample_module_summary(sample_action_spec: ActionSpec) -> ModuleSummary:
         action_id=sample_action_spec.name,
         summary="summary",
         description="description",
+        tags=("crypto", "aes-256"),
     )
 
     return ModuleSummary(
@@ -123,6 +125,7 @@ def test_to_action_summary_maps_fields(sample_action_spec: ActionSpec) -> None:
     assert result.action_id == "crypto.hash.encrypt"
     assert result.summary == "summary"
     assert result.description == "description"
+    assert result.tags == ("crypto", "aes-256")
 
 
 # ============================================================================
@@ -146,6 +149,7 @@ def test_to_action_public_spec_maps_fields(sample_action_spec: ActionSpec) -> No
     assert len(result.flags) == 1
     assert len(result.outputs) == 1
     assert result.allow_stdout_as_file is True
+    assert result.tags == ("crypto", "aes-256")
     assert result.args[0]["name"] == "value"
     assert result.flags[0]["name"] == "verbose"
     assert "value" not in result.flags[0]
@@ -246,6 +250,7 @@ def test_module_summary_to_dict(sample_module_summary: ModuleSummary) -> None:
     assert result["namespace_path"] == ["crypto", "hash"]
     assert result["authors"] == ["author"]
     assert result["actions"][0]["action_id"] == "crypto.hash.encrypt"
+    assert result["actions"][0]["tags"] == ["crypto", "aes-256"]
 
 
 def test_modules_to_response(sample_module_summary: ModuleSummary) -> None:

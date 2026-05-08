@@ -41,7 +41,7 @@ def _deep_normalize(value: object) -> object:
 def registry_modules_and_actions(
     valid_registry,
 ) -> tuple[list[object], dict[str, ActionSpec]]:
-    """Extract real modules and actions from a built registry."""
+    """Extract modules and actions from the deterministic test registry."""
 
     modules = valid_registry.modules
     actions = {name: valid_registry.get(name) for name in valid_registry.list_names()}
@@ -134,7 +134,7 @@ def test_filter_modules_query_real_data(registry_modules_and_actions) -> None:
     """
     GIVEN real module summaries
     WHEN filtering by query
-    THEN results must match actual action name, summary, or description
+    THEN results must match action name, summary, description, or tags
     """
 
     modules, actions = registry_modules_and_actions
@@ -151,33 +151,83 @@ def test_filter_modules_query_real_data(registry_modules_and_actions) -> None:
             query in action.action.lower()
             or query in (action.summary or "").lower()
             or query in (action.description or "").lower()
+            or any(query in tag.lower() for tag in action.tags)
             for action in module.actions
         )
 
 
 def test_filter_modules_tag_real(registry_modules_and_actions) -> None:
     """
-    GIVEN real modules with tags
+    GIVEN module summaries with effective action tags
     WHEN filtering by tag
-    THEN tag matching must be case-insensitive and normalized
+    THEN only actions matching that tag are returned case-insensitively
     """
 
     modules, actions = registry_modules_and_actions
     summaries = build_module_summaries(modules, actions)
 
-    result_upper = filter_modules(summaries, tag="TEST")
-    result_lower = filter_modules(summaries, tag="test")
-
-    expected = [
-        module for module in summaries if "test" in {tag.lower() for tag in module.tags}
-    ]
+    result_upper = filter_modules(summaries, tag="VALIDATION")
+    result_lower = filter_modules(summaries, tag="validation")
 
     assert isinstance(result_upper, list)
+    assert all(module.actions for module in result_upper)
     assert _deep_normalize(result_upper) == _deep_normalize(result_lower)
-    assert _deep_normalize(result_upper) == _deep_normalize(expected)
     assert all(
-        "test" in {tag.lower() for tag in module.tags} for module in result_upper
+        "validation" in {tag.lower() for tag in action.tags}
+        for module in result_upper
+        for action in module.actions
     )
+
+
+def test_filter_modules_tag_keeps_only_matching_actions(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN deterministic registry summaries with mixed action tags
+    WHEN filtering by tag
+    THEN only matching actions are returned within matching modules
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(summaries, tag="validation")
+
+    assert len(result) == 1
+    assert [action.action for action in result[0].actions] == ["range_test"]
+
+
+def test_filter_modules_query_matches_action_tags(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN deterministic registry summaries with effective tags
+    WHEN filtering by q using a tag value
+    THEN actions with matching tags are returned
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(summaries, q="numeric")
+
+    assert len(result) == 1
+    assert [action.action for action in result[0].actions] == ["range_test"]
+
+
+def test_filter_modules_combines_query_and_tag_filters(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN deterministic registry summaries with different tags and descriptions
+    WHEN filtering by q and tag
+    THEN only actions matching both filters are returned
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(summaries, q="optional", tag="defaults")
+
+    assert len(result) == 1
+    assert [action.action for action in result[0].actions] == ["default_test"]
 
 
 # ============================================================================

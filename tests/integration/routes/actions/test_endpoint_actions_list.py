@@ -2,90 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 
 @pytest.fixture
-def discovery_registry(tmp_path: Path, monkeypatch, settings):
-    """Build a deterministic registry with tag/query-friendly action metadata."""
-
-    import seg.actions.registry as registry_module
-
-    specs_dir = tmp_path / "specs"
-    specs_dir.mkdir(parents=True, exist_ok=True)
-
-    (specs_dir / "crypto_tools.yml").write_text(
-        """
-version: 1
-
-module: crypto_tools
-description: "Cryptography helpers"
-authors:
-  - "SEG Test Suite"
-tags: "crypto, security"
-
-binaries:
-  - echo
-
-actions:
-
-  encrypt_text:
-    description: "Encrypt text payload"
-    summary: "Encrypt text"
-
-    command:
-      - binary: echo
-      - "encrypt"
-
-  decrypt_text:
-    description: "Decrypt text payload"
-    summary: "Decrypt text"
-
-    command:
-      - binary: echo
-      - "decrypt"
-""".strip(),
-        encoding="utf-8",
-    )
-
-    (specs_dir / "utility_tools.yml").write_text(
-        """
-version: 1
-
-module: utility_tools
-description: "General utility actions"
-authors:
-  - "SEG Test Suite"
-tags: "utility"
-
-binaries:
-  - echo
-
-actions:
-
-  ping:
-    description: "Return ping output"
-    summary: "Ping"
-
-    command:
-      - binary: echo
-      - "pong"
-""".strip(),
-        encoding="utf-8",
-    )
-
-    monkeypatch.setattr(registry_module, "SPEC_DIRS", (specs_dir,))
-
-    return registry_module.build_registry_from_specs(settings)
-
-
-@pytest.fixture
-def actions_client(client, discovery_registry):
+def actions_client(client, valid_registry):
     """Return client with deterministic action registry injected."""
 
-    client.app.state.action_registry = discovery_registry
+    client.app.state.action_registry = valid_registry
     return client
 
 
@@ -114,16 +38,19 @@ def test_list_actions_returns_modules(actions_client, auth_headers):
     assert "modules" in data
     assert isinstance(data["modules"], list)
     assert len(data["modules"]) > 0
+    assert all(
+        "tags" in action for module in data["modules"] for action in module["actions"]
+    )
 
 
 def test_list_actions_filter_by_tag(actions_client, auth_headers):
     """
-    GIVEN modules with different tags
-    WHEN GET /v1/actions is requested with tag=crypto
-    THEN only modules containing the crypto tag are returned
+    GIVEN actions with effective tags
+    WHEN GET /v1/actions is requested with tag=validation
+    THEN only actions containing that tag are returned
     """
 
-    response = _get_actions(actions_client, auth_headers, tag="crypto")
+    response = _get_actions(actions_client, auth_headers, tag="validation")
 
     assert response.status_code == 200
 
@@ -131,17 +58,18 @@ def test_list_actions_filter_by_tag(actions_client, auth_headers):
     assert modules
 
     for module in modules:
-        assert "crypto" in [tag.lower() for tag in module["tags"]]
+        for action in module["actions"]:
+            assert "validation" in [tag.lower() for tag in action["tags"]]
 
 
 def test_list_actions_filter_by_query(actions_client, auth_headers):
     """
-    GIVEN modules with actions that include encrypt and non-encrypt variants
-    WHEN GET /v1/actions is requested with q=encrypt
-    THEN returned actions match action name, summary, or description by query
+    GIVEN actions with effective tags
+    WHEN GET /v1/actions is requested with q=numeric
+    THEN returned actions match action name, summary, description, or tags
     """
 
-    response = _get_actions(actions_client, auth_headers, q="encrypt")
+    response = _get_actions(actions_client, auth_headers, q="numeric")
 
     assert response.status_code == 200
 
@@ -151,22 +79,28 @@ def test_list_actions_filter_by_query(actions_client, auth_headers):
     for module in modules:
         for action in module["actions"]:
             assert (
-                "encrypt" in action["action"].lower()
-                or (action["summary"] and "encrypt" in action["summary"].lower())
+                "numeric" in action["action"].lower()
+                or (action["summary"] and "numeric" in action["summary"].lower())
                 or (
-                    action["description"] and "encrypt" in action["description"].lower()
+                    action["description"] and "numeric" in action["description"].lower()
                 )
+                or any("numeric" in tag.lower() for tag in action["tags"])
             )
 
 
 def test_list_actions_filter_q_and_tag(actions_client, auth_headers):
     """
-    GIVEN modules with mixed tags and action names
-    WHEN GET /v1/actions is requested with q=encrypt and tag=crypto
-    THEN both filters are applied and remaining actions match encrypt query
+    GIVEN actions with mixed effective tags
+    WHEN GET /v1/actions is requested with q=default and tag=optional-input
+    THEN both filters are applied and remaining actions match both
     """
 
-    response = _get_actions(actions_client, auth_headers, q="encrypt", tag="crypto")
+    response = _get_actions(
+        actions_client,
+        auth_headers,
+        q="default",
+        tag="optional-input",
+    )
 
     assert response.status_code == 200
 
@@ -174,10 +108,16 @@ def test_list_actions_filter_q_and_tag(actions_client, auth_headers):
     assert modules
 
     for module in modules:
-        assert "crypto" in [tag.lower() for tag in module["tags"]]
-
         for action in module["actions"]:
-            assert "encrypt" in action["action"].lower()
+            assert "optional-input" in [tag.lower() for tag in action["tags"]]
+            assert (
+                "default" in action["action"].lower()
+                or (action["summary"] and "default" in action["summary"].lower())
+                or (
+                    action["description"] and "default" in action["description"].lower()
+                )
+                or any("default" in tag.lower() for tag in action["tags"])
+            )
 
 
 def test_list_actions_no_matches(actions_client, auth_headers):

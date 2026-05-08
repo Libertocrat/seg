@@ -27,6 +27,7 @@ from seg.actions.engine_config import (
     IDENTIFIER_NAME_PATTERN,
     MIME_LIKE_PATTERN,
     RESERVED_OUTPUT_NAMES,
+    TAG_NAME_PATTERN,
 )
 from seg.actions.exceptions import ActionSpecsParseError
 from seg.actions.models.core import ParamType
@@ -195,38 +196,91 @@ def _validate_module_binaries(module: ModuleSpec) -> None:
 
 
 def _validate_module_tags(module: ModuleSpec) -> None:
-    """Validate optional module tags as a non-empty CSV string.
+    """Validate optional module tags as a CSV string.
 
     Args:
         module: Module specification to validate.
 
     Raises:
-        ActionSpecsParseError: If the tags field is blank or contains empty
-                CSV tokens.
+        ActionSpecsParseError: If module tags are invalid.
     """
 
-    if module.tags is None:
+    _validate_tags_csv(
+        tags_csv=module.tags,
+        module_name=module.module,
+        action_name=None,
+    )
+
+
+def _validate_action_tags(
+    module_name: str,
+    action_name: str,
+    action: ActionSpecInput,
+) -> None:
+    """Validate optional action tags as a CSV string.
+
+    Args:
+        module_name: Parent module name.
+        action_name: Action name.
+        action: Action specification to validate.
+
+    Raises:
+        ActionSpecsParseError: If action tags are invalid.
+    """
+
+    _validate_tags_csv(
+        tags_csv=action.tags,
+        module_name=module_name,
+        action_name=action_name,
+    )
+
+
+def _validate_tags_csv(
+    *,
+    tags_csv: str | None,
+    module_name: str,
+    action_name: str | None,
+) -> None:
+    """Validate optional DSL tags encoded as CSV.
+
+    Args:
+        tags_csv: Raw CSV tags string from module or action metadata.
+        module_name: Parent module name for error context.
+        action_name: Optional action name for action-scoped errors.
+
+    Raises:
+        ActionSpecsParseError: If tags are blank, invalid CSV, contain empty
+            tokens, or contain tokens that violate the tag naming pattern.
+    """
+
+    if tags_csv is None:
         return
 
-    if module.tags.strip() == "":
-        _raise_module_error(module.module, "tags must be a non-empty CSV string")
+    def _raise_tags_error(message: str) -> NoReturn:
+        if action_name is None:
+            _raise_module_error(module_name, message)
+        _raise_action_error(module_name, action_name, message)
+
+    if tags_csv.strip() == "":
+        _raise_tags_error("tags must be a non-empty CSV string")
 
     try:
-        rows = list(csv.reader([module.tags]))
+        rows = list(csv.reader([tags_csv]))
     except csv.Error as exc:
-        _raise_module_error(
-            module.module,
-            f"tags must be a valid CSV string ({exc})",
-        )
+        _raise_tags_error(f"tags must be a valid CSV string ({exc})")
 
     if not rows or not rows[0]:
-        _raise_module_error(module.module, "tags must be a non-empty CSV string")
+        _raise_tags_error("tags must be a non-empty CSV string")
 
     tokens = [token.strip() for token in rows[0]]
     if any(token == "" for token in tokens):
-        _raise_module_error(
-            module.module,
-            "tags must not contain empty CSV entries",
+        _raise_tags_error("tags must not contain empty CSV entries")
+
+    for token in tokens:
+        if TAG_NAME_PATTERN.fullmatch(token):
+            continue
+        _raise_tags_error(
+            f"invalid tag name '{token}'; expected pattern '{TAG_NAME_PATTERN.pattern}'"
         )
 
 
@@ -251,6 +305,7 @@ def _validate_action(
         identifier_kind="action",
         identifier_value=action_name,
     )
+    _validate_action_tags(module.module, action_name, action)
     _validate_command_exists(module.module, action_name, action)
     _validate_name_collisions(module.module, action_name, action)
     _validate_argument_names(module.module, action_name, action)

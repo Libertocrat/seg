@@ -231,7 +231,7 @@ def test_validate_modules_rejects_binary_with_backslash(
     [("   ", "tags must be a non-empty CSV string"), ("alpha,,beta", "empty CSV")],
     ids=["blank_tags", "empty_csv_entry"],
 )
-def test_validate_modules_rejects_invalid_tags(
+def test_validate_modules_rejects_invalid_module_tags_csv(
     make_module_payload,
     make_module_spec,
     tags: str,
@@ -247,6 +247,70 @@ def test_validate_modules_rejects_invalid_tags(
     module = make_module_spec(payload)
 
     with pytest.raises(ActionSpecsParseError, match=error_message):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        "crypto",
+        "file_id",
+        "aes-256",
+        "text-processing,safe_exec",
+    ],
+    ids=["simple", "underscore", "hyphen", "mixed_valid_tokens"],
+)
+def test_validate_modules_accepts_valid_module_tag_names(
+    make_module_payload,
+    make_module_spec,
+    tags: str,
+):
+    """
+    GIVEN a module with valid tag names
+    WHEN validate_modules is called
+    THEN validation succeeds
+    """
+    payload = make_module_payload()
+    payload["tags"] = tags
+    module = make_module_spec(payload)
+
+    validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        "Crypto",
+        "123crypto",
+        "bad tag",
+        "_bad",
+        "bad.tag",
+        "bad/tag",
+    ],
+    ids=[
+        "uppercase",
+        "starts_with_digit",
+        "space",
+        "leading_underscore",
+        "dot",
+        "slash",
+    ],
+)
+def test_validate_modules_rejects_invalid_module_tag_names(
+    make_module_payload,
+    make_module_spec,
+    tags: str,
+):
+    """
+    GIVEN a module with invalid tag names
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    payload = make_module_payload()
+    payload["tags"] = tags
+    module = make_module_spec(payload)
+
+    with pytest.raises(ActionSpecsParseError, match="invalid tag name"):
         validate_modules([module])
 
 
@@ -283,6 +347,91 @@ def test_validate_modules_rejects_invalid_action_names(
     )
 
     with pytest.raises(ActionSpecsParseError, match="invalid action name"):
+        validate_modules([module])
+
+
+# ============================================================================
+# action tags
+# ============================================================================
+
+
+def test_validate_modules_accepts_valid_action_tags(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+):
+    """
+    GIVEN an action with valid tags metadata
+    WHEN validate_modules is called
+    THEN validation succeeds
+    """
+    action = make_action_payload(tags="aes-256, encryption, file_id")
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "tags,error_message",
+    [
+        ("   ", "tags must be a non-empty CSV string"),
+        ("alpha,,beta", "empty CSV"),
+    ],
+    ids=["blank_tags", "empty_csv_entry"],
+)
+def test_validate_modules_rejects_invalid_action_tags_csv(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    tags: str,
+    error_message: str,
+):
+    """
+    GIVEN an action with invalid tags metadata
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(tags=tags)
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match=error_message):
+        validate_modules([module])
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        "Crypto",
+        "123crypto",
+        "bad tag",
+        "_bad",
+        "bad.tag",
+        "bad/tag",
+    ],
+    ids=[
+        "uppercase",
+        "starts_with_digit",
+        "space",
+        "leading_underscore",
+        "dot",
+        "slash",
+    ],
+)
+def test_validate_modules_rejects_invalid_action_tag_names(
+    make_module_payload,
+    make_action_payload,
+    make_module_spec,
+    tags: str,
+):
+    """
+    GIVEN an action with invalid tag names
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    action = make_action_payload(tags=tags)
+    module = make_module_spec(make_module_payload(actions={"ping": action}))
+
+    with pytest.raises(ActionSpecsParseError, match="invalid tag name"):
         validate_modules([module])
 
 
