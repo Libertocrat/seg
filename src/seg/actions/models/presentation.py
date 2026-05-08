@@ -15,12 +15,15 @@ class ActionSummary:
         action_id: Fully qualified runtime action name.
         summary: Optional short summary for discovery views.
         description: Optional long description of the action.
+        tags: Effective action tags inherited from the module and action
+            definition.
     """
 
     action: str
     action_id: str
     summary: str | None
     description: str | None
+    tags: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +62,8 @@ class ActionPublicSpec:
         action_id: Fully qualified runtime action name.
         summary: Optional short summary.
         description: Optional long description.
+        tags: Effective action tags inherited from the module and action
+            definition.
         allow_stdout_as_file: Whether this action allows sanitized stdout to be
             stored as a managed file.
         args: Serialized argument definitions.
@@ -74,6 +79,7 @@ class ActionPublicSpec:
     action_id: str
     summary: str | None
     description: str | None
+    tags: tuple[str, ...]
     allow_stdout_as_file: bool
 
     args: list[dict[str, Any]]

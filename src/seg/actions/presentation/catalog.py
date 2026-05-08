@@ -54,6 +54,20 @@ def _matches_query(text: str | None, query: str) -> bool:
     return query in _normalize(text)
 
 
+def _matches_tag(tags: tuple[str, ...], tag: str) -> bool:
+    """Return whether a normalized tag exists in a tag tuple.
+
+    Args:
+        tags: Effective action tags.
+        tag: Normalized tag filter value.
+
+    Returns:
+        True when the tag exists in the action tags.
+    """
+
+    return tag in {tag_item.lower() for tag_item in tags}
+
+
 def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
     """Normalize module tags CSV text into a deduplicated tuple.
 
@@ -165,11 +179,11 @@ def filter_modules(
     Args:
         modules: Source module summaries.
         q: Optional free-text query.
-        tag: Optional module tag filter.
+        tag: Optional effective action tag filter.
 
     Returns:
-        Filtered module summaries. For query matches at action level, only the
-        matching actions are kept in each module summary.
+        Filtered module summaries. For query and/or tag matches at action
+        level, only matching actions are kept in each module summary.
     """
 
     if not q and not tag:
@@ -181,24 +195,28 @@ def filter_modules(
     filtered: list[ModuleSummary] = []
 
     for module in modules:
-        if tag_norm and tag_norm not in {tag_item.lower() for tag_item in module.tags}:
-            continue
+        candidate_actions = module.actions
 
-        if not query:
-            filtered.append(module)
-            continue
+        if tag_norm:
+            candidate_actions = [
+                action
+                for action in candidate_actions
+                if _matches_tag(action.tags, tag_norm)
+            ]
 
-        matched_actions = [
-            action
-            for action in module.actions
-            if (
-                _matches_query(action.action, query)
-                or _matches_query(action.summary, query)
-                or _matches_query(action.description, query)
-            )
-        ]
+        if query:
+            candidate_actions = [
+                action
+                for action in candidate_actions
+                if (
+                    _matches_query(action.action, query)
+                    or _matches_query(action.summary, query)
+                    or _matches_query(action.description, query)
+                    or any(_matches_query(tag_item, query) for tag_item in action.tags)
+                )
+            ]
 
-        if matched_actions:
+        if candidate_actions:
             filtered.append(
                 ModuleSummary(
                     module=module.module,
@@ -208,16 +226,17 @@ def filter_modules(
                     description=module.description,
                     tags=module.tags,
                     authors=module.authors,
-                    actions=matched_actions,
+                    actions=candidate_actions,
                 )
             )
             continue
 
-        if _matches_query(module.description, query) or _matches_query(
-            module.module_id,
-            query,
-        ):
-            filtered.append(module)
+        if query and not tag_norm:
+            if _matches_query(module.description, query) or _matches_query(
+                module.module_id,
+                query,
+            ):
+                filtered.append(module)
 
     return filtered
 

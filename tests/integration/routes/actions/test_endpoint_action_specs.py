@@ -34,6 +34,7 @@ def test_get_action_specs_success(action_specs_client, auth_headers):
     data = body["data"]
     assert data["action_id"] == "test_runtime.ping"
     assert data["action"] == "ping"
+    assert data["tags"] == ["test", "runtime", "health", "smoke_test"]
     assert "params_contract" in data
     assert "params_example" in data
     assert "response_contract" in data
@@ -77,6 +78,7 @@ def test_get_action_specs_contains_required_fields(action_specs_client, auth_hea
     assert "flags" in data
     assert "outputs" in data
     assert "allow_stdout_as_file" in data
+    assert isinstance(data["tags"], list)
     assert isinstance(data["params_contract"], dict)
     assert isinstance(data["params_example"], dict)
     assert isinstance(data["response_contract"], dict)

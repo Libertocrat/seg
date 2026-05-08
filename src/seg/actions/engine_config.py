@@ -58,6 +58,9 @@ DISALLOWED_YAML_PATTERNS: tuple[str, ...] = (
 # Shared identifier pattern for module, action, arg, flag, and output names.
 IDENTIFIER_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 
+# Shared tag token pattern for module-level and action-level tags.
+TAG_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
+
 # MIME-like token pattern used by file constraints validation.
 MIME_LIKE_PATTERN = re.compile(
     r"^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"

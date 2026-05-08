@@ -42,7 +42,9 @@ async def get_action_specs_handler(
             ) from exc
 
         public_spec = to_action_public_spec(spec)
-        return GetActionData(**asdict(public_spec))
+        payload = asdict(public_spec)
+        payload["tags"] = list(public_spec.tags)
+        return GetActionData(**payload)
     except SegError:
         raise
     except Exception as exc:

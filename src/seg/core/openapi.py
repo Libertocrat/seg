@@ -491,6 +491,7 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
             "action_id": "test_runtime.ping",
             "summary": "Ping",
             "description": "Return deterministic hello output",
+            "tags": ["test", "runtime", "health", "smoke_test"],
             "allow_stdout_as_file": True,
             "args": [],
             "flags": [],

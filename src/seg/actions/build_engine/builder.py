@@ -137,6 +137,9 @@ def _build_action(
                 "is not allowed by effective policy"
             )
         params_model = _build_params_model(action_fqdn, arg_defs, flag_defs)
+        module_tags = _parse_tags(module.tags)
+        action_tags = _parse_tags(action.tags)
+        effective_tags = _merge_tags(module_tags, action_tags)
 
         compiled = ActionSpec(
             name=action_fqdn,
@@ -154,7 +157,7 @@ def _build_action(
             outputs=output_defs,
             allow_stdout_as_file=action.allow_stdout_as_file,
             authors=_parse_authors(module.authors),
-            tags=_parse_tags(module.tags),
+            tags=effective_tags,
             summary=action.summary or action.description,
             description=action.description,
             deprecated=False,
@@ -415,7 +418,7 @@ def _build_model_name(action_fqdn: str) -> str:
 
 
 def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
-    """Normalize module tags from CSV text into a deduplicated tuple.
+    """Normalize tags from CSV text into a deduplicated tuple.
 
     Args:
         tags_csv: Raw CSV tag string or `None`.
@@ -439,6 +442,29 @@ def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
         if normalized and normalized not in seen:
             seen.add(normalized)
             tags.append(normalized)
+
+    return tuple(tags)
+
+
+def _merge_tags(*tag_groups: tuple[str, ...]) -> tuple[str, ...]:
+    """Merge tag groups into a deduplicated tuple preserving first appearance.
+
+    Args:
+        *tag_groups: Tag tuples that have already been normalized.
+
+    Returns:
+        Deduplicated tag tuple preserving first occurrence across groups.
+    """
+
+    tags: list[str] = []
+    seen: set[str] = set()
+
+    for group in tag_groups:
+        for tag in group:
+            if tag in seen:
+                continue
+            seen.add(tag)
+            tags.append(tag)
 
     return tuple(tags)
 

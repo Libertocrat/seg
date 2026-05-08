@@ -67,12 +67,14 @@ class ActionSummarySchema(BaseModel):
         action_id: Fully qualified runtime action name.
         summary: Optional short summary.
         description: Optional long description.
+        tags: Effective public action tags.
     """
 
     action: str
     action_id: str
     summary: str | None
     description: str | None
+    tags: list[str]
 
 
 class ModuleSummarySchema(BaseModel):
@@ -117,6 +119,7 @@ class GetActionData(BaseModel):
         action_id: Fully qualified runtime action name.
         summary: Optional short summary.
         description: Optional long description.
+        tags: Effective public action tags.
         allow_stdout_as_file: Whether sanitized stdout may be stored as a
             managed file.
         args: Serialized argument definitions.
@@ -132,6 +135,7 @@ class GetActionData(BaseModel):
     action_id: str
     summary: str | None
     description: str | None
+    tags: list[str]
     allow_stdout_as_file: bool
     args: list[dict[str, Any]]
     flags: list[dict[str, Any]]
