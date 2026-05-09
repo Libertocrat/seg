@@ -100,7 +100,7 @@ Attack inputs include:
 - request headers, especially `Authorization`, `Content-Type`, `Content-Length`, `Transfer-Encoding`, and `X-Request-Id`
 - request body content sent to `POST /v1/actions/{action_id}` and multipart form uploads sent to `/v1/files`
 - `action_id` path parameters on `GET /v1/actions/{action_id}` and `POST /v1/actions/{action_id}`
-- discovery query parameters such as `q` and `tag` on `GET /v1/actions`
+- discovery query parameters such as `q`, `tags`, and `match` on `GET /v1/actions`
 - `file_id` path parameters and file query or filter parameters on `/v1/files` routes
 - environment and secret based configuration such as `SEG_ROOT_DIR` and the API token secret
 

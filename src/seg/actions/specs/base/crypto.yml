@@ -4,7 +4,7 @@ module: crypto
 description: "Cryptographic primitives for hashing, integrity checks, and file encryption workflows"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: [crypto, security, hashing, encryption, integrity, files]
+tags: [crypto, security, files]
 
 binaries:
   - openssl
@@ -15,6 +15,7 @@ actions:
   hash_file:
     description: "Compute a cryptographic digest for a managed file using a selectable OpenSSL hash algorithm"
     summary: "Hash a file with a selected algorithm"
+    tags: [hashing, digest, integrity, checksum, openssl, algorithm_select]
 
     args:
       input_file:
@@ -48,6 +49,7 @@ actions:
   sha256_file:
     description: "Compute the SHA-256 digest of one managed file using sha256sum"
     summary: "Hash one file with SHA-256"
+    tags: [hashing, digest, integrity, checksum, sha256, single_file]
 
     args:
       input_file:
@@ -63,6 +65,7 @@ actions:
   sha256_files:
     description: "Compute SHA-256 digests for multiple managed files in a single action"
     summary: "Hash multiple files with SHA-256"
+    tags: [hashing, digest, integrity, checksum, sha256, multiple_files, batch]
 
     args:
       input_files:
@@ -80,6 +83,7 @@ actions:
   encrypt_file_aes256:
     description: "Encrypt a managed file using AES-256-CBC with PBKDF2-derived key material"
     summary: "Encrypt a file with AES-256"
+    tags: [encryption, encrypt, aes-256, aes_256_cbc, pbkdf2, password, confidentiality, output_file]
 
     args:
       input_file:
@@ -115,6 +119,7 @@ actions:
   decrypt_file_aes256:
     description: "Decrypt an AES-256-CBC managed file using the same passphrase used during encryption"
     summary: "Decrypt a file encrypted with AES-256"
+    tags: [decryption, decrypt, aes-256, aes_256_cbc, pbkdf2, password, confidentiality, output_file]
 
     args:
       input_file:

@@ -109,6 +109,58 @@ def test_openapi_sets_security_for_private_and_public_routes(
     assert metrics_get["security"] == []
 
 
+def test_openapi_actions_list_docs_describe_query_rules(
+    minimal_safe_env,
+    monkeypatch,
+):
+    """Validate GET /v1/actions query docs and parameter constraints.
+
+    GIVEN docs are enabled
+    WHEN generating the OpenAPI schema
+    THEN `/v1/actions` documents query behavior for `q`, `tags`, and `match`
+    including `match` allowed values and semantic default behavior.
+
+    Args:
+        minimal_safe_env: Fixture that provides required SEG environment vars.
+        monkeypatch: Pytest helper used to set test-only environment values.
+    """
+
+    schema = _openapi_document(minimal_safe_env, monkeypatch)
+
+    actions_get = schema["paths"]["/v1/actions"]["get"]
+    description = actions_get.get("description", "")
+
+    assert "Discover registered actions grouped by module." in description
+    assert "`q`" in description
+    assert "`tags`" in description
+    assert "`match`" in description
+    assert "logical AND" in description
+
+    parameters = {
+        parameter["name"]: parameter for parameter in actions_get.get("parameters", [])
+    }
+
+    assert {"q", "tags", "match"}.issubset(parameters)
+    assert parameters["q"]["schema"]["example"] == "sha256"
+    assert parameters["tags"]["schema"]["example"] == "hashing,checksum"
+
+    match_schema = parameters["match"]["schema"]
+    assert match_schema["type"] == "string"
+    assert match_schema["enum"] == ["any", "all"]
+    assert match_schema["default"] == "any"
+
+    example = actions_get["responses"]["200"]["content"]["application/json"]["example"]
+    modules = example["data"]["modules"]
+    assert modules
+
+    action_ids = [
+        action["action_id"]
+        for module in modules
+        for action in module.get("actions", [])
+    ]
+    assert any(action_id.endswith(".sha256_file") for action_id in action_ids)
+
+
 # ============================================================================
 # Execute contract projection
 # ============================================================================

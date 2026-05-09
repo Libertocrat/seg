@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
@@ -11,7 +11,11 @@ from pydantic import BaseModel
 
 import seg.core.errors as errors
 from seg.actions.models.presentation import ActionPublicSpec
-from seg.actions.presentation.serializers import to_action_public_spec
+from seg.actions.presentation.catalog import filter_modules
+from seg.actions.presentation.serializers import (
+    modules_to_response,
+    to_action_public_spec,
+)
 from seg.actions.registry import ActionRegistry
 from seg.core.errors import PUBLIC_HTTP_ERRORS, ErrorDef
 from seg.core.schemas.envelope import ErrorInfo, ResponseEnvelope
@@ -146,6 +150,7 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     _patch_public_endpoints(schema)
     _patch_execute_contract(schema, app)
     _patch_files_contract(schema)
+    _patch_actions_list_contract(schema, app)
     _patch_actions_get_contract(schema)
     _inject_middleware_errors(schema, MIDDLEWARE_ERROR_MAP)
     _replace_default_422(schema)
@@ -510,6 +515,105 @@ def _patch_actions_get_contract(schema: dict[str, Any]) -> None:
         errors=actions_get_errors,
         success_example=actions_get_success_example,
     )
+
+
+def _patch_actions_list_contract(schema: dict[str, Any], app: FastAPI) -> None:
+    """Enhance GET /v1/actions contract and query parameter docs."""
+
+    actions_list_errors: list[ErrorDef] = [
+        errors.INVALID_PARAMS,
+        errors.INTERNAL_ERROR,
+    ]
+
+    actions_list_success_example = cast(
+        dict[str, Any],
+        {
+            "success": True,
+            "error": None,
+            "data": {
+                "modules": [],
+            },
+        },
+    )
+
+    registry = getattr(app.state, "action_registry", None)
+    if isinstance(registry, ActionRegistry):
+        module_summaries = registry.module_summaries
+
+        # Prefer a realistic crypto/hash discovery slice for docs examples.
+        sampled = filter_modules(module_summaries, q="sha256")
+        if not sampled:
+            sampled = module_summaries[:1]
+
+        actions_list_success_example["data"] = modules_to_response(sampled)
+
+    _patch_operation_contract(
+        schema,
+        path="/v1/actions",
+        method="get",
+        errors=actions_list_errors,
+        success_example=actions_list_success_example,
+    )
+
+    operation = schema.get("paths", {}).get("/v1/actions", {}).get("get")
+    if not operation:
+        return
+
+    operation["description"] = (
+        "Discover registered actions grouped by module.\n\n"
+        "Query parameters:\n"
+        "- `q`: Optional free-text search over action name, summary, "
+        "description, and effective tags.\n"
+        "- `tags`: Optional CSV tag filter, for example "
+        "`hashing,checksum`. Tokens are trimmed, normalized to lowercase, "
+        "and deduplicated.\n"
+        "- `match`: Optional tag matching mode: `any` or `all`.\n\n"
+        "Behavior:\n"
+        "- If `tags` is provided and `match` is omitted, matching defaults "
+        "to `any`.\n"
+        "- Providing `match` without `tags` returns `INVALID_PARAMS`.\n"
+        "- When `q` and `tags` are both present, filters are combined with "
+        "logical AND."
+    )
+
+    parameters = operation.get("parameters", [])
+    parameters_by_name = {
+        parameter.get("name"): parameter
+        for parameter in parameters
+        if isinstance(parameter, dict)
+    }
+
+    q_param = parameters_by_name.get("q")
+    if q_param is not None:
+        q_param["description"] = (
+            "Optional free-text filter over action name, summary, "
+            "description, and effective tags."
+        )
+        q_schema = q_param.setdefault("schema", {"type": "string"})
+        q_schema["type"] = "string"
+        q_schema["example"] = "sha256"
+
+    tags_param = parameters_by_name.get("tags")
+    if tags_param is not None:
+        tags_param["description"] = (
+            "Optional CSV tags filter. Example: `hashing,checksum`. "
+            "Tokens are trimmed, lowercased, and deduplicated."
+        )
+        tags_schema = tags_param.setdefault("schema", {"type": "string"})
+        tags_schema["type"] = "string"
+        tags_schema["example"] = "hashing,checksum"
+
+    match_param = parameters_by_name.get("match")
+    if match_param is not None:
+        match_param["description"] = (
+            "Optional tag match mode. Allowed: `any` or `all`. "
+            "Requires `tags`; defaults to `any` when omitted."
+        )
+        match_schema = match_param.setdefault("schema", {"type": "string"})
+        match_schema["type"] = "string"
+        match_schema["enum"] = ["any", "all"]
+        match_schema["default"] = "any"
+        match_schema["example"] = "all"
 
 
 # ---------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -99,6 +100,50 @@ class ModuleSummarySchema(BaseModel):
     tags: list[str]
     authors: list[str]
     actions: list[ActionSummarySchema]
+
+
+class TagMatchMode(str, Enum):
+    """Allowed tag match modes for action discovery filters."""
+
+    ANY = "any"
+    ALL = "all"
+
+
+class ListActionsRequest(BaseModel):
+    """Typed query parameters for `GET /v1/actions`.
+
+    Attributes:
+        q: Optional free-text filter.
+        tags: Optional CSV action tags filter.
+        match: Optional tag matching mode for `tags`.
+    """
+
+    q: str | None = Field(
+        default=None,
+        description=(
+            "Optional free-text filter matched against action name, summary, "
+            "description, and effective tags."
+        ),
+        examples=["sha256"],
+    )
+    tags: str | None = Field(
+        default=None,
+        description=(
+            "Optional CSV action tags filter, for example "
+            "`hashing,checksum`. Tokens are trimmed, lowercased, and "
+            "deduplicated before filtering."
+        ),
+        examples=["hashing,checksum"],
+    )
+    match: str | None = Field(
+        default=None,
+        description=(
+            "Optional tag matching mode. Allowed values: `any` or `all`. "
+            "When omitted and `tags` is set, behavior defaults to `any`. "
+            "Using `match` without `tags` is invalid."
+        ),
+        examples=["any"],
+    )
 
 
 class ListActionsData(BaseModel):
