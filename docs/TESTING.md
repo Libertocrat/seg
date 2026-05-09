@@ -105,7 +105,7 @@ Current unit coverage includes:
 - `tests/actions/build_engine/test_actions_loader.py` for YAML discovery, safety checks, parsing, and module loading
 - `tests/actions/build_engine/test_actions_validator.py` for semantic DSL rules, uniqueness checks, binary constraints, output rules, and template validation
 - `tests/actions/build_engine/test_actions_builder.py` for runtime `ActionSpec` compilation, generated params models, defaults, command templates, and output definitions
-- `tests/actions/presentation/test_actions_catalog.py` for grouped module discovery and filtering by `q` and `tag`
+- `tests/actions/presentation/test_actions_catalog.py` for grouped module discovery and filtering by `q`, `tags`, and `match`
 - `tests/actions/presentation/test_actions_contracts.py` for params contracts, params examples, response contracts, and response examples
 - `tests/actions/presentation/test_actions_serializers.py` for stable public action and module serialization
 - `tests/actions/runtime/test_actions_renderer.py` for runtime argument resolution, const template interpolation, file input resolution, and output placeholder creation

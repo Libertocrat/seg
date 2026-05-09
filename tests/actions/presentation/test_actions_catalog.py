@@ -156,18 +156,20 @@ def test_filter_modules_query_real_data(registry_modules_and_actions) -> None:
         )
 
 
-def test_filter_modules_tag_real(registry_modules_and_actions) -> None:
+def test_filter_modules_tags_match_any_case_insensitive(
+    registry_modules_and_actions,
+) -> None:
     """
     GIVEN module summaries with effective action tags
-    WHEN filtering by tag
+    WHEN filtering by tags using match any
     THEN only actions matching that tag are returned case-insensitively
     """
 
     modules, actions = registry_modules_and_actions
     summaries = build_module_summaries(modules, actions)
 
-    result_upper = filter_modules(summaries, tag="VALIDATION")
-    result_lower = filter_modules(summaries, tag="validation")
+    result_upper = filter_modules(summaries, tags=("VALIDATION",), match="any")
+    result_lower = filter_modules(summaries, tags=("validation",), match="any")
 
     assert isinstance(result_upper, list)
     assert all(module.actions for module in result_upper)
@@ -184,16 +186,81 @@ def test_filter_modules_tag_keeps_only_matching_actions(
 ) -> None:
     """
     GIVEN deterministic registry summaries with mixed action tags
-    WHEN filtering by tag
+    WHEN filtering by tags
     THEN only matching actions are returned within matching modules
     """
 
     modules, actions = registry_modules_and_actions
     summaries = build_module_summaries(modules, actions)
-    result = filter_modules(summaries, tag="validation")
+    result = filter_modules(summaries, tags=("validation",), match="any")
 
     assert len(result) == 1
     assert [action.action for action in result[0].actions] == ["range_test"]
+
+
+def test_filter_modules_tags_match_any_matches_any_requested_tag(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN summaries with different action tags
+    WHEN filtering by multiple tags using match any
+    THEN actions matching at least one requested tag are returned
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(
+        summaries,
+        tags=("validation", "defaults"),
+        match="any",
+    )
+
+    assert len(result) == 1
+    assert [action.action for action in result[0].actions] == [
+        "default_test",
+        "range_test",
+    ]
+
+
+def test_filter_modules_tags_match_all_requires_all_requested_tags(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN summaries with inherited module tags and action-specific tags
+    WHEN filtering by multiple tags using match all
+    THEN only actions containing all requested tags are returned
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(
+        summaries,
+        tags=("test", "validation"),
+        match="all",
+    )
+
+    assert len(result) == 1
+    assert [action.action for action in result[0].actions] == ["range_test"]
+
+
+def test_filter_modules_tags_match_all_returns_no_actions_when_intersection_is_empty(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN summaries with disjoint action-specific tags
+    WHEN filtering by all requested tags that no action shares
+    THEN no modules are returned
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(
+        summaries,
+        tags=("validation", "defaults"),
+        match="all",
+    )
+
+    assert result == []
 
 
 def test_filter_modules_query_matches_action_tags(
@@ -213,21 +280,47 @@ def test_filter_modules_query_matches_action_tags(
     assert [action.action for action in result[0].actions] == ["range_test"]
 
 
-def test_filter_modules_combines_query_and_tag_filters(
+def test_filter_modules_combines_query_tags_and_match(
     registry_modules_and_actions,
 ) -> None:
     """
-    GIVEN deterministic registry summaries with different tags and descriptions
-    WHEN filtering by q and tag
-    THEN only actions matching both filters are returned
+    GIVEN summaries with effective action tags
+    WHEN q, tags, and match=all are provided
+    THEN only actions matching all active filters are returned
     """
 
     modules, actions = registry_modules_and_actions
     summaries = build_module_summaries(modules, actions)
-    result = filter_modules(summaries, q="optional", tag="defaults")
+    result = filter_modules(
+        summaries,
+        q="numeric",
+        tags=("test", "validation"),
+        match="all",
+    )
 
     assert len(result) == 1
-    assert [action.action for action in result[0].actions] == ["default_test"]
+    assert [action.action for action in result[0].actions] == ["range_test"]
+
+
+def test_filter_modules_query_and_tags_always_combine_with_and(
+    registry_modules_and_actions,
+) -> None:
+    """
+    GIVEN q matches one action and tags match another action
+    WHEN q and tags are provided with match any
+    THEN no action is returned unless the same action matches both filters
+    """
+
+    modules, actions = registry_modules_and_actions
+    summaries = build_module_summaries(modules, actions)
+    result = filter_modules(
+        summaries,
+        q="optional",
+        tags=("validation",),
+        match="any",
+    )
+
+    assert result == []
 
 
 # ============================================================================

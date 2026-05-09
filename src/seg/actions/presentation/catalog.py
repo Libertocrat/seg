@@ -53,18 +53,34 @@ def _matches_query(text: str | None, query: str) -> bool:
     return query in _normalize(text)
 
 
-def _matches_tag(tags: tuple[str, ...], tag: str) -> bool:
-    """Return whether a normalized tag exists in a tag tuple.
+def _matches_tags(
+    action_tags: tuple[str, ...],
+    requested_tags: tuple[str, ...],
+    *,
+    match: str,
+) -> bool:
+    """Return whether action tags satisfy the requested tag filter.
 
     Args:
-        tags: Effective action tags.
-        tag: Normalized tag filter value.
+        action_tags: Effective tags attached to one action summary.
+        requested_tags: Normalized query tags.
+        match: Matching behavior. `any` requires one match; `all` requires all.
 
     Returns:
-        True when the tag exists in the action tags.
+        True when no tag filter is provided or when action tags satisfy the
+        requested match behavior.
     """
 
-    return tag in {tag_item.lower() for tag_item in tags}
+    if not requested_tags:
+        return True
+
+    action_tag_set = {tag.lower() for tag in action_tags}
+    requested_tag_set = {tag.lower() for tag in requested_tags}
+
+    if match == "all":
+        return requested_tag_set.issubset(action_tag_set)
+
+    return bool(action_tag_set & requested_tag_set)
 
 
 def _normalize_tags(tags_input: list[str] | None) -> tuple[str, ...]:
@@ -169,36 +185,38 @@ def filter_modules(
     modules: list[ModuleSummary],
     *,
     q: str | None = None,
-    tag: str | None = None,
+    tags: tuple[str, ...] = (),
+    match: str = "any",
 ) -> list[ModuleSummary]:
     """Apply optional query and tag filters to module summaries.
 
     Args:
         modules: Source module summaries.
         q: Optional free-text query.
-        tag: Optional effective action tag filter.
+        tags: Optional normalized effective action tag filters.
+        match: Tag matching behavior. `any` matches at least one tag; `all`
+            requires all tags.
 
     Returns:
         Filtered module summaries. For query and/or tag matches at action
         level, only matching actions are kept in each module summary.
     """
 
-    if not q and not tag:
+    if not q and not tags:
         return modules
 
     query = _normalize(q) if q else None
-    tag_norm = _normalize(tag) if tag else None
 
     filtered: list[ModuleSummary] = []
 
     for module in modules:
         candidate_actions = module.actions
 
-        if tag_norm:
+        if tags:
             candidate_actions = [
                 action
                 for action in candidate_actions
-                if _matches_tag(action.tags, tag_norm)
+                if _matches_tags(action.tags, tags, match=match)
             ]
 
         if query:
@@ -228,7 +246,7 @@ def filter_modules(
             )
             continue
 
-        if query and not tag_norm:
+        if query and not tags:
             if _matches_query(module.description, query) or _matches_query(
                 module.module_id,
                 query,

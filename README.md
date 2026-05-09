@@ -356,7 +356,7 @@ SEG exposes a purposely small HTTP surface.
 
 ### Action endpoints
 
-- `GET /v1/actions` lists available actions grouped by module, with optional `q` and `tag` filters
+- `GET /v1/actions` lists available actions grouped by module, with optional `q`, `tags` (CSV), and `match` (`any`/`all`) filters
 - `GET /v1/actions/{action_id}` returns the public contract for one DSL-defined action
 - `POST /v1/actions/{action_id}` executes one action with a `params` payload and optional request-level execution options such as `stdout_as_file`
 

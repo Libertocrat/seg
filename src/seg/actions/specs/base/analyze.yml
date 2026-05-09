@@ -4,7 +4,7 @@ module: analyze
 description: "Inspection and lightweight analysis utilities for previewing, searching, and measuring managed files"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: [analysis, inspection, search, preview, text, file]
+tags: [analysis, inspection, text, files]
 
 binaries:
   - head
@@ -18,6 +18,7 @@ actions:
   preview_file_start:
     description: "Preview the first lines of a managed file"
     summary: "Preview file start lines"
+    tags: [preview, head, start, lines]
 
     args:
       input_file:
@@ -44,6 +45,7 @@ actions:
   preview_file_end:
     description: "Preview the last lines of a managed file"
     summary: "Preview file end lines"
+    tags: [preview, tail, end, lines]
 
     args:
       input_file:
@@ -70,6 +72,7 @@ actions:
   search_file_lines:
     description: "Search matching lines in a managed file using grep semantics"
     summary: "Search lines in a file"
+    tags: [search, grep, pattern, lines, filtering]
 
     args:
       input_file:
@@ -112,6 +115,7 @@ actions:
   count_file_lines:
     description: "Count lines in a managed file"
     summary: "Count file lines"
+    tags: [count, metrics, lines, wc]
 
     args:
       input_file:
@@ -128,6 +132,7 @@ actions:
   count_file_words:
     description: "Count words in a managed file"
     summary: "Count file words"
+    tags: [count, metrics, words, wc]
 
     args:
       input_file:
@@ -144,6 +149,7 @@ actions:
   count_file_chars:
     description: "Count characters in a managed file"
     summary: "Count file characters"
+    tags: [count, metrics, characters, wc]
 
     args:
       input_file:
@@ -160,6 +166,7 @@ actions:
   inspect_file_type:
     description: "Inspect file type information using the file utility"
     summary: "Inspect file type"
+    tags: [metadata, file_type, mime, detection]
 
     args:
       input_file:

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from seg.core.errors import SegError
@@ -15,6 +17,7 @@ from seg.routes.actions.schemas import (
     ExecuteActionRequest,
     GetActionData,
     ListActionsData,
+    ListActionsRequest,
 )
 
 router = APIRouter(prefix="/v1", tags=["Actions"])
@@ -24,16 +27,30 @@ router = APIRouter(prefix="/v1", tags=["Actions"])
     "/actions",
     response_model=ResponseEnvelope[ListActionsData],
     summary="List available actions grouped by module with optional filtering.",
+    description=(
+        "Discover registered actions grouped by module.\n\n"
+        "Query parameters:\n"
+        "- `q`: Optional free-text search over action name, summary, "
+        "description, and effective tags.\n"
+        "- `tags`: Optional CSV tag filter (for example "
+        "`hashing,checksum`). Tokens are trimmed, normalized to lowercase, "
+        "and deduplicated.\n"
+        "- `match`: Optional tag matching mode, `any` or `all`.\n\n"
+        "Filter behavior:\n"
+        "- `tags` without `match` defaults to `any`.\n"
+        "- `match` requires `tags`.\n"
+        "- When both `q` and `tags` are provided, both filters are combined "
+        "with logical AND."
+    ),
 )
 async def list_actions(
     request: Request,
-    q: str | None = None,
-    tag: str | None = None,
+    req: Annotated[ListActionsRequest, Depends()],
 ) -> JSONResponse | ResponseEnvelope[ListActionsData]:
     """List DSL-defined actions grouped by module with optional filtering."""
 
     try:
-        result = await list_actions_handler(request, q=q, tag=tag)
+        result = await list_actions_handler(request, req=req)
         return ResponseEnvelope.success_response(result)
     except SegError as exc:
         payload = ResponseEnvelope.failure(

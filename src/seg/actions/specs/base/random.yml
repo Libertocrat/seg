@@ -4,7 +4,7 @@ module: random
 description: "Randomness and identifier utilities for UUIDs, tokens, and binary entropy generation"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: [random, entropy, tokens, identifiers, security]
+tags: [random, entropy, security]
 
 binaries:
   - cat
@@ -15,6 +15,7 @@ actions:
   gen_uuid:
     description: "Generate a UUIDv4 from the Linux kernel random UUID interface"
     summary: "Generate a kernel-backed UUIDv4"
+    tags: [uuid, uuid4, identifier, kernel]
 
     command:
       - binary: cat
@@ -24,6 +25,7 @@ actions:
   gen_token_hex:
     description: "Generate a random hexadecimal token using OpenSSL"
     summary: "Generate a random hex token"
+    tags: [token, hex, openssl, random_bytes, encoding]
 
     args:
       bytes:
@@ -45,6 +47,7 @@ actions:
   gen_token_base64:
     description: "Generate a random Base64 token using OpenSSL"
     summary: "Generate a random Base64 token"
+    tags: [token, base64, openssl, random_bytes, encoding]
 
     args:
       bytes:
@@ -66,6 +69,7 @@ actions:
   gen_bytes_file:
     description: "Generate random bytes and store them as a managed output file"
     summary: "Generate random bytes as file"
+    tags: [random_bytes, binary, entropy_file, output_file, files, openssl]
 
     args:
       bytes:
