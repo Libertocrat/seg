@@ -4,7 +4,7 @@ module: random
 description: "Randomness and identifier utilities for UUIDs, tokens, and binary entropy generation"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: "random, entropy, tokens, identifiers, security"
+tags: [random, entropy, tokens, identifiers, security]
 
 binaries:
   - cat

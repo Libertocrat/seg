@@ -19,7 +19,7 @@ class ModuleSpec(BaseModel):
         module: Bare DSL module name.
         description: Human-readable module description.
         authors: Optional module authors list.
-        tags: Optional module tags encoded as CSV.
+        tags: Optional module tags as a YAML list.
         binaries: Allowed binaries for actions in this module.
         actions: Mapping of action name to action definitions.
     """
@@ -32,7 +32,7 @@ class ModuleSpec(BaseModel):
     description: str
 
     authors: Optional[List[str]] = None
-    tags: Optional[str] = None
+    tags: Optional[List[str]] = None
 
     binaries: List[str]
 

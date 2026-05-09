@@ -15,7 +15,7 @@ class ActionSpecInput(BaseModel):
     Attributes:
         description: Long description for the action.
         summary: Optional short summary.
-        tags: Optional action tags encoded as CSV. These are merged with
+        tags: Optional action tags as a YAML list. These are merged with
             module-level tags at build time.
         allow_stdout_as_file: Whether runtime stdout may be materialized as a
             managed file.
@@ -27,7 +27,7 @@ class ActionSpecInput(BaseModel):
 
     description: str
     summary: Optional[str] = None
-    tags: Optional[str] = None
+    tags: Optional[List[str]] = None
     allow_stdout_as_file: bool = True
 
     args: Optional[Dict[str, ArgSpec]] = None

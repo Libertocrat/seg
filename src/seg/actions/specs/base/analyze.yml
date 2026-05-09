@@ -4,7 +4,7 @@ module: analyze
 description: "Inspection and lightweight analysis utilities for previewing, searching, and measuring managed files"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: "analysis, inspection, search, preview, text, file"
+tags: [analysis, inspection, search, preview, text, file]
 
 binaries:
   - head

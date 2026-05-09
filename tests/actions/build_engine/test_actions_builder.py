@@ -751,12 +751,12 @@ def test_build_actions_normalizes_module_tags(
     make_module_spec,
 ):
     """
-    GIVEN a module with mixed-case and duplicate CSV tags
+    GIVEN a module with mixed-case and duplicate YAML list tags
     WHEN build_actions is called
     THEN tags are lowercased, deduplicated, and order-preserving
     """
     payload = make_module_payload()
-    payload["tags"] = "A, b, a , C"
+    payload["tags"] = ["A", "b", "a", "C"]
     module = make_module_spec(payload)
 
     spec = build_actions([module], _test_settings())["test_module.ping"]
@@ -774,9 +774,9 @@ def test_build_actions_merges_module_and_action_tags(
     WHEN build_actions is called
     THEN ActionSpec tags contain effective deduplicated tags
     """
-    action = make_action_spec_input(tags="files, aes-256, encryption")
+    action = make_action_spec_input(tags=["files", "aes-256", "encryption"])
     payload = make_module_payload(actions={"encrypt_file": action})
-    payload["tags"] = "crypto, files, security"
+    payload["tags"] = ["crypto", "files", "security"]
     module = make_module_spec(payload)
 
     spec = build_actions([module], _test_settings())["test_module.encrypt_file"]
@@ -794,7 +794,7 @@ def test_build_actions_uses_action_tags_without_module_tags(
     WHEN build_actions is called
     THEN ActionSpec tags include normalized action tags
     """
-    action = make_action_spec_input(tags="aes-256, encryption")
+    action = make_action_spec_input(tags=["aes-256", "encryption"])
     module = make_module_spec(make_module_payload(actions={"encrypt_file": action}))
 
     spec = build_actions([module], _test_settings())["test_module.encrypt_file"]

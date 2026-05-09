@@ -332,7 +332,7 @@ When validating action behavior locally, prefer these checks:
 
 - inspect the generated catalog with `GET /v1/actions`
 - inspect one public contract with `GET /v1/actions/{action_id}`
-- execute one action with `POST /v1/actions/{action_id}` and enable `stdout_as_file` when validating stdout-to-file materialization
+- execute one action with `POST /v1/actions/{action_id}` and set `stdout_as_file: true` when validating stdout-to-file materialization
 - upload or retrieve supporting files through `/v1/files`
 - inspect `/openapi.json`, `/docs`, or `/redoc` directly; set `SEG_ENABLE_DOCS=false` only when you explicitly want them disabled
 

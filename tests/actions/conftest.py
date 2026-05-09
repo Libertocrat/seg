@@ -30,7 +30,7 @@ def make_action_spec_input():
         *,
         description: str = "test action",
         summary: str | None = None,
-        tags: str | None = None,
+        tags: list[str] | None = None,
         allow_stdout_as_file: bool | None = None,
         args: dict[str, Any] | None = None,
         flags: dict[str, Any] | None = None,
@@ -42,7 +42,7 @@ def make_action_spec_input():
         Args:
             description: Action description text.
             summary: Optional short action summary.
-            tags: Optional action tags encoded as CSV.
+            tags: Optional action tags as a YAML list.
             allow_stdout_as_file: Optional explicit stdout materialization policy.
             args: Optional argument definitions payload.
             flags: Optional flag definitions payload.
@@ -85,7 +85,7 @@ def make_action_payload(make_action_spec_input):
 
     def _make(
         *,
-        tags: str | None = None,
+        tags: list[str] | None = None,
         args: dict[str, Any] | None = None,
         flags: dict[str, Any] | None = None,
         outputs: dict[str, Any] | None = None,
@@ -94,7 +94,7 @@ def make_action_payload(make_action_spec_input):
         """Build a minimal valid action payload.
 
         Args:
-            tags: Optional action tags encoded as CSV.
+            tags: Optional action tags as a YAML list.
             args: Optional argument definitions payload.
             flags: Optional flag definitions payload.
             outputs: Optional outputs definitions payload.

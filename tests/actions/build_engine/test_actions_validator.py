@@ -8,6 +8,8 @@ These tests freeze validator-layer invariants:
 
 from __future__ import annotations
 
+from typing import cast
+
 import pytest
 
 from seg.actions.build_engine.validator import validate_modules
@@ -228,13 +230,17 @@ def test_validate_modules_rejects_binary_with_backslash(
 
 @pytest.mark.parametrize(
     "tags,error_message",
-    [("   ", "tags must be a non-empty CSV string"), ("alpha,,beta", "empty CSV")],
-    ids=["blank_tags", "empty_csv_entry"],
+    [
+        ([], "tags must be a non-empty list of strings"),
+        (["   "], "tags must not contain blank entries"),
+        (["alpha", ""], "tags must not contain blank entries"),
+    ],
+    ids=["empty_list", "blank_string", "empty_string"],
 )
-def test_validate_modules_rejects_invalid_module_tags_csv(
+def test_validate_modules_rejects_invalid_module_tags_list(
     make_module_payload,
     make_module_spec,
-    tags: str,
+    tags: list[str],
     error_message: str,
 ):
     """
@@ -253,17 +259,17 @@ def test_validate_modules_rejects_invalid_module_tags_csv(
 @pytest.mark.parametrize(
     "tags",
     [
-        "crypto",
-        "file_id",
-        "aes-256",
-        "text-processing,safe_exec",
+        ["crypto"],
+        ["file_id"],
+        ["aes-256"],
+        ["text-processing", "safe_exec"],
     ],
     ids=["simple", "underscore", "hyphen", "mixed_valid_tokens"],
 )
 def test_validate_modules_accepts_valid_module_tag_names(
     make_module_payload,
     make_module_spec,
-    tags: str,
+    tags: list[str],
 ):
     """
     GIVEN a module with valid tag names
@@ -280,12 +286,12 @@ def test_validate_modules_accepts_valid_module_tag_names(
 @pytest.mark.parametrize(
     "tags",
     [
-        "Crypto",
-        "123crypto",
-        "bad tag",
-        "_bad",
-        "bad.tag",
-        "bad/tag",
+        ["Crypto"],
+        ["123crypto"],
+        ["bad tag"],
+        ["_bad"],
+        ["bad.tag"],
+        ["bad/tag"],
     ],
     ids=[
         "uppercase",
@@ -299,7 +305,7 @@ def test_validate_modules_accepts_valid_module_tag_names(
 def test_validate_modules_rejects_invalid_module_tag_names(
     make_module_payload,
     make_module_spec,
-    tags: str,
+    tags: list[str],
 ):
     """
     GIVEN a module with invalid tag names
@@ -311,6 +317,22 @@ def test_validate_modules_rejects_invalid_module_tag_names(
     module = make_module_spec(payload)
 
     with pytest.raises(ActionSpecsParseError, match="invalid tag name"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_module_tags_with_non_string_item(make_valid_module):
+    """
+    GIVEN a parsed module with a non-string value inside tags
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_valid_module()
+    module.tags = cast(list[str], ["alpha", 123])
+
+    with pytest.raises(
+        ActionSpecsParseError,
+        match="tags must be a non-empty list of strings",
+    ):
         validate_modules([module])
 
 
@@ -365,7 +387,7 @@ def test_validate_modules_accepts_valid_action_tags(
     WHEN validate_modules is called
     THEN validation succeeds
     """
-    action = make_action_payload(tags="aes-256, encryption, file_id")
+    action = make_action_payload(tags=["aes-256", "encryption", "file_id"])
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
     validate_modules([module])
@@ -374,16 +396,17 @@ def test_validate_modules_accepts_valid_action_tags(
 @pytest.mark.parametrize(
     "tags,error_message",
     [
-        ("   ", "tags must be a non-empty CSV string"),
-        ("alpha,,beta", "empty CSV"),
+        ([], "tags must be a non-empty list of strings"),
+        (["   "], "tags must not contain blank entries"),
+        (["alpha", ""], "tags must not contain blank entries"),
     ],
-    ids=["blank_tags", "empty_csv_entry"],
+    ids=["empty_list", "blank_string", "empty_string"],
 )
-def test_validate_modules_rejects_invalid_action_tags_csv(
+def test_validate_modules_rejects_invalid_action_tags_list(
     make_module_payload,
     make_action_payload,
     make_module_spec,
-    tags: str,
+    tags: list[str],
     error_message: str,
 ):
     """
@@ -401,12 +424,12 @@ def test_validate_modules_rejects_invalid_action_tags_csv(
 @pytest.mark.parametrize(
     "tags",
     [
-        "Crypto",
-        "123crypto",
-        "bad tag",
-        "_bad",
-        "bad.tag",
-        "bad/tag",
+        ["Crypto"],
+        ["123crypto"],
+        ["bad tag"],
+        ["_bad"],
+        ["bad.tag"],
+        ["bad/tag"],
     ],
     ids=[
         "uppercase",
@@ -421,7 +444,7 @@ def test_validate_modules_rejects_invalid_action_tag_names(
     make_module_payload,
     make_action_payload,
     make_module_spec,
-    tags: str,
+    tags: list[str],
 ):
     """
     GIVEN an action with invalid tag names
@@ -432,6 +455,22 @@ def test_validate_modules_rejects_invalid_action_tag_names(
     module = make_module_spec(make_module_payload(actions={"ping": action}))
 
     with pytest.raises(ActionSpecsParseError, match="invalid tag name"):
+        validate_modules([module])
+
+
+def test_validate_modules_rejects_action_tags_with_non_string_item(make_valid_module):
+    """
+    GIVEN a parsed action with a non-string value inside tags
+    WHEN validate_modules is called
+    THEN ActionSpecsParseError is raised
+    """
+    module = make_valid_module()
+    module.actions["ping"].tags = cast(list[str], ["alpha", 123])
+
+    with pytest.raises(
+        ActionSpecsParseError,
+        match="tags must be a non-empty list of strings",
+    ):
         validate_modules([module])
 
 

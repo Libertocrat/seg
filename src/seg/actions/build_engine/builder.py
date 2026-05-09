@@ -17,7 +17,6 @@ registration, or subprocess execution.
 
 from __future__ import annotations
 
-import csv
 import logging
 import re
 from typing import Any, cast
@@ -137,8 +136,8 @@ def _build_action(
                 "is not allowed by effective policy"
             )
         params_model = _build_params_model(action_fqdn, arg_defs, flag_defs)
-        module_tags = _parse_tags(module.tags)
-        action_tags = _parse_tags(action.tags)
+        module_tags = _normalize_tags(module.tags)
+        action_tags = _normalize_tags(action.tags)
         effective_tags = _merge_tags(module_tags, action_tags)
 
         compiled = ActionSpec(
@@ -417,27 +416,25 @@ def _build_model_name(action_fqdn: str) -> str:
     return "".join(part.capitalize() for part in parts) + "Params"
 
 
-def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
-    """Normalize tags from CSV text into a deduplicated tuple.
+def _normalize_tags(tags_input: list[str] | None) -> tuple[str, ...]:
+    """Normalize YAML tag lists into a deduplicated tuple.
 
     Args:
-        tags_csv: Raw CSV tag string or `None`.
+        tags_input: Raw YAML tag list or `None`.
 
     Returns:
         Lowercased, stripped, deduplicated tags preserving first appearance.
     """
 
-    if tags_csv is None:
-        return ()
-
-    rows = list(csv.reader([tags_csv]))
-    if not rows:
+    if tags_input is None:
         return ()
 
     tags: list[str] = []
     seen: set[str] = set()
 
-    for token in rows[0]:
+    for token in tags_input:
+        if not isinstance(token, str):
+            continue
         normalized = token.strip().lower()
         if normalized and normalized not in seen:
             seen.add(normalized)

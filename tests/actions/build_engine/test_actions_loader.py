@@ -132,7 +132,7 @@ description: "Test module for loader"
 authors:
     - "Tester <tester@example.com>"
 
-tags: "test, loader, dsl"
+tags: [test, loader, dsl]
 
 binaries:
     - echo

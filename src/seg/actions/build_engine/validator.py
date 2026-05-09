@@ -16,7 +16,6 @@ can reach any later compilation or runtime layers.
 
 from __future__ import annotations
 
-import csv
 import logging
 import unicodedata
 from typing import Any, NoReturn, cast
@@ -196,7 +195,7 @@ def _validate_module_binaries(module: ModuleSpec) -> None:
 
 
 def _validate_module_tags(module: ModuleSpec) -> None:
-    """Validate optional module tags as a CSV string.
+    """Validate optional module tags as a YAML list.
 
     Args:
         module: Module specification to validate.
@@ -205,8 +204,8 @@ def _validate_module_tags(module: ModuleSpec) -> None:
         ActionSpecsParseError: If module tags are invalid.
     """
 
-    _validate_tags_csv(
-        tags_csv=module.tags,
+    _validate_tags_list(
+        tags=module.tags,
         module_name=module.module,
         action_name=None,
     )
@@ -217,7 +216,7 @@ def _validate_action_tags(
     action_name: str,
     action: ActionSpecInput,
 ) -> None:
-    """Validate optional action tags as a CSV string.
+    """Validate optional action tags as a YAML list.
 
     Args:
         module_name: Parent module name.
@@ -228,32 +227,33 @@ def _validate_action_tags(
         ActionSpecsParseError: If action tags are invalid.
     """
 
-    _validate_tags_csv(
-        tags_csv=action.tags,
+    _validate_tags_list(
+        tags=action.tags,
         module_name=module_name,
         action_name=action_name,
     )
 
 
-def _validate_tags_csv(
+def _validate_tags_list(
     *,
-    tags_csv: str | None,
+    tags: list[str] | None,
     module_name: str,
     action_name: str | None,
 ) -> None:
-    """Validate optional DSL tags encoded as CSV.
+    """Validate optional DSL tags encoded as a YAML list.
 
     Args:
-        tags_csv: Raw CSV tags string from module or action metadata.
+        tags: Raw YAML tag list from module or action metadata.
         module_name: Parent module name for error context.
         action_name: Optional action name for action-scoped errors.
 
     Raises:
-        ActionSpecsParseError: If tags are blank, invalid CSV, contain empty
-            tokens, or contain tokens that violate the tag naming pattern.
+        ActionSpecsParseError: If tags are empty, contain non-string values,
+            contain blank strings, or contain strings that violate the tag
+            naming pattern.
     """
 
-    if tags_csv is None:
+    if tags is None:
         return
 
     def _raise_tags_error(message: str) -> NoReturn:
@@ -261,26 +261,24 @@ def _validate_tags_csv(
             _raise_module_error(module_name, message)
         _raise_action_error(module_name, action_name, message)
 
-    if tags_csv.strip() == "":
-        _raise_tags_error("tags must be a non-empty CSV string")
+    if not tags:
+        _raise_tags_error("tags must be a non-empty list of strings")
 
-    try:
-        rows = list(csv.reader([tags_csv]))
-    except csv.Error as exc:
-        _raise_tags_error(f"tags must be a valid CSV string ({exc})")
+    for tag in tags:
+        if not isinstance(tag, str):
+            _raise_tags_error("tags must be a non-empty list of strings")
 
-    if not rows or not rows[0]:
-        _raise_tags_error("tags must be a non-empty CSV string")
+        normalized = tag.strip()
+        if normalized == "":
+            _raise_tags_error("tags must not contain blank entries")
 
-    tokens = [token.strip() for token in rows[0]]
-    if any(token == "" for token in tokens):
-        _raise_tags_error("tags must not contain empty CSV entries")
-
-    for token in tokens:
-        if TAG_NAME_PATTERN.fullmatch(token):
+        if TAG_NAME_PATTERN.fullmatch(normalized):
             continue
         _raise_tags_error(
-            f"invalid tag name '{token}'; expected pattern '{TAG_NAME_PATTERN.pattern}'"
+            (
+                "invalid tag name "
+                f"'{normalized}'; expected pattern '{TAG_NAME_PATTERN.pattern}'"
+            )
         )
 
 
