@@ -154,7 +154,7 @@ def valid_registry(tmp_path, monkeypatch):
 version: 1
 module: test_runtime
 description: "Test runtime module"
-tags: "test, runtime"
+tags: [test, runtime]
 
 binaries:
     - echo
@@ -164,7 +164,7 @@ actions:
     ping:
         description: "Return deterministic hello output"
         summary: "Ping"
-        tags: "health, smoke_test"
+        tags: [health, smoke_test]
         command:
             - binary: echo
             - "hello"
@@ -172,7 +172,7 @@ actions:
     repeat:
         description: "Echo one integer argument"
         summary: "Repeat"
-        tags: "echo, repeatable"
+        tags: [echo, repeatable]
         args:
             count:
                 type: int
@@ -184,7 +184,7 @@ actions:
 
     range_test:
         description: "Test numeric constraints"
-        tags: "validation, numeric-range"
+        tags: [validation, numeric-range]
         args:
             value:
                 type: int
@@ -199,7 +199,7 @@ actions:
 
     default_test:
         description: "Test default value"
-        tags: "defaults, optional-input"
+        tags: [defaults, optional-input]
         args:
             value:
                 type: int

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 from typing import Iterable, Mapping
 
 from seg.actions.models.core import ActionSpec
@@ -68,27 +67,25 @@ def _matches_tag(tags: tuple[str, ...], tag: str) -> bool:
     return tag in {tag_item.lower() for tag_item in tags}
 
 
-def _parse_tags(tags_csv: str | None) -> tuple[str, ...]:
-    """Normalize module tags CSV text into a deduplicated tuple.
+def _normalize_tags(tags_input: list[str] | None) -> tuple[str, ...]:
+    """Normalize YAML tag lists into a deduplicated tuple.
 
     Args:
-        tags_csv: Raw CSV tags string from module metadata.
+        tags_input: Raw YAML tag list from module metadata.
 
     Returns:
         Deduplicated and lowercased tag tuple preserving first appearance.
     """
 
-    if tags_csv is None:
-        return ()
-
-    rows = list(csv.reader([tags_csv]))
-    if not rows:
+    if tags_input is None:
         return ()
 
     tags: list[str] = []
     seen: set[str] = set()
 
-    for token in rows[0]:
+    for token in tags_input:
+        if not isinstance(token, str):
+            continue
         normalized = token.strip().lower()
         if normalized and normalized not in seen:
             seen.add(normalized)
@@ -159,7 +156,7 @@ def build_module_summaries(
                 namespace=".".join(namespace),
                 namespace_path=namespace,
                 description=module.description,
-                tags=_parse_tags(module.tags),
+                tags=_normalize_tags(module.tags),
                 authors=tuple(module.authors) if module.authors else None,
                 actions=sorted(summaries, key=lambda action: action.action),
             )

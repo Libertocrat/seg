@@ -4,7 +4,7 @@ module: crypto
 description: "Cryptographic primitives for hashing, integrity checks, and file encryption workflows"
 authors:
   - "Libertocrat <libertocrat@proton.me>"
-tags: "crypto, security, hashing, encryption, integrity, files"
+tags: [crypto, security, hashing, encryption, integrity, files]
 
 binaries:
   - openssl
