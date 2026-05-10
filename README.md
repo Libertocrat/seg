@@ -288,11 +288,13 @@ Healthcheck:
 curl http://localhost:8080/health
 ```
 
-Docs are enabled by default:
+OpenAPI docs are disabled by default for security.
+Enable `SEG_ENABLE_DOCS=true` only for local development or internal testing.
+Never enable docs in production deployments.
+
+When enabled:
 
 - `http://localhost:8080/docs`
-
-Set `SEG_ENABLE_DOCS=false` when the OpenAPI docs are not needed, especially in production deployments.
 
 To publish SEG on a different host port, set `SEG_HOST_PORT` in `.env` (for example `SEG_HOST_PORT=8090`) and use `http://localhost:8090`.
 
@@ -327,7 +329,7 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 | `SEG_TIMEOUT_MS` | Per-request timeout in milliseconds. | `5000` |
 | `SEG_RATE_LIMIT_RPS` | Process-local requests per second limit. | `10` |
 | `SEG_APP_VERSION` | Version exposed by the runtime and OpenAPI metadata. | `0.1.0` |
-| `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. Disable it when docs are not needed. | `true` |
+| `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. Keep disabled by default for security and enable only for local development or testing. | `false` |
 | `SEG_ENABLE_SECURITY_HEADERS` | Enables baseline response security headers. | `true` |
 | `SEG_BLOCKED_BINARIES_EXTRA` | Optional CSV of additional blocked binaries. | unset |
 | `SHARED_DOCKER_NETWORK` | External Docker network used by the Compose deployment. | `docker-network` |
@@ -373,7 +375,7 @@ SEG exposes a purposely small HTTP surface.
 - `GET /health`
 - `GET /metrics`
 
-Interactive and dynamically generated OpenAPI docs are enabled by default and can be disabled with `SEG_ENABLE_DOCS=false`:
+Interactive and dynamically generated OpenAPI docs are disabled by default for security. Enable them with `SEG_ENABLE_DOCS=true` only for local development or internal testing:
 
 - `/docs`
 - `/redoc`

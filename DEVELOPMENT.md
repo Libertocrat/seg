@@ -334,7 +334,7 @@ When validating action behavior locally, prefer these checks:
 - inspect one public contract with `GET /v1/actions/{action_id}`
 - execute one action with `POST /v1/actions/{action_id}` and set `stdout_as_file: true` when validating stdout-to-file materialization
 - upload or retrieve supporting files through `/v1/files`
-- inspect `/openapi.json`, `/docs`, or `/redoc` directly; set `SEG_ENABLE_DOCS=false` only when you explicitly want them disabled
+- set `SEG_ENABLE_DOCS=true` only when you need to inspect `/openapi.json`, `/docs`, or `/redoc` during local development
 
 ## 5. Dependency Sets
 
@@ -499,12 +499,17 @@ Example usage:
 scripts/seg-forward.sh --env-file .env
 ```
 
-The script prints URLs such as:
+The script always prints:
+
+```text
+http://localhost:<PORT>/health
+```
+
+When `SEG_ENABLE_DOCS=true`, it also prints:
 
 ```text
 http://localhost:<PORT>/docs
 http://localhost:<PORT>/openapi.json
-http://localhost:<PORT>/health
 ```
 
 `PORT` is auto-assigned by default or can be set with `--local-port`.
