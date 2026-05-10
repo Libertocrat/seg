@@ -54,7 +54,7 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_rate_limit_rps == 10
     assert s.seg_log_level == "INFO"
     assert s.seg_app_version == "0.1.0"
-    assert s.seg_enable_docs is True
+    assert s.seg_enable_docs is False
     assert s.seg_enable_security_headers is True
 
 
@@ -241,27 +241,27 @@ def test_blocked_binary_extra_accepts_duplicate_values(minimal_safe_env, monkeyp
 # ============================================================================
 
 
-def test_docs_endpoints_enabled_by_default(client):
+def test_docs_endpoints_disabled_by_default(client):
     """
     GIVEN the application created with default settings
     WHEN requesting `/openapi.json` and `/docs`
-    THEN the endpoints are available
+    THEN the endpoints are not exposed
     """
     resp_openapi = client.get("/openapi.json")
-    assert resp_openapi.status_code == 200
+    assert resp_openapi.status_code == 401
 
     resp_docs = client.get("/docs")
-    assert resp_docs.status_code == 200
+    assert resp_docs.status_code == 401
 
 
-def test_docs_endpoints_disabled_when_flag_false(minimal_safe_env, monkeypatch):
+def test_docs_endpoints_enabled_when_flag_true(minimal_safe_env, monkeypatch):
     """
-    GIVEN the required SEG environment variables and `SEG_ENABLE_DOCS=false`
+    GIVEN the required SEG environment variables and `SEG_ENABLE_DOCS=true`
     WHEN the application is created via the factory
-    THEN `/openapi.json` and `/docs` are not exposed
+    THEN `/openapi.json` and `/docs` are exposed
     """
-    # minimal_safe_env ensures required vars are present; disable docs explicitly
-    monkeypatch.setenv("SEG_ENABLE_DOCS", "false")
+    # minimal_safe_env ensures required vars are present; enable docs explicitly
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
 
     from fastapi.testclient import TestClient
 
@@ -271,19 +271,20 @@ def test_docs_endpoints_disabled_when_flag_false(minimal_safe_env, monkeypatch):
     client = TestClient(app)
 
     resp_openapi = client.get("/openapi.json")
-    assert resp_openapi.status_code == 401
+    assert resp_openapi.status_code == 200
 
     resp_docs = client.get("/docs")
-    assert resp_docs.status_code == 401
+    assert resp_docs.status_code == 200
 
 
 def test_openapi_version_reflects_seg_app_version(minimal_safe_env, monkeypatch):
     """
-    GIVEN SEG_APP_VERSION is provided in the environment
+    GIVEN SEG_APP_VERSION is provided in the environment and docs are enabled
     WHEN the application OpenAPI document is requested
     THEN info.version matches the configured SEG_APP_VERSION value
     """
     monkeypatch.setenv("SEG_APP_VERSION", "7.8.9")
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
 
     from fastapi.testclient import TestClient
 

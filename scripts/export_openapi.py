@@ -39,8 +39,9 @@ def get_release_version() -> str:
 
 
 # Minimal valid settings for schema generation; values won't affect the schema but must
-# satisfy validation. We set `seg_enable_docs=True` explicitly so export behavior
-# remains stable even if runtime defaults change.
+# satisfy validation. The runtime keeps docs disabled by default for security, so
+# we set `seg_enable_docs=True` explicitly here to generate the published schema
+# without changing the normal application default.
 def build_docs_settings() -> Settings:
     """Create a minimal settings object for documentation generation.
 

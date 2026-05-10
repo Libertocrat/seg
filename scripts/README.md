@@ -69,8 +69,8 @@ docker compose up -d seg
 After the forward starts, the local URLs printed by the script include:
 
 - `http://localhost:<PORT>/health`
-- `http://localhost:<PORT>/docs` by default, unless `SEG_ENABLE_DOCS=false`
-- `http://localhost:<PORT>/openapi.json` by default, unless `SEG_ENABLE_DOCS=false`
+- `http://localhost:<PORT>/docs` when `SEG_ENABLE_DOCS=true`
+- `http://localhost:<PORT>/openapi.json` when `SEG_ENABLE_DOCS=true`
 
 The forwarding script does not enable docs endpoints by itself. It only forwards traffic to whatever the running SEG container currently exposes.
 

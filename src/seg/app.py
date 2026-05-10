@@ -84,8 +84,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     ensure_storage_dirs(settings)
 
-    # The interactive documentation endpoints are enabled by default and can be
-    # removed from the runtime surface by setting `seg_enable_docs=False`.
+    # Interactive documentation endpoints are opt-in and should remain disabled
+    # in production; expose them only when `seg_enable_docs=True`.
     docs_url = "/docs" if settings.seg_enable_docs else None
     redoc_url = "/redoc" if settings.seg_enable_docs else None
     openapi_url = "/openapi.json" if settings.seg_enable_docs else None

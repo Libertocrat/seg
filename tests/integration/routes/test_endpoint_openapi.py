@@ -33,7 +33,7 @@ def _openapi_document(
     """Fetch the generated OpenAPI document.
 
     GIVEN a valid minimal SEG runtime environment
-    WHEN the test app is created with the default runtime settings
+    WHEN the test app is created with docs explicitly enabled
     THEN `/openapi.json` returns a successful OpenAPI payload.
 
     Args:
@@ -44,7 +44,7 @@ def _openapi_document(
         Parsed OpenAPI JSON document.
     """
 
-    del monkeypatch
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
     app = create_app()
     if action_registry is not None:
         app.state.action_registry = action_registry
@@ -62,7 +62,7 @@ def _openapi_document(
 def test_openapi_is_valid_spec(minimal_safe_env, monkeypatch):
     """Validate generated OpenAPI document against the spec.
 
-    GIVEN docs are enabled by default
+    GIVEN docs are explicitly enabled for schema inspection
     WHEN `/openapi.json` is generated
     THEN the payload is a valid OpenAPI schema.
 
@@ -70,6 +70,7 @@ def test_openapi_is_valid_spec(minimal_safe_env, monkeypatch):
         minimal_safe_env: Fixture that provides required SEG environment vars.
         monkeypatch: Pytest helper used to set test-only environment values.
     """
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
     app = create_app()
     with TestClient(app) as client:
         response = client.get("/openapi.json")
@@ -284,6 +285,7 @@ def test_openapi_execute_examples_omit_stdout_as_file_when_disallowed(
     """
 
     del minimal_safe_env
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
 
     app = create_app()
     app.state.action_registry = _build_outputs_registry(
@@ -331,6 +333,7 @@ def test_openapi_execute_response_examples_include_outputs_when_declared(
     """
 
     del minimal_safe_env
+    monkeypatch.setenv("SEG_ENABLE_DOCS", "true")
 
     app = create_app()
     app.state.action_registry = _build_outputs_registry(

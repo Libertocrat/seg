@@ -93,7 +93,7 @@ The application exposes these HTTP entry points:
 - `/v1/files/{id}/content` via GET. This endpoint streams file content by `file_id`.
 - `/health` via GET. This endpoint is unauthenticated.
 - `/metrics` via GET. This endpoint is unauthenticated.
-- `/docs`, `/redoc`, and `/openapi.json` while `seg_enable_docs` remains enabled. These endpoints are enabled by default and are also unauthenticated while exposed.
+- `/docs`, `/redoc`, and `/openapi.json` while `seg_enable_docs` is enabled. These endpoints are unauthenticated while exposed and should remain disabled by default for security.
 
 Attack inputs include:
 
@@ -224,7 +224,7 @@ Authentication coverage is as follows:
 Some risks remain by design or by deployment assumption.
 
 > [!WARNING]
-> `/health`, `/metrics`, and OpenAPI docs endpoints can be reached without authentication while docs are enabled. Keep SEG within trusted network boundaries, keep localhost-only publishing by default unless a wider bind is intentional, and set `SEG_ENABLE_DOCS=false` when exposing docs is not acceptable.
+> `/health`, `/metrics`, and OpenAPI docs endpoints can be reached without authentication while docs are enabled. Keep SEG within trusted network boundaries, keep localhost-only publishing by default unless a wider bind is intentional, and enable `SEG_ENABLE_DOCS=true` only for local development or internal testing, never in production.
 
 - SEG relies on container isolation. If the container runtime is misconfigured or compromised, container-level protections may not hold.
 - SEG relies on correct storage root configuration. An incorrect `SEG_ROOT_DIR` mount target weakens the filesystem boundary.
