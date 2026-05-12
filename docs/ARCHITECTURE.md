@@ -429,11 +429,12 @@ The Compose service:
 
 - runs the ephemeral `seg-init` helper service before `seg` starts
 - builds the image from the repository Dockerfile
+- passes container identity build args (`SEG_CONTAINER_USER`, `SEG_CONTAINER_GROUP`, `SEG_CONTAINER_UID`, `SEG_CONTAINER_GID`)
 - loads environment variables from `.env`
 - mounts the persistent volume at `${SEG_ROOT_DIR}`
 - injects the API token through the `seg_api_token` Docker secret backed by `./secrets/seg_api_token.txt`
-- attaches the service to an external Docker network named by `SHARED_DOCKER_NETWORK`
-- does not publish a host port in the provided Compose file
+- attaches the service to an external Docker network named by `SEG_SHARED_NETWORK`
+- publishes SEG to the host using `SEG_HOST_BIND_ADDRESS:SEG_HOST_PORT:SEG_PORT`
 - restarts with `unless-stopped`
 
 `seg-init` creates the root directory, assigns ownership to the non-root runtime user, and normalizes directory and file permissions on the mounted storage volume before the API service starts.

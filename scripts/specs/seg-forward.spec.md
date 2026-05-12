@@ -72,7 +72,7 @@ in the environment.
 
 | Variable                | Description                                                 |
 | ----------------------- | ----------------------------------------------------------- |
-| `SHARED_DOCKER_NETWORK` | Docker network used by SEG                                  |
+| `SEG_SHARED_NETWORK` | Docker network used by SEG                                  |
 | `SEG_PORT`              | Internal TCP port used by SEG                               |
 
 `COMPOSE_PROJECT_NAME` is also required when `--container` is not provided,
@@ -148,7 +148,7 @@ The forwarding container is launched using:
 
 ```bash
 docker run --rm \
-  --network "$SHARED_DOCKER_NETWORK" \
+  --network "$SEG_SHARED_NETWORK" \
   -p "127.0.0.1:${LOCAL_PORT}:${SEG_PORT}" \
   alpine/socat \
   TCP-LISTEN:${SEG_PORT},fork,reuseaddr \

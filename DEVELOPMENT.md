@@ -300,11 +300,14 @@ mkdir -p secrets
 openssl rand -hex 32 > ./secrets/seg_api_token.txt
 
 # Ensure the shared Docker network exists.
-# Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env.
+# Replace docker-network if you changed SEG_SHARED_NETWORK in .env.
 docker network create docker-network || true
 
 docker compose up -d --build
 ```
+
+`SEG_DATA_VOLUME` controls the named Docker volume used for SEG persistent data.
+Set it explicitly in `.env` if you need to isolate storage between local stacks.
 
 To inspect the running stack:
 
@@ -489,7 +492,7 @@ Required variables:
 
 | Variable | Purpose |
 | --- | --- |
-| `SHARED_DOCKER_NETWORK` | Docker network |
+| `SEG_SHARED_NETWORK` | Docker network |
 | `SEG_PORT` | SEG container port |
 | `COMPOSE_PROJECT_NAME` | container autodetection prefix |
 

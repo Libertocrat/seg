@@ -25,7 +25,7 @@ actions:
   gen_token_hex:
     description: "Generate a random hexadecimal token using OpenSSL"
     summary: "Generate a random hex token"
-    tags: [token, hex, openssl, random_bytes, encoding]
+    tags: [token, hex, openssl, random_bytes]
 
     args:
       bytes:
@@ -47,7 +47,7 @@ actions:
   gen_token_base64:
     description: "Generate a random Base64 token using OpenSSL"
     summary: "Generate a random Base64 token"
-    tags: [token, base64, openssl, random_bytes, encoding]
+    tags: [token, base64, openssl, random_bytes]
 
     args:
       bytes:
@@ -69,7 +69,7 @@ actions:
   gen_bytes_file:
     description: "Generate random bytes and store them as a managed output file"
     summary: "Generate random bytes as file"
-    tags: [random_bytes, binary, entropy_file, output_file, files, openssl]
+    tags: [random_bytes, binary, entropy_file, output_file, file, openssl]
 
     args:
       bytes:
