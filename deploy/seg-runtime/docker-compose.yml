@@ -1,0 +1,48 @@
+services:
+  seg-init:
+    image: busybox:latest
+    command: >
+      sh -c "
+        set -e &&
+        umask 022 &&
+        mkdir -p ${SEG_ROOT_DIR} &&
+        chown -R ${NON_ROOT_UID}:${NON_ROOT_GID} ${SEG_ROOT_DIR} &&
+        find ${SEG_ROOT_DIR} -type d -print0 | xargs -0 -r chmod 755 &&
+        find ${SEG_ROOT_DIR} -type f -print0 | xargs -0 -r chmod 644
+      "
+    volumes:
+      - seg_data:${SEG_ROOT_DIR}
+    restart: "no"
+
+  seg-core:
+    image: ${SEG_IMAGE:-ghcr.io/libertocrat/seg:latest}
+    pull_policy: ${SEG_PULL_POLICY:-missing}
+    restart: unless-stopped
+    env_file: .env
+    secrets:
+      - seg_api_token
+    ports:
+      - "${SEG_HOST_BIND_ADDRESS:-127.0.0.1}:${SEG_HOST_PORT:-8080}:${SEG_PORT:-8080}"
+    volumes:
+      - seg_data:${SEG_ROOT_DIR}
+      - ./user-specs:/etc/seg/actions.d:ro
+    depends_on:
+      seg-init:
+        condition: service_completed_successfully
+    networks:
+      default_network:
+        aliases:
+          - seg
+
+networks:
+  default_network:
+    external: true
+    name: ${SHARED_DOCKER_NETWORK}
+
+secrets:
+  seg_api_token:
+    file: ./secrets/seg_api_token.txt
+
+volumes:
+  seg_data:
+    name: ${COMPOSE_PROJECT_NAME}_seg-data
