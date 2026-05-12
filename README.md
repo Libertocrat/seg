@@ -234,7 +234,7 @@ For the full threat analysis, see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
 SEG is designed to run inside Docker, stay reachable on the shared Docker network, and be published to localhost by default for local development and demos.
 
 > [!IMPORTANT]
-> Before starting the stack, create `secrets/seg_api_token.txt` and ensure the external Docker network named by `SHARED_DOCKER_NETWORK` exists.
+> Before starting the stack, create `secrets/seg_api_token.txt` and ensure the external Docker network named by `SEG_SHARED_NETWORK` exists.
 
 Minimal local startup:
 
@@ -249,7 +249,7 @@ cp .env.example .env
 mkdir -p secrets
 openssl rand -hex 32 > secrets/seg_api_token.txt
 
-# Replace docker-network if you changed SHARED_DOCKER_NETWORK in .env
+# Replace docker-network if you changed SEG_SHARED_NETWORK in .env
 docker network create docker-network || true
 docker compose up -d --build
 ```
@@ -259,7 +259,7 @@ Notes:
 - by default, `docker-compose.yml` publishes SEG to `127.0.0.1:${SEG_HOST_PORT}`
 - runtime configuration is defined by the environment variables set in `.env`
   - check the `.env.example` file for detailed information about env variables
-- the container joins the external network defined by `SHARED_DOCKER_NETWORK`
+- the container joins the external network defined by `SEG_SHARED_NETWORK`
 - internal Docker consumers should use `http://seg:${SEG_PORT}`
 - the external Docker network must exist before `docker compose up`
 - `seg-init` prepares ownership and permissions on `SEG_ROOT_DIR` before `seg` starts
@@ -332,7 +332,12 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 | `SEG_ENABLE_DOCS` | Enables `/docs`, `/redoc`, and `/openapi.json`. Keep disabled by default for security and enable only for local development or testing. | `false` |
 | `SEG_ENABLE_SECURITY_HEADERS` | Enables baseline response security headers. | `true` |
 | `SEG_BLOCKED_BINARIES_EXTRA` | Optional CSV of additional blocked binaries. | unset |
-| `SHARED_DOCKER_NETWORK` | External Docker network used by the Compose deployment. | `docker-network` |
+| `SEG_CONTAINER_USER` | Build-time container user name for the SEG image. | `seg` |
+| `SEG_CONTAINER_GROUP` | Build-time container group name for the SEG image. | `seg` |
+| `SEG_CONTAINER_UID` | Container UID used by the image and `seg-init` volume ownership preparation. | `1001` |
+| `SEG_CONTAINER_GID` | Container GID used by the image and `seg-init` volume ownership preparation. | `1001` |
+| `SEG_SHARED_NETWORK` | External Docker network used by the Compose deployment. | `docker-network` |
+| `SEG_DATA_VOLUME` | Docker named volume used for SEG persistent data. | `seg_seg-data` |
 | `SEG_HOST_BIND_ADDRESS` | Host interface used by Compose when publishing SEG. | `127.0.0.1` |
 | `SEG_HOST_PORT` | Host port used by Compose for localhost access. | `8080` |
 | `SEG_PORT` | Internal listen port inside the container (reachable as `http://seg:8080`). | `8080` |
@@ -341,16 +346,17 @@ Values shown in `.env.example` are placeholder deployment values and do not nece
 > When deploying SEG inside an existing container environment or microservice stack, the following variables should normally be reviewed and adapted before startup:
 >
 > - `SEG_ROOT_DIR`
-> - `SHARED_DOCKER_NETWORK`
+> - `SEG_SHARED_NETWORK`
+> - `SEG_DATA_VOLUME`
 > - `COMPOSE_PROJECT_NAME`
-> - `NON_ROOT_UID`
-> - `NON_ROOT_GID`
+> - `SEG_CONTAINER_UID`
+> - `SEG_CONTAINER_GID`
 >
 > These variables control how SEG integrates with the Docker network, sandbox root, and storage permissions.
 
 The API token is loaded from `/run/secrets/seg_api_token`, with `SEG_API_TOKEN_DEV` used only as a development fallback when the Docker secret is missing.
 
-For container identity, runtime limits, timezone, and other deployment settings, see the complete reference in [.env.example](.env.example).
+For container identity, runtime limits, and other deployment settings, see the complete reference in [.env.example](.env.example).
 
 ## 8. API Overview
 

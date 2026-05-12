@@ -49,7 +49,7 @@ actions:
   sha256_file:
     description: "Compute the SHA-256 digest of one managed file using sha256sum"
     summary: "Hash one file with SHA-256"
-    tags: [hashing, digest, integrity, checksum, sha256, single_file]
+    tags: [hashing, digest, integrity, checksum, sha256, file, single_file]
 
     args:
       input_file:
@@ -65,7 +65,7 @@ actions:
   sha256_files:
     description: "Compute SHA-256 digests for multiple managed files in a single action"
     summary: "Hash multiple files with SHA-256"
-    tags: [hashing, digest, integrity, checksum, sha256, multiple_files, batch]
+    tags: [hashing, digest, integrity, checksum, sha256, file, multiple_files, batch]
 
     args:
       input_files:

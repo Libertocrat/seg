@@ -17,7 +17,7 @@ set -euo pipefail
 # The forward remains active until the proxy container exits (CTRL+C).
 #
 # Required configuration (via --env-file or exported):
-#   - SHARED_DOCKER_NETWORK
+#   - SEG_SHARED_NETWORK
 #   - SEG_PORT
 #   - COMPOSE_PROJECT_NAME (only when --container is not provided)
 #
@@ -136,7 +136,7 @@ Examples:
   $SCRIPT_NAME --env-file .env --dry-run
 
   # Use exported environment variables instead of .env
-  export SHARED_DOCKER_NETWORK=docker-network
+  export SEG_SHARED_NETWORK=docker-network
   export SEG_PORT=8080
   export COMPOSE_PROJECT_NAME=myproject
   $SCRIPT_NAME
@@ -201,7 +201,7 @@ done
 command -v docker >/dev/null 2>&1 || error "Docker CLI not found"
 
 REQUIRED_VARS=(
-  SHARED_DOCKER_NETWORK
+  SEG_SHARED_NETWORK
   SEG_PORT
 )
 
@@ -273,7 +273,7 @@ fi
 log "SEG container : $SEG_CONTAINER"
 log "SEG port      : $SEG_PORT"
 log "Local port    : $LOCAL_PORT"
-log "Docker network: $SHARED_DOCKER_NETWORK"
+log "Docker network: $SEG_SHARED_NETWORK"
 
 echo
 log "Forwarding http://localhost:${LOCAL_PORT} -> ${SEG_CONTAINER}:${SEG_PORT}"
@@ -290,7 +290,7 @@ echo "  http://localhost:${LOCAL_PORT}/health"
 echo
 
 run docker run --rm \
-  --network "$SHARED_DOCKER_NETWORK" \
+  --network "$SEG_SHARED_NETWORK" \
   -p "127.0.0.1:${LOCAL_PORT}:${SEG_PORT}" \
   alpine/socat \
   TCP-LISTEN:${SEG_PORT},fork,reuseaddr \

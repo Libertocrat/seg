@@ -1,17 +1,18 @@
 services:
   seg-init:
-    image: busybox:latest
+    image: busybox:1.37.0
+    env_file: .env
     command: >
       sh -c "
-        set -e &&
+        set -eu &&
         umask 022 &&
-        mkdir -p ${SEG_ROOT_DIR} &&
-        chown -R ${NON_ROOT_UID}:${NON_ROOT_GID} ${SEG_ROOT_DIR} &&
-        find ${SEG_ROOT_DIR} -type d -print0 | xargs -0 -r chmod 755 &&
-        find ${SEG_ROOT_DIR} -type f -print0 | xargs -0 -r chmod 644
+        mkdir -p '${SEG_ROOT_DIR:?SEG_ROOT_DIR is required}' &&
+        chown -R '${SEG_CONTAINER_UID:-1001}:${SEG_CONTAINER_GID:-1001}' '${SEG_ROOT_DIR}' &&
+        find '${SEG_ROOT_DIR}' -type d -print0 | xargs -0 -r chmod 755 &&
+        find '${SEG_ROOT_DIR}' -type f -print0 | xargs -0 -r chmod 644
       "
     volumes:
-      - seg_data:${SEG_ROOT_DIR}
+      - seg_data:${SEG_ROOT_DIR:?SEG_ROOT_DIR is required}
     restart: "no"
 
   seg-core:
@@ -24,7 +25,7 @@ services:
     ports:
       - "${SEG_HOST_BIND_ADDRESS:-127.0.0.1}:${SEG_HOST_PORT:-8080}:${SEG_PORT:-8080}"
     volumes:
-      - seg_data:${SEG_ROOT_DIR}
+      - seg_data:${SEG_ROOT_DIR:?SEG_ROOT_DIR is required}
       - ./user-specs:/etc/seg/actions.d:ro
     depends_on:
       seg-init:
@@ -37,7 +38,7 @@ services:
 networks:
   default_network:
     external: true
-    name: ${SHARED_DOCKER_NETWORK}
+    name: ${SEG_SHARED_NETWORK:?SEG_SHARED_NETWORK is required}
 
 secrets:
   seg_api_token:
@@ -45,4 +46,4 @@ secrets:
 
 volumes:
   seg_data:
-    name: ${COMPOSE_PROJECT_NAME}_seg-data
+    name: ${SEG_DATA_VOLUME:?SEG_DATA_VOLUME is required}

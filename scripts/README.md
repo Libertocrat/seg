@@ -31,7 +31,7 @@ The script starts an ephemeral `alpine/socat` container on the same Docker netwo
 
 Required variables:
 
-- `SHARED_DOCKER_NETWORK`: Docker network shared with SEG
+- `SEG_SHARED_NETWORK`: Docker network shared with SEG
 - `SEG_PORT`: TCP port exposed by the SEG container
 - `COMPOSE_PROJECT_NAME`: required only when `--container` is not provided
 

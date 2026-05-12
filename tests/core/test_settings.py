@@ -52,7 +52,6 @@ def test_settings_defaults_applied(minimal_safe_env):
     assert s.seg_max_yml_bytes == 102400
     assert s.seg_timeout_ms == 5000
     assert s.seg_rate_limit_rps == 10
-    assert s.seg_log_level == "INFO"
     assert s.seg_app_version == "0.1.0"
     assert s.seg_enable_docs is False
     assert s.seg_enable_security_headers is True

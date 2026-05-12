@@ -1,10 +1,10 @@
 FROM python:3.12-slim
 
 # Build arguments / defaults (can be overridden at build time)
-ARG NON_ROOT_USER=seg
-ARG NON_ROOT_GROUP=seg
-ARG NON_ROOT_UID=1001
-ARG NON_ROOT_GID=1001
+ARG SEG_CONTAINER_USER=seg
+ARG SEG_CONTAINER_GROUP=seg
+ARG SEG_CONTAINER_UID=1001
+ARG SEG_CONTAINER_GID=1001
 ARG SEG_PORT=8080
 ARG SEG_APP_VERSION=0.1.0
 
@@ -27,16 +27,16 @@ RUN apt-get update \
 
 # Create non-root group/user (deterministic, minimal, hadolint-clean)
 RUN groupadd \
-      --gid ${NON_ROOT_GID} \
-      ${NON_ROOT_GROUP} \
+      --gid ${SEG_CONTAINER_GID} \
+      ${SEG_CONTAINER_GROUP} \
   || true \
   && useradd \
-      --uid ${NON_ROOT_UID} \
-      --gid ${NON_ROOT_GID} \
+      --uid ${SEG_CONTAINER_UID} \
+      --gid ${SEG_CONTAINER_GID} \
       --no-log-init \
       --create-home \
       --shell /sbin/nologin \
-      ${NON_ROOT_USER} \
+      ${SEG_CONTAINER_USER} \
   || true
 
 WORKDIR /app
@@ -48,13 +48,13 @@ RUN python -m pip install --no-cache-dir -r requirements/runtime.txt
 # Copy application code into the image root so the package `seg` is importable
 # from the container working directory (i.e. /app/seg).
 # Non-root ownership is ensured at copy time to avoid needing a separate chown layer.
-COPY --chown=${NON_ROOT_USER}:${NON_ROOT_GROUP} src/ .
+COPY --chown=${SEG_CONTAINER_USER}:${SEG_CONTAINER_GROUP} src/ .
 
 # Remove group/other write permissions from /app to enforce least-privilege and normalize modes after COPY
 RUN chmod -R go-w /app
 
 # Switch to non-root
-USER ${NON_ROOT_USER}
+USER ${SEG_CONTAINER_USER}
 
 # Runtime environment defaults (can be overridden by docker-compose/env)
 ENV SEG_PORT=${SEG_PORT}

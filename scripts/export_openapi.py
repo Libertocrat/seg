@@ -50,7 +50,6 @@ def build_docs_settings() -> Settings:
     """
 
     return Settings(
-        seg_log_level="INFO",
         seg_app_version=get_release_version(),
         seg_api_token="docs-token",  # noqa: S106 -- fixed token for documentation purposes only
         seg_root_dir="/var/lib/seg",
