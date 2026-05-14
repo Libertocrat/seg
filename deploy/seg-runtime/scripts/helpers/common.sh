@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 
 SEG_COMMON_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SEG_SCRIPTS_DIR="${SEG_COMMON_DIR}"
+SEG_SCRIPTS_DIR="$(cd -- "${SEG_COMMON_DIR}/.." && pwd)"
 SEG_RUNTIME_DIR="$(cd -- "${SEG_SCRIPTS_DIR}/.." && pwd)"
 
 SEG_ENV_FILE="${SEG_RUNTIME_DIR}/.env"

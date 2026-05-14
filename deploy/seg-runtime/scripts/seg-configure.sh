@@ -2,8 +2,8 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=common.sh
-source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=helpers/common.sh
+source "${SCRIPT_DIR}/helpers/common.sh"
 
 # Resolve runtime-local paths explicitly from the current script location.
 RUNTIME_DIR="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -116,8 +116,8 @@ parse_args() {
 # Print wizard intro.
 show_intro() {
   section "SEG Runtime Configuration"
-  info "This wizard creates the local .env file, API token, and runtime directories."
-  info "It does not start Docker containers yet."
+  info "This wizard creates the local .env file, SEG API token, and runtime directories."
+  info "It does not start or modify Docker resources."
 }
 
 # Initialize selected values with recommended defaults.
@@ -153,12 +153,12 @@ show_recommended_defaults() {
   fi
 
   info "Recommended defaults:"
-  printf '  SEG version:           %s\n' "${SEG_VERSION_VALUE}"
-  printf '  Compose project:       %s\n' "${COMPOSE_PROJECT_NAME_VALUE}"
-  printf '  Docker network:        %s\n' "${SEG_SHARED_NETWORK_VALUE}"
-  printf '  Localhost port:        %s (auto-detected if busy)\n' "${DEFAULT_SEG_HOST_PORT}"
-  printf '  Data volume:           %s\n' "${SEG_DATA_VOLUME_VALUE}"
-  printf '  OpenAPI Swagger docs:  %s\n' "${docs_state}"
+  printf '  %-27s %s\n' "SEG version:" "${SEG_VERSION_VALUE}"
+  printf '  %-27s %s\n' "Compose project:" "${COMPOSE_PROJECT_NAME_VALUE}"
+  printf '  %-27s %s\n' "Shared Docker network:" "${SEG_SHARED_NETWORK_VALUE}"
+  printf '  %-27s %s\n' "Localhost port:" "${DEFAULT_SEG_HOST_PORT} (auto-detected if busy)"
+  printf '  %-27s %s\n' "Data volume:" "${SEG_DATA_VOLUME_VALUE}"
+  printf '  %-27s %s\n' "Swagger / OpenAPI docs:" "${docs_state}"
 }
 
 # Prompt for a SEG version tag and keep asking until it is valid.
@@ -273,8 +273,8 @@ prompt_custom_docs_setting() {
     default_choice="N"
   fi
 
-  warn "Swagger docs are useful for local testing and demos, but should be disabled in production."
-  if confirm "Enable Swagger docs for local testing and demos?" "${default_choice}"; then
+  info "Swagger / OpenAPI docs are useful for local testing and demos, but should be disabled in production."
+  if confirm "Enable Swagger / OpenAPI docs for local testing and demos?" "${default_choice}"; then
     SEG_ENABLE_DOCS_VALUE="true"
   else
     SEG_ENABLE_DOCS_VALUE="false"
@@ -286,11 +286,12 @@ run_custom_prompts() {
   local default_volume
 
   section "Custom Configuration"
+  info "Press Enter to accept each default value."
   SEG_VERSION_VALUE="$(prompt_seg_version)"
   SEG_IMAGE_VALUE="ghcr.io/libertocrat/seg:${SEG_VERSION_VALUE}"
 
   COMPOSE_PROJECT_NAME_VALUE="$(prompt_safe_name "Compose project name" "${DEFAULT_COMPOSE_PROJECT_NAME}")"
-  SEG_SHARED_NETWORK_VALUE="$(prompt_safe_name "Docker network name" "${DEFAULT_SEG_SHARED_NETWORK}")"
+  SEG_SHARED_NETWORK_VALUE="$(prompt_safe_name "Shared Docker network" "${DEFAULT_SEG_SHARED_NETWORK}")"
   SEG_HOST_PORT_VALUE="$(prompt_port_value "${DEFAULT_SEG_HOST_PORT}")"
 
   default_volume="${COMPOSE_PROJECT_NAME_VALUE}_seg-data"
@@ -308,15 +309,15 @@ show_custom_summary() {
   fi
 
   section "Configuration Summary"
-  printf '  %-22s %s\n' "SEG version" "${SEG_VERSION_VALUE}"
-  printf '  %-22s %s\n' "Image" "${SEG_IMAGE_VALUE}"
-  printf '  %-22s %s\n' "Compose project" "${COMPOSE_PROJECT_NAME_VALUE}"
-  printf '  %-22s %s\n' "Docker network" "${SEG_SHARED_NETWORK_VALUE}"
-  printf '  %-22s %s\n' "Data volume" "${SEG_DATA_VOLUME_VALUE}"
+  printf '  %-27s %s\n' "SEG version" "${SEG_VERSION_VALUE}"
+  printf '  %-27s %s\n' "Image" "${SEG_IMAGE_VALUE}"
+  printf '  %-27s %s\n' "Compose project" "${COMPOSE_PROJECT_NAME_VALUE}"
+  printf '  %-27s %s\n' "Shared Docker network" "${SEG_SHARED_NETWORK_VALUE}"
+  printf '  %-27s %s\n' "Data volume" "${SEG_DATA_VOLUME_VALUE}"
   #printf '  %-22s %s\n' "Host bind" "${DEFAULT_SEG_HOST_BIND_ADDRESS}"
-  printf '  %-22s %s\n' "Host port" "${SEG_HOST_PORT_VALUE}"
+  printf '  %-27s %s\n' "Host port" "${SEG_HOST_PORT_VALUE}"
   #printf '  %-22s %s\n' "Internal port" "${DEFAULT_SEG_PORT}"
-  printf '  %-22s %s\n' "Swagger docs" "${docs_state}"
+  printf '  %-27s %s\n' "Swagger / OpenAPI docs" "${docs_state}"
   #printf '  %-22s %s\n' "User specs dir" "./user-specs"
   #printf '  %-22s %s\n' "SEG API token file" "./secrets/seg_api_token.txt"
 }
@@ -408,9 +409,9 @@ handle_token() {
     die "Existing SEG API token is too weak. Replace it with a token of at least 32 characters or remove the token file and re-run this script."
   fi
 
-  warn "Existing SEG API token is weak."
+  warn "Existing SEG API token is too weak."
   if ! confirm "Regenerate a stronger SEG API token now?" "Y"; then
-    error "SEG will reject weak tokens. Re-run configuration and regenerate the API token."
+    error "SEG will reject weak API tokens. Re-run this script and regenerate the token before starting SEG."
     return 1
   fi
 
@@ -511,38 +512,37 @@ print_final_output() {
   success "SEG runtime configuration generated."
 
   printf '\nConfiguration:\n'
-  printf '  %-22s %s\n' "Image" "${SEG_IMAGE_VALUE}"
-  printf '  %-22s %s\n' "Compose project" "${COMPOSE_PROJECT_NAME_VALUE}"
-  printf '  %-22s %s\n' "Docker network" "${SEG_SHARED_NETWORK_VALUE}"
-  printf '  %-22s %s\n' "Data volume" "${SEG_DATA_VOLUME_VALUE}"
-  printf '  %-22s %s\n' "Host bind" "${DEFAULT_SEG_HOST_BIND_ADDRESS}"
-  printf '  %-22s %s\n' "Host port" "${SEG_HOST_PORT_VALUE}"
-  printf '  %-22s %s\n' "Internal port" "${DEFAULT_SEG_PORT}"
-  printf '  %-22s %s\n' "Swagger docs" "${docs_state}"
+  printf '  %-27s %s\n' "Image" "${SEG_IMAGE_VALUE}"
+  printf '  %-27s %s\n' "Compose project" "${COMPOSE_PROJECT_NAME_VALUE}"
+  printf '  %-27s %s\n' "Shared Docker network" "${SEG_SHARED_NETWORK_VALUE}"
+  printf '  %-27s %s\n' "Data volume" "${SEG_DATA_VOLUME_VALUE}"
+  printf '  %-27s %s\n' "Host bind" "${DEFAULT_SEG_HOST_BIND_ADDRESS}"
+  printf '  %-27s %s\n' "Host port" "${SEG_HOST_PORT_VALUE}"
+  printf '  %-27s %s\n' "Internal port" "${DEFAULT_SEG_PORT}"
+  printf '  %-27s %s\n' "Swagger / OpenAPI docs" "${docs_state}"
 
   printf '\nFiles and directories:\n'
-  printf '  %-22s %s\n' ".env" "ready"
-  printf '  %-22s %s\n' "secrets/" "ready"
-  printf '  %-22s %s\n' "user-specs/" "ready"
-  printf '  %-22s %s\n' "SEG API token file" "secrets/seg_api_token.txt"
+  printf '  %-27s %s\n' ".env" "ready"
+  printf '  %-27s %s\n' "secrets/" "ready"
+  printf '  %-27s %s\n' "user-specs/" "ready"
+  printf '  %-27s %s\n' "SEG API token file" "secrets/seg_api_token.txt"
 
   printf '\nSecurity note:\n'
   if [[ "${SEG_ENABLE_DOCS_VALUE}" == "true" ]]; then
-    printf '  Swagger docs are enabled for local testing and demos.\n'
-    printf '  Disable them for production with SEG_ENABLE_DOCS=false.\n'
+    printf '  Swagger / OpenAPI docs are enabled for local testing and demos.\n'
+    printf '  Disable them for production by setting SEG_ENABLE_DOCS=false.\n'
   else
-    printf '  Swagger docs are disabled. This is recommended for production.\n'
+    printf '  Swagger / OpenAPI docs are disabled. This is recommended for production.\n'
     printf '  Enable SEG_ENABLE_DOCS=true in .env for local demos.\n'
   fi
 
   if [[ "${SHOW_TOKEN_OUTPUT}" == "true" ]]; then
     printf '\nSEG API token:\n'
+    warn 'Sensitive value. Store it securely and do not commit it.'
     printf '  %s\n\n' "${TOKEN_VALUE}"
-    warn 'Sensitive value. Store it securely and do not commit it.\n'
   fi
 
-  printf '\n'
-  info "You can edit the generated .env file later to adjust runtime settings."
+  info "You can edit .env later to adjust runtime settings. See .env.example for details."
 }
 
 # Enforce overwrite policy for existing .env according to mode.
@@ -555,8 +555,8 @@ check_env_overwrite_policy() {
     die "Existing .env found. Re-run with --force to overwrite it, or remove the existing .env file."
   fi
 
-  warn "Existing .env file found at ${ENV_FILE}."
-  if ! confirm "Reconfigure and overwrite it?" "N"; then
+  warn "Existing .env file found: ${ENV_FILE}"
+  if ! confirm "Overwrite it with a new runtime configuration?" "N"; then
     info "Keeping existing .env. No changes were made."
     exit 0
   fi

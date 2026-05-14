@@ -12,10 +12,10 @@ docker-compose.dev.yml
 docker-compose.*.dev.yml
 
 # Docker secrets
-secrets/*
+**/secrets/**
 # Allow example docker secrets
-!secrets/*.example
-!secrets/*.template
+!**/secrets/*.example
+!**/secrets/*.template
 
 # openapi generation output
 docs/api-docs/output/
