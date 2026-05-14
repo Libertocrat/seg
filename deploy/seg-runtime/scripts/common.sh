@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 
 SEG_COMMON_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-SEG_SCRIPTS_DIR="$(cd -- "${SEG_COMMON_DIR}/.." && pwd)"
+SEG_SCRIPTS_DIR="${SEG_COMMON_DIR}"
 SEG_RUNTIME_DIR="$(cd -- "${SEG_SCRIPTS_DIR}/.." && pwd)"
 
 SEG_ENV_FILE="${SEG_RUNTIME_DIR}/.env"
@@ -44,6 +44,7 @@ if [[ "${SEG_COLOR_ENABLED}" == "true" ]]; then
     SEG_COLOR_OK='\033[32m'
     SEG_COLOR_WARN='\033[33m'
     SEG_COLOR_ERROR='\033[31m'
+    SEG_COLOR_PROMPT='\033[35m'
     SEG_COLOR_SECTION='\033[1;34m'
 else
     SEG_COLOR_RESET=''
@@ -51,6 +52,7 @@ else
     SEG_COLOR_OK=''
     SEG_COLOR_WARN=''
     SEG_COLOR_ERROR=''
+    SEG_COLOR_PROMPT=''
     SEG_COLOR_SECTION=''
 fi
 
@@ -64,32 +66,39 @@ readonly SEG_COLOR_SECTION
 
 SEG_STEP_COUNTER=0
 
+# Print an informational message to stdout.
 info() {
     printf '%b[INFO]%b %s\n' "${SEG_COLOR_INFO}" "${SEG_COLOR_RESET}" "$*"
 }
 
+# Print a success message to stdout.
 success() {
     printf '%b[OK]%b %s\n' "${SEG_COLOR_OK}" "${SEG_COLOR_RESET}" "$*"
 }
 
+# Print a warning message to stderr.
 warn() {
     printf '%b[WARN]%b %s\n' "${SEG_COLOR_WARN}" "${SEG_COLOR_RESET}" "$*" >&2
 }
 
+# Print a non-fatal error message to stderr.
 error() {
     printf '%b[ERROR]%b %s\n' "${SEG_COLOR_ERROR}" "${SEG_COLOR_RESET}" "$*" >&2
 }
 
+# Print an error and terminate with a non-zero exit code.
 die() {
     error "$*"
     exit 1
 }
 
+# Print a visual section header for script output.
 section() {
     local title="${1:-}"
     printf '\n%b==== %s ====%b\n' "${SEG_COLOR_SECTION}" "${title}" "${SEG_COLOR_RESET}"
 }
 
+# Print a numbered step marker.
 step() {
     SEG_STEP_COUNTER=$((SEG_STEP_COUNTER + 1))
     printf '%b[INFO]%b Step %d: %s\n' "${SEG_COLOR_INFO}" "${SEG_COLOR_RESET}" "${SEG_STEP_COUNTER}" "$*"
@@ -99,6 +108,7 @@ step() {
 # Internal helpers
 # -----------------------------------------------------------------------------
 
+# Trim leading and trailing whitespace from a string.
 trim() {
     local value="${1-}"
     value="${value#"${value%%[![:space:]]*}"}"
@@ -110,12 +120,16 @@ trim() {
 # Prompts
 # -----------------------------------------------------------------------------
 
+# Prompt for a value with default fallback and return the chosen value.
 prompt_default() {
     local prompt_text="${1:?prompt text is required}"
     local default_value="${2-}"
     local input=''
 
-    printf '%s [%s]: ' "${prompt_text}" "${default_value}" >&2
+    printf '%b[?]%b %s [%s]: ' \
+    "${SEG_COLOR_PROMPT}" "${SEG_COLOR_RESET}" \
+    "${prompt_text}" "${default_value}" >&2
+
     read -r input || input=""
 
     if [[ -z "${input}" ]]; then
@@ -126,6 +140,7 @@ prompt_default() {
     printf '%s\n' "${input}"
 }
 
+# Prompt for yes/no confirmation with configurable default.
 confirm() {
     local prompt_text="${1:?prompt text is required}"
     local default_choice="${2:-Y}"
@@ -141,9 +156,13 @@ confirm() {
 
     while true; do
         if [[ "${default_upper}" == "Y" ]]; then
-            printf '%s [Y/n]: ' "${prompt_text}" >&2
+            printf '%b[?]%b %s [Y/n]: ' \
+            "${SEG_COLOR_PROMPT}" "${SEG_COLOR_RESET}" \
+            "${prompt_text}" >&2
         else
-            printf '%s [y/N]: ' "${prompt_text}" >&2
+            printf '%b[?]%b %s [y/N]: ' \
+            "${SEG_COLOR_PROMPT}" "${SEG_COLOR_RESET}" \
+            "${prompt_text}" >&2
         fi
 
         read -r input || input=""
@@ -173,11 +192,13 @@ confirm() {
 # Dependencies
 # -----------------------------------------------------------------------------
 
+# Return success if a command exists in PATH.
 command_exists() {
     local cmd="${1:?command is required}"
     command -v "${cmd}" >/dev/null 2>&1
 }
 
+# Require a command to exist, otherwise terminate with an error.
 require_command() {
     local cmd="${1:?command is required}"
     local friendly_name="${2:-${cmd}}"
@@ -187,6 +208,7 @@ require_command() {
     fi
 }
 
+# Require Docker CLI and a reachable Docker daemon.
 require_docker() {
     require_command docker "Docker CLI"
 
@@ -195,6 +217,7 @@ require_docker() {
     fi
 }
 
+# Require Docker Compose v2 via `docker compose`.
 require_docker_compose() {
     require_command docker "Docker CLI"
 
@@ -203,6 +226,7 @@ require_docker_compose() {
     fi
 }
 
+# Require curl to be installed.
 require_curl() {
     require_command curl "curl"
 }
@@ -211,15 +235,18 @@ require_curl() {
 # Validators
 # -----------------------------------------------------------------------------
 
+# Validate that a value is non-empty after trimming whitespace.
 is_non_empty() {
     [[ -n "$(trim "${1-}")" ]]
 }
 
+# Validate that a value is an integer.
 is_int() {
     local value="$(trim "${1-}")"
     [[ "${value}" =~ ^-?[0-9]+$ ]]
 }
 
+# Validate common boolean-like values.
 is_bool() {
     local value
     value="$(trim "${1-}")"
@@ -235,6 +262,7 @@ is_bool() {
     esac
 }
 
+# Validate a TCP/UDP port number in range 1..65535.
 is_port() {
     local value="$(trim "${1-}")"
 
@@ -245,6 +273,7 @@ is_port() {
     (( value >= 1 && value <= 65535 ))
 }
 
+# Validate supported bind addresses (localhost, common defaults, basic IPv4).
 is_bind_address() {
     local value
     local octet
@@ -271,6 +300,7 @@ is_bind_address() {
     return 0
 }
 
+# Validate conservative Docker resource naming rules.
 is_safe_docker_name() {
     local value="$(trim "${1-}")"
     [[ "${value}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]
@@ -280,6 +310,7 @@ is_safe_docker_name() {
 # Environment loading
 # -----------------------------------------------------------------------------
 
+# Load SEG runtime .env variables and export them for child processes.
 load_env() {
     local mode="${1:-required}"
     local had_allexport=0
@@ -311,6 +342,7 @@ load_env() {
 # Docker Compose helpers
 # -----------------------------------------------------------------------------
 
+# Run docker compose against SEG runtime files, honoring DRY_RUN when enabled.
 compose() {
     run docker compose --env-file "${SEG_ENV_FILE}" -f "${SEG_COMPOSE_FILE}" "$@"
 }
@@ -319,6 +351,7 @@ compose() {
 # URL helpers
 # -----------------------------------------------------------------------------
 
+# Return a display-friendly host based on bind address configuration.
 public_host() {
     local bind_address="${SEG_HOST_BIND_ADDRESS:-}"
 
@@ -332,18 +365,22 @@ public_host() {
     esac
 }
 
+# Build the base HTTP URL from host and port settings.
 base_url() {
     printf 'http://%s:%s\n' "$(public_host)" "${SEG_HOST_PORT:-8080}"
 }
 
+# Return the SEG health endpoint URL.
 health_url() {
     printf '%s/health\n' "$(base_url)"
 }
 
+# Return the SEG Swagger docs URL.
 docs_url() {
     printf '%s/docs\n' "$(base_url)"
 }
 
+# Return the SEG OpenAPI JSON URL.
 openapi_url() {
     printf '%s/openapi.json\n' "$(base_url)"
 }
@@ -352,6 +389,7 @@ openapi_url() {
 # Token helpers
 # -----------------------------------------------------------------------------
 
+# Validate token strength by length and character-class diversity.
 validate_token_strength() {
     local token
     local classes=0
@@ -369,6 +407,7 @@ validate_token_strength() {
     (( classes >= 2 ))
 }
 
+# Generate a fallback token as 32 random bytes encoded in lowercase hex.
 _generate_token_fallback() {
     [[ -r /dev/urandom ]] || return 1
 
@@ -385,6 +424,7 @@ _generate_token_fallback() {
     return 1
 }
 
+# Generate a strong token using OpenSSL first, then fallback encoders.
 generate_token() {
     local token=''
 
@@ -403,6 +443,7 @@ generate_token() {
     printf '%s\n' "${token}"
 }
 
+# Read the token from disk and ensure it is present.
 read_token() {
     local token
 
@@ -422,6 +463,7 @@ read_token() {
     printf '%s\n' "${token}"
 }
 
+# Ensure token file exists with secure permissions and strong content.
 ensure_token_file() {
     local token
 
@@ -456,6 +498,7 @@ ensure_token_file() {
 # Port helpers
 # -----------------------------------------------------------------------------
 
+# Check whether a local port appears unused by host listeners and Docker mappings.
 is_port_free() {
     local port="${1-}"
 
@@ -478,6 +521,7 @@ is_port_free() {
     return 0
 }
 
+# Resolve the first free port from target or a given scan range.
 find_free_port() {
     local target="${1-}"
     local start="${2-}"
@@ -511,6 +555,7 @@ find_free_port() {
 # File helpers
 # -----------------------------------------------------------------------------
 
+# Ensure a directory exists (create it if needed).
 ensure_dir() {
     local path="${1-}"
 
@@ -527,6 +572,7 @@ ensure_dir() {
     return 0
 }
 
+# Ensure a file exists, returning a readable error when missing.
 ensure_file_exists() {
     local path="${1-}"
     local friendly_name="${2:-file}"
@@ -543,6 +589,7 @@ ensure_file_exists() {
 # Optional dry-run helper
 # -----------------------------------------------------------------------------
 
+# Execute a command, or print it when DRY_RUN=true.
 run() {
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         printf '[DRY-RUN] '
