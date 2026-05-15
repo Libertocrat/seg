@@ -353,7 +353,8 @@ run_auto_flow() {
   SEG_HOST_PORT_VALUE="$(resolve_host_port "${SEG_HOST_PORT_VALUE}" "auto-accept")"
 }
 
-# Persist token value with secure permissions.
+# Persist token value with restrictive host-side permissions.
+# seg-up.sh adjusts group read access for the non-root container before startup.
 write_token_file() {
   local token="$1"
 
@@ -370,14 +371,14 @@ read_local_token() {
   local token
 
   if [[ ! -f "${SECRET_FILE}" ]]; then
-    error "Token file not found: ${SECRET_FILE}"
+    error "Token file not found: $(path_relative_to_pwd "${SECRET_FILE}")"
     return 1
   fi
 
   token="$(<"${SECRET_FILE}")"
   token="$(trim "${token}")"
   if [[ -z "${token}" ]]; then
-    error "Token file is empty: ${SECRET_FILE}"
+    error "Token file is empty: $(path_relative_to_pwd "${SECRET_FILE}")"
     return 1
   fi
 
@@ -391,7 +392,7 @@ handle_token() {
 
   if [[ ! -f "${SECRET_FILE}" ]]; then
     new_token="$(generate_token)" || die "Failed to generate a strong API token."
-    write_token_file "${new_token}" || die "Failed to write token file: ${SECRET_FILE}"
+    write_token_file "${new_token}" || die "Failed to write token file: $(path_relative_to_pwd "${SECRET_FILE}")"
 
     TOKEN_VALUE="${new_token}"
     TOKEN_WAS_GENERATED=true
@@ -421,7 +422,7 @@ handle_token() {
   }
 
   if ! write_token_file "${new_token}"; then
-    error "Failed to write token file: ${SECRET_FILE}"
+    error "Failed to write token file: $(path_relative_to_pwd "${SECRET_FILE}")"
     return 1
   fi
 
@@ -555,7 +556,7 @@ check_env_overwrite_policy() {
     die "Existing .env found. Re-run with --force to overwrite it, or remove the existing .env file."
   fi
 
-  warn "Existing .env file found: ${ENV_FILE}"
+  warn "Existing .env file found: $(path_relative_to_pwd "${ENV_FILE}")"
   if ! confirm "Overwrite it with a new runtime configuration?" "N"; then
     info "Keeping existing .env. No changes were made."
     exit 0
