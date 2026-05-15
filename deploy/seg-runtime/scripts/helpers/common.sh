@@ -116,6 +116,33 @@ trim() {
     printf '%s' "${value}"
 }
 
+# Return a path relative to the active shell directory when possible.
+path_relative_to_pwd() {
+    local input_path="${1:?path is required}"
+    local relative_path
+
+    if command_exists realpath; then
+        relative_path="$(realpath --relative-to="${PWD}" "${input_path}" 2>/dev/null || true)"
+        if is_non_empty "${relative_path}"; then
+            printf '%s\n' "${relative_path}"
+            return 0
+        fi
+    fi
+
+    case "${input_path}" in
+        "${PWD}")
+            printf '.\n'
+            return 0
+            ;;
+        "${PWD}"/*)
+            printf '%s\n' "${input_path#"${PWD}/"}"
+            return 0
+            ;;
+    esac
+
+    printf '%s\n' "${input_path}"
+}
+
 # -----------------------------------------------------------------------------
 # Prompts
 # -----------------------------------------------------------------------------
@@ -323,7 +350,7 @@ load_env() {
         if [[ "${mode}" == "optional" ]]; then
             return 0
         fi
-        die "Missing env file: ${SEG_ENV_FILE}"
+        die "Missing env file: $(path_relative_to_pwd "${SEG_ENV_FILE}")"
     fi
 
     [[ "${-}" == *a* ]] && had_allexport=1
@@ -332,7 +359,7 @@ load_env() {
     # shellcheck disable=SC1090
     if ! source "${SEG_ENV_FILE}"; then
         (( had_allexport == 0 )) && set +a
-        die "Failed to load env file: ${SEG_ENV_FILE}"
+        die "Failed to load env file: $(path_relative_to_pwd "${SEG_ENV_FILE}")"
     fi
 
     (( had_allexport == 0 )) && set +a
@@ -344,7 +371,7 @@ load_env() {
 
 # Run docker compose against SEG runtime files, honoring DRY_RUN when enabled.
 compose() {
-    run docker compose --env-file "${SEG_ENV_FILE}" -f "${SEG_COMPOSE_FILE}" "$@"
+    run docker compose --env-file "$(path_relative_to_pwd "${SEG_ENV_FILE}")" -f "$(path_relative_to_pwd "${SEG_COMPOSE_FILE}")" "$@"
 }
 
 # -----------------------------------------------------------------------------
@@ -448,7 +475,7 @@ read_token() {
     local token
 
     if [[ ! -f "${SEG_SECRET_FILE}" ]]; then
-        error "Token file not found: ${SEG_SECRET_FILE}"
+        error "Token file not found: $(path_relative_to_pwd "${SEG_SECRET_FILE}")"
         return 1
     fi
 
@@ -456,7 +483,7 @@ read_token() {
     token="$(trim "${token}")"
 
     if [[ -z "${token}" ]]; then
-        error "Token file is empty: ${SEG_SECRET_FILE}"
+        error "Token file is empty: $(path_relative_to_pwd "${SEG_SECRET_FILE}")"
         return 1
     fi
 
@@ -478,14 +505,14 @@ ensure_token_file() {
         }
 
         if ! ( umask 177 && printf '%s\n' "${token}" > "${SEG_SECRET_FILE}" ); then
-            error "Failed to write token file: ${SEG_SECRET_FILE}"
+            error "Failed to write token file: $(path_relative_to_pwd "${SEG_SECRET_FILE}")"
             return 1
         fi
     else
         token="$(read_token)" || return 1
 
         if ! validate_token_strength "${token}"; then
-            error "Existing token in ${SEG_SECRET_FILE} is too weak (minimum 32 chars, 2 classes)."
+            error "Existing token in $(path_relative_to_pwd "${SEG_SECRET_FILE}") is too weak (minimum 32 chars, 2 classes)."
             return 1
         fi
     fi
@@ -581,7 +608,7 @@ ensure_file_exists() {
         return 0
     fi
 
-    error "Missing ${friendly_name}: ${path}"
+    error "Missing ${friendly_name}: $(path_relative_to_pwd "${path}")"
     return 1
 }
 
