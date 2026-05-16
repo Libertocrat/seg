@@ -43,10 +43,15 @@ SHOW_TOKEN_FLAG=false
 SEG_VERSION_VALUE="${DEFAULT_SEG_VERSION}"
 COMPOSE_PROJECT_NAME_VALUE="${DEFAULT_COMPOSE_PROJECT_NAME}"
 SEG_SHARED_NETWORK_VALUE="${DEFAULT_SEG_SHARED_NETWORK}"
+SEG_HOST_BIND_ADDRESS_VALUE="${DEFAULT_SEG_HOST_BIND_ADDRESS}"
 SEG_HOST_PORT_VALUE="${DEFAULT_SEG_HOST_PORT}"
+SEG_PORT_VALUE="${DEFAULT_SEG_PORT}"
 SEG_DATA_VOLUME_VALUE=""
 SEG_ENABLE_DOCS_VALUE="${DEFAULT_SEG_ENABLE_DOCS}"
 SEG_IMAGE_VALUE=""
+
+# .env reuse mode keeps existing runtime values and skips .env rewrite.
+REUSE_EXISTING_ENV=false
 
 # Token state and output state.
 TOKEN_VALUE=""
@@ -125,7 +130,9 @@ set_selected_defaults() {
   SEG_VERSION_VALUE="${DEFAULT_SEG_VERSION}"
   COMPOSE_PROJECT_NAME_VALUE="${DEFAULT_COMPOSE_PROJECT_NAME}"
   SEG_SHARED_NETWORK_VALUE="${DEFAULT_SEG_SHARED_NETWORK}"
+  SEG_HOST_BIND_ADDRESS_VALUE="${DEFAULT_SEG_HOST_BIND_ADDRESS}"
   SEG_HOST_PORT_VALUE="${DEFAULT_SEG_HOST_PORT}"
+  SEG_PORT_VALUE="${DEFAULT_SEG_PORT}"
 
   # Production mode changes the default docs behavior.
   if [[ "${PRODUCTION_MODE}" == "true" ]]; then
@@ -242,7 +249,7 @@ resolve_host_port() {
 
     if [[ -n "${suggested_port}" && "${suggested_port}" != "${preferred_port}" ]]; then
       if [[ "${mode}" == "auto-accept" ]]; then
-        warn "Port ${preferred_port} is already in use. Using ${suggested_port}."
+        warn "Port ${preferred_port} is already in use. Next available port: ${suggested_port}."
         printf '%s\n' "${suggested_port}"
         return 0
       fi
@@ -353,8 +360,41 @@ run_auto_flow() {
   SEG_HOST_PORT_VALUE="$(resolve_host_port "${SEG_HOST_PORT_VALUE}" "auto-accept")"
 }
 
+# Load runtime values from an existing .env when overwrite is declined.
+load_existing_env_configuration() {
+  load_env required
+
+  SEG_IMAGE_VALUE="${SEG_IMAGE:-ghcr.io/libertocrat/seg:${DEFAULT_SEG_VERSION}}"
+  COMPOSE_PROJECT_NAME_VALUE="${COMPOSE_PROJECT_NAME:-${DEFAULT_COMPOSE_PROJECT_NAME}}"
+  SEG_SHARED_NETWORK_VALUE="${SEG_SHARED_NETWORK:-${DEFAULT_SEG_SHARED_NETWORK}}"
+  SEG_DATA_VOLUME_VALUE="${SEG_DATA_VOLUME:-${COMPOSE_PROJECT_NAME_VALUE}_seg-data}"
+  SEG_HOST_BIND_ADDRESS_VALUE="${SEG_HOST_BIND_ADDRESS:-${DEFAULT_SEG_HOST_BIND_ADDRESS}}"
+  SEG_HOST_PORT_VALUE="${SEG_HOST_PORT:-${DEFAULT_SEG_HOST_PORT}}"
+  SEG_PORT_VALUE="${SEG_PORT:-${DEFAULT_SEG_PORT}}"
+  SEG_ENABLE_DOCS_VALUE="${SEG_ENABLE_DOCS:-${DEFAULT_SEG_ENABLE_DOCS}}"
+}
+
+# Verify the host port from existing .env is still valid and available.
+validate_existing_env_host_port() {
+  local env_path_display
+  local suggested_port
+
+  env_path_display="$(path_relative_to_pwd "${ENV_FILE}")"
+
+  if ! is_port "${SEG_HOST_PORT_VALUE}"; then
+    die "Existing .env has invalid SEG_HOST_PORT: ${SEG_HOST_PORT_VALUE}. Update SEG_HOST_PORT in ${env_path_display} and re-run this script."
+  fi
+
+  if ! is_port_free "${SEG_HOST_PORT_VALUE}"; then
+    # Reuse the existing auto-accept helper to find the next free port suggestion.
+    # If no port is available in range, resolve_host_port itself exits via die.
+    suggested_port="$(resolve_host_port "${SEG_HOST_PORT_VALUE}" "auto-accept")"
+    die "Configured SEG_HOST_PORT ${SEG_HOST_PORT_VALUE} in ${env_path_display} is already in use. Update SEG_HOST_PORT to ${suggested_port} and re-run this script."
+  fi
+}
+
 # Persist token value with restrictive host-side permissions.
-# seg-up.sh adjusts group read access for the non-root container before startup.
+# seg-up.sh adjusts token readability before Docker Compose startup.
 write_token_file() {
   local token="$1"
 
@@ -510,23 +550,35 @@ print_final_output() {
   fi
 
   section "SEG Runtime Configuration Complete"
-  success "SEG runtime configuration generated."
+  if [[ "${REUSE_EXISTING_ENV}" == "true" ]]; then
+    success "SEG runtime configuration loaded from $(path_relative_to_pwd "${ENV_FILE}")."
+  else
+    success "SEG runtime configuration generated."
+  fi
+
+  if [[ "${TOKEN_WAS_GENERATED}" == "true" ]]; then
+    success "SEG API token was generated and saved to $(path_relative_to_pwd "${SECRET_FILE}")."
+  elif [[ "${TOKEN_WAS_REGENERATED}" == "true" ]]; then
+    success "SEG API token was regenerated and saved to $(path_relative_to_pwd "${SECRET_FILE}")."
+  else
+    success "SEG API token is valid and ready."
+  fi
 
   printf '\nConfiguration:\n'
-  printf '  %-27s %s\n' "Image" "${SEG_IMAGE_VALUE}"
+  printf '  %-27s %s\n' "SEG Image" "${SEG_IMAGE_VALUE}"
   printf '  %-27s %s\n' "Compose project" "${COMPOSE_PROJECT_NAME_VALUE}"
   printf '  %-27s %s\n' "Shared Docker network" "${SEG_SHARED_NETWORK_VALUE}"
   printf '  %-27s %s\n' "Data volume" "${SEG_DATA_VOLUME_VALUE}"
-  printf '  %-27s %s\n' "Host bind" "${DEFAULT_SEG_HOST_BIND_ADDRESS}"
+  printf '  %-27s %s\n' "Host bind" "${SEG_HOST_BIND_ADDRESS_VALUE}"
   printf '  %-27s %s\n' "Host port" "${SEG_HOST_PORT_VALUE}"
-  printf '  %-27s %s\n' "Internal port" "${DEFAULT_SEG_PORT}"
+  printf '  %-27s %s\n' "Internal port" "${SEG_PORT_VALUE}"
   printf '  %-27s %s\n' "Swagger / OpenAPI docs" "${docs_state}"
 
   printf '\nFiles and directories:\n'
-  printf '  %-27s %s\n' ".env" "ready"
+  printf '  %-27s %s\n' ".env file" "$(path_relative_to_pwd "${ENV_FILE}")"
   printf '  %-27s %s\n' "secrets/" "ready"
   printf '  %-27s %s\n' "user-specs/" "ready"
-  printf '  %-27s %s\n' "SEG API token file" "secrets/seg_api_token.txt"
+  printf '  %-27s %s\n' "SEG API token file" "$(path_relative_to_pwd "${SECRET_FILE}")"
 
   printf '\nSecurity note:\n'
   if [[ "${SEG_ENABLE_DOCS_VALUE}" == "true" ]]; then
@@ -540,10 +592,14 @@ print_final_output() {
   if [[ "${SHOW_TOKEN_OUTPUT}" == "true" ]]; then
     printf '\nSEG API token:\n'
     warn 'Sensitive value. Store it securely and do not commit it.'
-    printf '  %s\n\n' "${TOKEN_VALUE}"
+    printf '  %s\n' "${TOKEN_VALUE}"
   fi
 
-  info "You can edit .env later to adjust runtime settings. See .env.example for details."
+  printf '\n'
+  if [[ "${REUSE_EXISTING_ENV}" == "true" ]]; then
+    info "Existing .env was kept and not modified. Values above were loaded from $(path_relative_to_pwd "${ENV_FILE}")."
+  fi
+  info "You can edit $(path_relative_to_pwd "${ENV_FILE}") later to adjust runtime settings. See .env.example for details."
 }
 
 # Enforce overwrite policy for existing .env according to mode.
@@ -558,8 +614,8 @@ check_env_overwrite_policy() {
 
   warn "Existing .env file found: $(path_relative_to_pwd "${ENV_FILE}")"
   if ! confirm "Overwrite it with a new runtime configuration?" "N"; then
-    info "Keeping existing .env. No changes were made."
-    exit 0
+    info "Keeping existing .env. Runtime values will be loaded from the current file."
+    REUSE_EXISTING_ENV=true
   fi
 }
 
@@ -570,10 +626,15 @@ main() {
 
   check_env_overwrite_policy
 
-  if [[ "${AUTO_MODE}" == "true" ]]; then
-    run_auto_flow
+  if [[ "${REUSE_EXISTING_ENV}" == "true" ]]; then
+    load_existing_env_configuration
+    validate_existing_env_host_port
   else
-    run_interactive_flow
+    if [[ "${AUTO_MODE}" == "true" ]]; then
+      run_auto_flow
+    else
+      run_interactive_flow
+    fi
   fi
 
   # Ensure runtime directories exist before token/.env writes.
@@ -582,7 +643,9 @@ main() {
 
   handle_token || exit 1
   resolve_token_output_policy
-  write_env_file
+  if [[ "${REUSE_EXISTING_ENV}" != "true" ]]; then
+    write_env_file
+  fi
   print_final_output
 }
 

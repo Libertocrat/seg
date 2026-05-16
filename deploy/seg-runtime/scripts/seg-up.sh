@@ -9,6 +9,7 @@ source "${SCRIPT_DIR}/helpers/common.sh"
 PULL_MODE=false
 WAIT_MODE=true
 SILENT_MODE=false
+PRODUCTION_MODE=false
 
 # Print CLI usage and examples.
 usage() {
@@ -17,19 +18,21 @@ Usage:
 	seg-up.sh [options]
 
 Description:
-	Starts the SEG runtime stack using the generated .env file and local secret.
+	Starts the SEG runtime stack using the generated .env file and local SEG API token file.
 
 Options:
-	--pull       Pull the configured SEG image before starting.
-	--no-wait    Do not wait for /health after starting containers.
-	--dry-run    Print commands without executing them.
-	--silent     Suppress normal stdout output. Warnings and errors still go to stderr.
-	-h, --help   Show this help.
+	--pull        Pull the configured SEG image before starting.
+	--no-wait     Do not wait for /health after starting containers.
+	--production  Use hardened SEG API token file permissions before startup.
+	--dry-run     Print commands without executing them.
+	--silent      Suppress normal stdout output. Warnings and errors still go to stderr.
+	-h, --help    Show this help.
 
 Examples:
 	./scripts/seg-up.sh
 	./scripts/seg-up.sh --pull
 	./scripts/seg-up.sh --no-wait
+	./scripts/seg-up.sh --production
 	./scripts/seg-up.sh --silent
 	./scripts/seg-up.sh --dry-run
 EOF
@@ -45,6 +48,10 @@ parse_args() {
 				;;
 			--no-wait)
 				WAIT_MODE=false
+				shift
+				;;
+			--production)
+				PRODUCTION_MODE=true
 				shift
 				;;
 			--dry-run)
@@ -76,27 +83,6 @@ validate_cli_flags() {
 	fi
 }
 
-# Silent-mode wrappers: normal stdout output is suppressed when requested.
-say_info() {
-	[[ "${SILENT_MODE}" == "true" ]] && return 0
-	info "$@"
-}
-
-say_success() {
-	[[ "${SILENT_MODE}" == "true" ]] && return 0
-	success "$@"
-}
-
-say_section() {
-	[[ "${SILENT_MODE}" == "true" ]] && return 0
-	section "$@"
-}
-
-say_step() {
-	[[ "${SILENT_MODE}" == "true" ]] && return 0
-	step "$@"
-}
-
 # Run Docker Compose commands while honoring dry-run and silent mode.
 compose_quiet_if_silent() {
 	if [[ "${SILENT_MODE}" == "true" ]]; then
@@ -125,6 +111,8 @@ validate_runtime_env() {
 	require_runtime_env_value SEG_HOST_PORT
 	require_runtime_env_value SEG_PORT
 	require_runtime_env_value SEG_ROOT_DIR
+	require_runtime_env_value SEG_CONTAINER_UID
+	require_runtime_env_value SEG_CONTAINER_GID
 
 	if ! is_safe_docker_name "${SEG_SHARED_NETWORK}"; then
 		die "SEG_SHARED_NETWORK must use letters, numbers, dots, underscores or dashes. Current value: ${SEG_SHARED_NETWORK}"
@@ -153,6 +141,14 @@ validate_runtime_env() {
 	if [[ "${SEG_ROOT_DIR}" != /* ]]; then
 		die "SEG_ROOT_DIR must be an absolute container path. Current value: ${SEG_ROOT_DIR}"
 	fi
+
+	if ! is_int "${SEG_CONTAINER_UID}" || (( SEG_CONTAINER_UID < 0 )); then
+		die "SEG_CONTAINER_UID must be a non-negative integer. Current value: ${SEG_CONTAINER_UID}"
+	fi
+
+	if ! is_int "${SEG_CONTAINER_GID}" || (( SEG_CONTAINER_GID < 0 )); then
+		die "SEG_CONTAINER_GID must be a non-negative integer. Current value: ${SEG_CONTAINER_GID}"
+	fi
 }
 
 # Validate an existing token only; this startup script must never generate tokens.
@@ -172,40 +168,165 @@ validate_existing_token_file() {
 	return 0
 }
 
-# Keep host user as owner, grant SEG container group read access, and use mode 0640.
-set_secret_file_permissions() {
-	local host_uid
-	local expected_group
-	local secret_path_display
+# Return success if it is safe to ask the user for sudo escalation.
+can_prompt_for_sudo() {
+	[[ "${PRODUCTION_MODE}" == "true" ]] && \
+	[[ "${SILENT_MODE}" != "true" ]] && \
+	[[ -t 0 ]] && \
+	command_exists sudo
+}
 
-	host_uid="$(id -u)"
-	expected_group="${SEG_CONTAINER_GID:-}"
-	secret_path_display="$(path_relative_to_pwd "${SEG_SECRET_FILE}")"
+# Ask before running the minimum sudo commands needed for hardened permissions.
+# This helper never asks users to run the whole script with sudo.
+apply_secret_permissions_with_sudo_prompt() {
+	local host_uid="${1:?host uid is required}"
+	local expected_gid="${2:?expected gid is required}"
+	local secret_path_display="${3:?secret path display is required}"
 
-	if ! is_non_empty "${expected_group}"; then
-		error "Missing required runtime variable: SEG_CONTAINER_GID"
+	warn "Hardened production token permissions require changing the token group to ${expected_gid}."
+	warn "This may require sudo on your system."
+
+	if ! can_prompt_for_sudo; then
+		error "Failed to set SEG API token ownership to ${host_uid}:${expected_gid}."
+		error "Run: sudo chown ${host_uid}:${expected_gid} ${secret_path_display}"
+		error "Run: sudo chmod 640 ${secret_path_display}"
 		return 1
 	fi
 
-	if [[ "${DRY_RUN:-false}" == "true" ]]; then
-		run chown "${host_uid}:${expected_group}" "${secret_path_display}"
-		run chmod 640 "${secret_path_display}"
+	if ! confirm "Apply hardened token permissions with sudo now?" "N"; then
+		error "Production startup requires hardened token permissions."
+		error "Run: sudo chown ${host_uid}:${expected_gid} ${secret_path_display}"
+		error "Run: sudo chmod 640 ${secret_path_display}"
+		return 1
+	fi
+
+	if ! sudo chown "${host_uid}:${expected_gid}" "${SEG_SECRET_FILE}"; then
+		error "sudo chown failed for SEG API token file."
+		return 1
+	fi
+
+	if ! sudo chmod 640 "${SEG_SECRET_FILE}"; then
+		error "sudo chmod failed for SEG API token file."
+		return 1
+	fi
+
+	say_success "${SILENT_MODE}" "SEG API token permissions set for production runtime using sudo."
+	return 0
+}
+
+# Default mode: keep host ownership and allow container reads via others-read.
+set_secret_file_permissions_default() {
+	local current_uid
+	local current_gid
+	local current_mode
+	local secret_path_display
+
+	secret_path_display="$(path_relative_to_pwd "${SEG_SECRET_FILE}")"
+
+	if ! read -r current_uid current_gid current_mode < <(read_file_state "${SEG_SECRET_FILE}"); then
+		error "Failed to inspect SEG API token file permissions."
+		return 1
+	fi
+
+	if [[ "${current_mode}" == "644" ]]; then
+		say_success "${SILENT_MODE}" "SEG API token permissions already match default runtime mode (644)."
 		return 0
 	fi
 
-	if ! chown "${host_uid}:${expected_group}" "${SEG_SECRET_FILE}" 2>/dev/null; then
-		error "Failed to set SEG API token ownership to ${host_uid}:${expected_group}."
-		error "Manually run: sudo chown ${host_uid}:${expected_group} ${secret_path_display}"
+	if [[ "${DRY_RUN:-false}" == "true" ]]; then
+		run chmod 644 "${secret_path_display}"
+		return 0
+	fi
+
+	if ! chmod 644 "${SEG_SECRET_FILE}" 2>/dev/null; then
+		error "Failed to set SEG API token permissions to 644 for default startup."
+		error "Run: chmod 644 ${secret_path_display}"
 		return 1
 	fi
 
-	if ! chmod 640 "${SEG_SECRET_FILE}" 2>/dev/null; then
-		error "Failed to set SEG API token permissions to 640."
-		error "Manually run: sudo chmod 640 ${secret_path_display}"
+	say_success "${SILENT_MODE}" "SEG API token permissions set for default runtime mode (644)."
+	return 0
+}
+
+# Production mode: owner host UID, group SEG_CONTAINER_GID, and mode 0640.
+# File-based secrets depend on host readability, so inspect first and mutate only if needed.
+set_secret_file_permissions_production() {
+	local host_uid
+	local expected_gid
+	local current_uid
+	local current_gid
+	local current_mode
+	local secret_path_display
+	local needs_chown=false
+	local needs_chmod=false
+
+	host_uid="$(id -u)"
+	expected_gid="${SEG_CONTAINER_GID}"
+	secret_path_display="$(path_relative_to_pwd "${SEG_SECRET_FILE}")"
+
+	if ! read -r current_uid current_gid current_mode < <(read_file_state "${SEG_SECRET_FILE}"); then
+		error "Failed to inspect SEG API token file permissions."
 		return 1
+	fi
+
+	if [[ "${current_uid}" != "${host_uid}" || "${current_gid}" != "${expected_gid}" ]]; then
+		needs_chown=true
+	fi
+
+	if [[ "${current_mode}" != "640" ]]; then
+		needs_chmod=true
+	fi
+
+	if [[ "${needs_chown}" == "false" ]]; then
+		say_success "${SILENT_MODE}" "SEG API token owner/group already match production runtime requirements."
+	fi
+
+	if [[ "${needs_chmod}" == "false" ]]; then
+		say_success "${SILENT_MODE}" "SEG API token permissions already match production runtime mode (640)."
+	fi
+
+	if [[ "${needs_chown}" == "false" && "${needs_chmod}" == "false" ]]; then
+		return 0
+	fi
+
+	if [[ "${DRY_RUN:-false}" == "true" ]]; then
+		if [[ "${needs_chown}" == "true" ]]; then
+			run chown "${host_uid}:${expected_gid}" "${secret_path_display}"
+		fi
+		if [[ "${needs_chmod}" == "true" ]]; then
+			run chmod 640 "${secret_path_display}"
+		fi
+		return 0
+	fi
+
+	if [[ "${needs_chown}" == "true" ]]; then
+		if ! chown "${host_uid}:${expected_gid}" "${SEG_SECRET_FILE}" 2>/dev/null; then
+			apply_secret_permissions_with_sudo_prompt "${host_uid}" "${expected_gid}" "${secret_path_display}"
+			return $?
+		fi
+		say_success "${SILENT_MODE}" "SEG API token owner/group set for production runtime."
+	fi
+
+	if [[ "${needs_chmod}" == "true" ]]; then
+		if ! chmod 640 "${SEG_SECRET_FILE}" 2>/dev/null; then
+			error "Failed to set SEG API token permissions to 640."
+			error "Run: sudo chmod 640 ${secret_path_display}"
+			return 1
+		fi
+		say_success "${SILENT_MODE}" "SEG API token permissions set for production runtime mode (640)."
 	fi
 
 	return 0
+}
+
+# Set file-based token permissions required before Docker Compose startup.
+# A future seg-down.sh can restore restrictive mode 0600 after shutdown.
+set_secret_file_permissions() {
+	if [[ "${PRODUCTION_MODE}" == "true" ]]; then
+		set_secret_file_permissions_production
+	else
+		set_secret_file_permissions_default
+	fi
 }
 
 # Warn when user-specs is missing; seg-configure.sh is responsible for creating it.
@@ -221,11 +342,11 @@ check_user_specs_dir() {
 # Ensure the external Docker network exists before compose startup.
 ensure_docker_network() {
 	if docker network inspect "${SEG_SHARED_NETWORK}" >/dev/null 2>&1; then
-		say_success "Docker network exists: ${SEG_SHARED_NETWORK}"
+		say_success "${SILENT_MODE}" "Docker network exists: ${SEG_SHARED_NETWORK}"
 		return 0
 	fi
 
-	say_info "Creating Docker network: ${SEG_SHARED_NETWORK}"
+	say_info "${SILENT_MODE}" "Creating Docker network: ${SEG_SHARED_NETWORK}"
 
 	if [[ "${DRY_RUN:-false}" == "true" ]]; then
 		run docker network create "${SEG_SHARED_NETWORK}"
@@ -233,7 +354,7 @@ ensure_docker_network() {
 		run docker network create "${SEG_SHARED_NETWORK}" >/dev/null
 	fi
 
-	say_success "Docker network ready: ${SEG_SHARED_NETWORK}"
+	say_success "${SILENT_MODE}" "Docker network ready: ${SEG_SHARED_NETWORK}"
 }
 
 # Wait for the health endpoint and show diagnostics on timeout (except silent mode).
@@ -244,11 +365,11 @@ wait_for_health() {
 	local url
 
 	url="$(health_url)"
-	say_info "Waiting for SEG health endpoint: ${url}"
+	say_info "${SILENT_MODE}" "Waiting for SEG health endpoint: ${url}"
 
 	while (( elapsed < timeout_seconds )); do
 		if curl -fsS "${url}" >/dev/null 2>&1; then
-			say_success "SEG health endpoint is ready."
+			say_success "${SILENT_MODE}" "SEG health endpoint is ready."
 			return 0
 		fi
 
@@ -272,11 +393,16 @@ wait_for_health() {
 # Print a runtime summary after successful startup.
 print_final_output() {
 	local docs_state="disabled by SEG_ENABLE_DOCS=false"
+	local secret_mode="default mode (644 while runtime is active)"
 
 	[[ "${SILENT_MODE}" == "true" ]] && return 0
 
 	if [[ "${SEG_ENABLE_DOCS:-false}" == "true" ]]; then
 		docs_state="$(docs_url)"
+	fi
+
+	if [[ "${PRODUCTION_MODE}" == "true" ]]; then
+		secret_mode="production mode (640, group ${SEG_CONTAINER_GID})"
 	fi
 
 	section "SEG Runtime Started"
@@ -291,10 +417,11 @@ print_final_output() {
 	printf '  %-27s %s\n' "Data volume:" "${SEG_DATA_VOLUME}"
 
 	printf '\nFiles and directories:\n'
-	printf '  %-27s %s\n' ".env" "ready"
-	printf '  %-27s %s\n' "SEG API token file" "secrets/seg_api_token.txt"
-	printf '  %-27s %s\n' "User specs directory" "user-specs/"
-	printf '  %-27s %s\n' "Custom YAML modules" "place .yml/.yaml files in user-specs/"
+	printf '  %-27s %s\n' ".env file" "$(path_relative_to_pwd "${SEG_ENV_FILE}")"
+	printf '  %-27s %s\n' "SEG API token file" "$(path_relative_to_pwd "${SEG_SECRET_FILE}")"
+	printf '  %-27s %s\n' "Token permission mode" "${secret_mode}"
+	printf '  %-27s %s\n' "User specs directory" "$(path_relative_to_pwd "${SEG_USER_SPECS_DIR}")"
+	printf '  %-27s %s\n' "Custom YAML modules" "place .yml/.yaml files in $(path_relative_to_pwd "${SEG_USER_SPECS_DIR}")"
 
 	printf '\nAPI surface:\n'
 	printf '  %-27s %s\n' "Files API" "/v1/files"
@@ -314,7 +441,7 @@ main() {
 	parse_args "$@"
 	validate_cli_flags
 
-	say_section "SEG Runtime Startup"
+	say_section "${SILENT_MODE}" "SEG Runtime Startup"
 
 	require_docker
 	require_docker_compose
@@ -340,16 +467,16 @@ main() {
 	ensure_docker_network
 
 	if [[ "${PULL_MODE}" == "true" ]]; then
-		say_step "Pull SEG runtime image"
+		say_step "${SILENT_MODE}" "Pull SEG runtime image"
 		compose_quiet_if_silent pull seg-core
 	fi
 
-	say_step "Start SEG runtime stack"
+	say_step "${SILENT_MODE}" "Start SEG runtime stack"
 	compose_quiet_if_silent up -d
 
 	if [[ "${WAIT_MODE}" == "true" ]]; then
 		if [[ "${DRY_RUN:-false}" == "true" ]]; then
-			say_info "Skipping health wait in dry-run mode."
+			say_info "${SILENT_MODE}" "Skipping health wait in dry-run mode."
 		else
 			wait_for_health
 		fi
