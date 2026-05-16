@@ -18,7 +18,6 @@ RUN apt-get update \
     && apt-get dist-upgrade -y \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
-        curl \
         libmagic1 \
         file \
     && apt-get purge -y --auto-remove \
@@ -68,4 +67,4 @@ CMD ["sh", "-c", "uvicorn --factory seg.app:create_app --host 0.0.0.0 --port ${S
 
 # Healthcheck hits internal health endpoint
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl --fail http://localhost:${SEG_PORT}/health || exit 1
+  CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"SEG_PORT\", \"8080\")}/health', timeout=2).read()" || exit 1
