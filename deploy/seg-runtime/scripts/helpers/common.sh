@@ -104,6 +104,58 @@ step() {
     printf '%b[INFO]%b Step %d: %s\n' "${SEG_COLOR_INFO}" "${SEG_COLOR_RESET}" "${SEG_STEP_COUNTER}" "$*"
 }
 
+# Print info unless the caller enables silent mode.
+say_info() {
+    local silent_mode="false"
+
+    if [[ "${1:-}" == "true" || "${1:-}" == "false" ]]; then
+        silent_mode="$1"
+        shift || true
+    fi
+
+    [[ "${silent_mode}" == "true" ]] && return 0
+    info "$@"
+}
+
+# Print success unless the caller enables silent mode.
+say_success() {
+    local silent_mode="false"
+
+    if [[ "${1:-}" == "true" || "${1:-}" == "false" ]]; then
+        silent_mode="$1"
+        shift || true
+    fi
+
+    [[ "${silent_mode}" == "true" ]] && return 0
+    success "$@"
+}
+
+# Print section headers unless the caller enables silent mode.
+say_section() {
+    local silent_mode="false"
+
+    if [[ "${1:-}" == "true" || "${1:-}" == "false" ]]; then
+        silent_mode="$1"
+        shift || true
+    fi
+
+    [[ "${silent_mode}" == "true" ]] && return 0
+    section "$@"
+}
+
+# Print numbered steps unless the caller enables silent mode.
+say_step() {
+    local silent_mode="false"
+
+    if [[ "${1:-}" == "true" || "${1:-}" == "false" ]]; then
+        silent_mode="$1"
+        shift || true
+    fi
+
+    [[ "${silent_mode}" == "true" ]] && return 0
+    step "$@"
+}
+
 # -----------------------------------------------------------------------------
 # Internal helpers
 # -----------------------------------------------------------------------------
@@ -114,6 +166,12 @@ trim() {
     value="${value#"${value%%[![:space:]]*}"}"
     value="${value%"${value##*[![:space:]]}"}"
     printf '%s' "${value}"
+}
+
+# Inspect a file state and print owner UID, group GID, and octal mode.
+read_file_state() {
+    local file_path="${1:?file path is required}"
+    stat -c '%u %g %a' "${file_path}"
 }
 
 # Return a path relative to the active shell directory when possible.
